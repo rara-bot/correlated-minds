@@ -1,0 +1,519 @@
+<title>Correlated Minds</title>
+<style>
+  :root{
+    --ground:#F4F5F7; --surface:#FFFFFF; --surface-2:#EDEFF2;
+    --ink:#14181F; --ink-2:#454D5A; --ink-3:#6B7381;
+    --rule:#DCDFE5; --rule-2:#C6CBD3;
+    --accent:#14605F; --accent-soft:#E0ECEB; --accent-line:#8FBDBA;
+    --crit:#9E3B2C; --crit-soft:#F5E4E1;
+    --warn:#8A6516; --warn-soft:#F6EDDB;
+    --ok:#2E6B45; --ok-soft:#E1EEE6;
+    --serif:ui-serif,Georgia,"Iowan Old Style","Times New Roman",serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0E1116; --surface:#151A21; --surface-2:#1B212A;
+      --ink:#E6E9EE; --ink-2:#A3ACB9; --ink-3:#79838F;
+      --rule:#262C35; --rule-2:#333B46;
+      --accent:#4FB3AC; --accent-soft:#132A2B; --accent-line:#2C5F5D;
+      --crit:#D9705E; --crit-soft:#2A1A17;
+      --warn:#C9A24A; --warn-soft:#26200F;
+      --ok:#6BB98A; --ok-soft:#152318;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0E1116; --surface:#151A21; --surface-2:#1B212A;
+    --ink:#E6E9EE; --ink-2:#A3ACB9; --ink-3:#79838F;
+    --rule:#262C35; --rule-2:#333B46;
+    --accent:#4FB3AC; --accent-soft:#132A2B; --accent-line:#2C5F5D;
+    --crit:#D9705E; --crit-soft:#2A1A17;
+    --warn:#C9A24A; --warn-soft:#26200F;
+    --ok:#6BB98A; --ok-soft:#152318;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--serif); font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px 96px;}
+  .col{max-width:68ch;}
+
+  /* ---- masthead ---- */
+  header{
+    border-bottom:1px solid var(--rule); padding:44px 0 30px; margin-bottom:44px;
+    display:flex; flex-direction:column; gap:22px;
+  }
+  .meta-row{
+    display:flex; flex-wrap:wrap; gap:10px 26px;
+    font-family:var(--mono); font-size:11px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ink-3);
+  }
+  .meta-row b{color:var(--ink-2); font-weight:600;}
+  h1{
+    font-size:clamp(38px,6.2vw,60px); line-height:1.02; margin:0;
+    letter-spacing:-.021em; text-wrap:balance; font-weight:600;
+  }
+  .standfirst{
+    font-size:clamp(18px,2.3vw,21px); line-height:1.5; color:var(--ink-2);
+    margin:0; max-width:60ch; text-wrap:balance;
+  }
+
+  /* ---- structure ---- */
+  section{margin:0 0 60px;}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 12px;
+    display:flex; align-items:center; gap:11px;
+  }
+  .eyebrow::after{content:""; flex:1; height:1px; background:var(--rule); max-width:120px;}
+  h2{
+    font-size:clamp(25px,3.4vw,31px); line-height:1.16; margin:0 0 16px;
+    letter-spacing:-.014em; text-wrap:balance; font-weight:600;
+  }
+  h3{
+    font-size:19px; line-height:1.3; margin:32px 0 10px;
+    letter-spacing:-.006em; font-weight:600;
+  }
+  p{margin:0 0 15px;}
+  .col > p:last-child{margin-bottom:0;}
+  a{color:var(--accent); text-underline-offset:2px;}
+  strong{font-weight:660;}
+  em.term{font-style:italic; color:var(--ink);}
+
+  /* ---- hero figure ---- */
+  figure{margin:0; background:var(--surface); border:1px solid var(--rule); padding:26px 24px 20px;}
+  .fig-scroll{overflow-x:auto;}
+  figure svg{display:block; width:100%; min-width:520px; height:auto;}
+  figcaption{
+    margin-top:18px; padding-top:16px; border-top:1px solid var(--rule);
+    font-size:14.5px; line-height:1.55; color:var(--ink-2); max-width:72ch;
+  }
+  .formula{
+    font-family:var(--mono); font-size:15px; color:var(--ink);
+    background:var(--surface-2); border-left:2px solid var(--accent);
+    padding:13px 16px; margin:0 0 20px; overflow-x:auto;
+  }
+
+  /* ---- tables ---- */
+  .tscroll{overflow-x:auto; border:1px solid var(--rule); background:var(--surface);}
+  table{border-collapse:collapse; width:100%; min-width:600px; font-size:14.5px;}
+  th,td{padding:11px 15px; text-align:left; border-bottom:1px solid var(--rule); vertical-align:top;}
+  thead th{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-3); font-weight:600; background:var(--surface-2);
+    border-bottom:1px solid var(--rule-2); white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap;}
+  .cite{font-family:var(--mono); font-size:12px; color:var(--ink-3); white-space:nowrap;}
+  tr.win td{background:var(--accent-soft);}
+  tr.total td{font-weight:660; border-top:1px solid var(--rule-2);}
+
+  /* ---- chips ---- */
+  .chip{
+    display:inline-block; font-family:var(--mono); font-size:10px; letter-spacing:.08em;
+    text-transform:uppercase; padding:3px 8px; border:1px solid currentColor; white-space:nowrap;
+  }
+  .c-closed{color:var(--crit); background:var(--crit-soft);}
+  .c-partial{color:var(--warn); background:var(--warn-soft);}
+  .c-open{color:var(--ok); background:var(--ok-soft);}
+
+  /* ---- hypothesis cards ---- */
+  .hyps{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);}
+  .hyp{background:var(--surface); padding:20px 22px;}
+  .hyp .tag{
+    font-family:var(--mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--accent); display:block; margin-bottom:7px;
+  }
+  .hyp h4{margin:0 0 7px; font-size:17.5px; font-weight:600; letter-spacing:-.005em;}
+  .hyp p{margin:0; font-size:15px; line-height:1.55; color:var(--ink-2);}
+  .hyp .falsif{
+    margin-top:11px; padding-top:10px; border-top:1px dashed var(--rule-2);
+    font-family:var(--mono); font-size:12px; color:var(--ink-3); line-height:1.5;
+  }
+
+  /* ---- workstreams ---- */
+  .ws{display:grid; grid-template-columns:auto 1fr; gap:0 22px;}
+  .ws-id{
+    font-family:var(--mono); font-size:12px; color:var(--accent); font-weight:600;
+    padding-top:19px; white-space:nowrap;
+  }
+  .ws-body{padding:17px 0; border-bottom:1px solid var(--rule);}
+  .ws > .ws-id{border-bottom:1px solid var(--rule);}
+  .ws-body h4{margin:0 0 5px; font-size:17px; font-weight:600;}
+  .ws-body .when{font-family:var(--mono); font-size:11.5px; color:var(--ink-3); margin-bottom:7px;}
+  .ws-body p{margin:0; font-size:15px; line-height:1.55; color:var(--ink-2);}
+
+  /* ---- callout ---- */
+  .callout{
+    background:var(--surface); border:1px solid var(--rule);
+    border-left:3px solid var(--accent); padding:20px 24px; margin:0 0 22px;
+  }
+  .callout p:last-child{margin-bottom:0;}
+  .callout.alert{border-left-color:var(--crit);}
+
+  /* ---- decisions ---- */
+  ol.decisions{list-style:none; counter-reset:d; padding:0; margin:0; display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);}
+  ol.decisions li{
+    counter-increment:d; background:var(--surface); padding:20px 22px 20px 60px; position:relative;
+  }
+  ol.decisions li::before{
+    content:counter(d); position:absolute; left:22px; top:20px;
+    font-family:var(--mono); font-size:12px; color:var(--accent); font-weight:600;
+  }
+  ol.decisions h4{margin:0 0 6px; font-size:17px; font-weight:600;}
+  ol.decisions p{margin:0; font-size:15px; line-height:1.55; color:var(--ink-2);}
+
+  footer{border-top:1px solid var(--rule); padding-top:22px; margin-top:20px;
+    font-family:var(--mono); font-size:12px; color:var(--ink-3); line-height:1.7;}
+
+  @media (max-width:640px){
+    body{font-size:16px;}
+    .wrap{padding:0 18px 64px;}
+    .ws{grid-template-columns:1fr; gap:0;}
+    .ws-id{padding:16px 0 0; border-bottom:none;}
+    .ws-body{padding-top:5px;}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important;}}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="meta-row">
+    <span>Topic Selection Dossier</span>
+    <span><b>16 Aug 2026</b></span>
+    <span>Researcher &rarr; Research Director</span>
+    <span>Decision requested</span>
+  </div>
+  <h1>Correlated Minds</h1>
+  <p class="standfirst">Three regulators have named correlated AI behaviour a top financial-stability risk. Two 2026 papers model its consequences. Every one of them treats the amount of correlation as an assumed number — because nobody has measured it.</p>
+</header>
+
+<section>
+  <p class="eyebrow">The finding that reframes the search</p>
+  <div class="col">
+    <h2>The obvious topics closed during 2026</h2>
+    <p>I surveyed the AI&times;finance frontier against what ~180 hours can actually produce. Adversarial attacks on LLM traders, lookahead-bias benchmarks, demographic bias in LLM credit and investment advice, and algorithmic collusion each now carry multiple 2026 papers — one of them an NBER working paper under revision at <em class="term">AER</em>. Picking any of these means arriving second.</p>
+    <p>That closure is itself the useful result. It says the field has moved past “can AI do finance?” and “can AI be fooled?” to a harder question it has not yet equipped itself to answer.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Saturation map</p>
+  <div class="tscroll">
+    <table>
+      <thead><tr><th>Lane</th><th>Status</th><th>Who owns it</th><th class="cite">Ref</th></tr></thead>
+      <tbody>
+        <tr><td>Adversarial attacks on LLM traders</td><td><span class="chip c-closed">Closed</span></td><td>Headline manipulation cuts returns up to 17.7pp; automated red-teaming exists</td><td class="cite">2601.13082<br>2605.09185</td></tr>
+        <tr><td>Lookahead bias / contamination</td><td><span class="chip c-closed">Closed</span></td><td>Founding paper, benchmark, detector and mitigation all published</td><td class="cite">2309.17322<br>2601.13770</td></tr>
+        <tr><td>Algorithmic collusion</td><td><span class="chip c-closed">Closed</span></td><td>Dou/Goldstein/Ji (NBER, rev. <em class="term">AER</em>); Fish/Gonczarowski/Shorrer</td><td class="cite">NBER 34054<br>2404.00806</td></tr>
+        <tr><td>Demographic bias in credit &amp; advice</td><td><span class="chip c-closed">Closed</span></td><td>Mortgage, investment-advice and multi-agent audits all landed 2026</td><td class="cite">2507.22758<br>2604.23837</td></tr>
+        <tr><td>LLM ethics / deception under pressure</td><td><span class="chip c-closed">Closed</span></td><td>Apollo demo plus systematic CEPR follow-up</td><td class="cite">ICLR&nbsp;2024<br>CEPR</td></tr>
+        <tr><td>AI-to-AI information degradation</td><td><span class="chip c-closed">Closed</span></td><td>Telephone-game primitive established; finance version would be application</td><td class="cite">2407.04503<br>ACL&nbsp;2025</td></tr>
+        <tr><td>Error correlation &amp; effective ensemble size</td><td><span class="chip c-partial">Metric only</span></td><td>Formalised — but only on trivia, judge panels, prediction markets. <strong>Never finance. Never conditional.</strong></td><td class="cite">2506.07962<br>2605.00844</td></tr>
+        <tr><td>Systemic risk from AI homogeneity</td><td><span class="chip c-open">Open</span></td><td>Theory + regulator concern exist; the correlation parameter is <strong>assumed, never measured</strong></td><td class="cite">2604.22818<br>FSB / BoE / IMF</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">The gap</p>
+  <div class="col">
+    <h2>A policy debate running without its central number</h2>
+    <p>The <strong>FSB</strong> (Oct 2025), the <strong>Bank of England</strong> (Jul 2026) and the <strong>IMF</strong> (Jul 2026) have each named correlated behaviour across institutions running similar AI models as a top-tier stability risk. The BoE says it is “pursuing work on simulation methods… to understand conditions under which AI agents could demonstrate correlated behaviour or herding.”</p>
+    <p>Meanwhile the measurement tools were built in 2025–26 — error correlation, effective ensemble size — and applied to general forecasting, LLM-judge panels and prediction markets. The two literatures have not met. Supplying the missing number is a measurement problem, and measurement is precisely what a disciplined three-month program with no institutional data access can do better than anyone.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">The thesis in one identity</p>
+  <div class="formula">N_eff  =  M / (1 + (M &minus; 1) &rho;&#772;)</div>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 640 300" role="img" aria-label="Effective number of independent models against mean pairwise error correlation, for seven models. The curve falls from 7 at zero correlation to about 1.3 at correlation 0.75.">
+        <rect x="469.6" y="30" width="43.2" height="220" fill="var(--warn-soft)"/>
+        <g stroke="var(--rule)" stroke-width="1">
+          <line x1="70" y1="30" x2="610" y2="30"/><line x1="70" y1="103.3" x2="610" y2="103.3"/>
+          <line x1="70" y1="176.7" x2="610" y2="176.7"/><line x1="70" y1="250" x2="610" y2="250"/>
+        </g>
+        <g font-family="ui-monospace,Menlo,monospace" font-size="11" fill="var(--ink-3)">
+          <text x="60" y="34" text-anchor="end">7</text><text x="60" y="107" text-anchor="end">5</text>
+          <text x="60" y="180" text-anchor="end">3</text><text x="60" y="254" text-anchor="end">1</text>
+          <text x="70" y="272">0.0</text><text x="205" y="272" text-anchor="middle">0.25</text>
+          <text x="340" y="272" text-anchor="middle">0.50</text><text x="475" y="272" text-anchor="middle">0.75</text>
+          <text x="610" y="272" text-anchor="end">1.0</text>
+        </g>
+        <polyline fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"
+          points="70,30 97,89.2 124,126.3 151,151.6 178,170 205,184 232,195 259,203.9 286,211.2 313,217.3 340,222.5 367,227 394,230.9 421,234.3 448,237.3 475,240 502,242.4 529,244.6 556,246.6 583,248.4 610,250"/>
+        <circle cx="475" cy="240" r="4" fill="var(--accent)"/>
+        <g font-family="ui-monospace,Menlo,monospace" font-size="11" fill="var(--warn)">
+          <text x="491" y="52" text-anchor="middle">measured range,</text>
+          <text x="491" y="66" text-anchor="middle">other domains</text>
+          <text x="491" y="80" text-anchor="middle">&rho;&#772; = 0.74&ndash;0.82</text>
+        </g>
+        <g font-family="ui-monospace,Menlo,monospace" font-size="11.5" fill="var(--ink-2)">
+          <text x="497" y="228">&rarr; N_eff &asymp; 1.2&ndash;1.3</text>
+        </g>
+        <text x="24" y="140" font-family="ui-monospace,Menlo,monospace" font-size="11" fill="var(--ink-3)" transform="rotate(-90 24 140)" text-anchor="middle">N_eff</text>
+        <text x="340" y="292" font-family="ui-monospace,Menlo,monospace" font-size="11" fill="var(--ink-3)" text-anchor="middle">mean pairwise error correlation &rho;&#772;</text>
+      </svg>
+    </div>
+    <figcaption><strong>This curve is arithmetic, not a result.</strong> It plots the standard equicorrelated-mean identity for M&nbsp;=&nbsp;7 model families: M models whose errors correlate at &rho;&#772; reduce variance as if they were N_eff independent ones. The shaded band is the pairwise error correlation <em class="term">measured on general forecasting tasks</em> (arXiv 2605.00844) — a different domain, shown only to establish scale. At that level, seven models behave like one and a quarter. <strong>Whether finance sits there is the open question. Measuring it is the project.</strong></figcaption>
+  </figure>
+</section>
+
+<section>
+  <p class="eyebrow">Recommended program &mdash; candidate A</p>
+  <div class="col">
+    <h2>How many independent minds is the market actually getting?</h2>
+    <p>Finance already knows one version of this pathology: correlations go to 1 in a crisis, so diversification fails exactly when it is needed. The hypothesis is that <strong>AI cognition has the same pathology, for a mechanistic reason.</strong></p>
+    <p>When evidence is strong, models are driven by the evidence. When evidence is weak, ambiguous or novel, they fall back on priors — and because they share enormous overlap in pretraining data, those priors are <em class="term">shared</em>. Errors should therefore decouple in calm states and lock together in stressed ones. If that holds, the effective number of independent minds in an AI-mediated market is not a constant. It is a function of market state that declines into the tail.</p>
+    <p>One methodological commitment underwrites everything: we correlate <strong>errors, not outputs</strong>. Output similarity is inflated by the task merely having a right answer. Error correlation nets that out and isolates shared <em class="term">wrongness</em> — the only kind that is dangerous. The closest theory paper draws exactly this distinction, then does not measure it.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Hypotheses &mdash; pre-registered before collection</p>
+  <div class="hyps">
+    <div class="hyp">
+      <span class="tag">H1 · Conditional collapse</span>
+      <h4>N_eff falls as stress and ambiguity rise</h4>
+      <p>Every existing measurement is unconditional — a single scalar. The conditional structure is the entire fragility story, and it is untouched.</p>
+      <p class="falsif">FALSIFIED IF stress-quintile coefficient is null at 95% after multiple-testing correction.</p>
+    </div>
+    <div class="hyp">
+      <span class="tag">H2 · Shared-prior mechanism</span>
+      <h4>The collapse is prior fallback, not noise</h4>
+      <p>In high-ambiguity states the consensus should be predictable from base rates and largely insensitive to the evidence actually presented.</p>
+      <p class="falsif">FALSIFIED IF consensus tracks evidence strength equally across ambiguity terciles.</p>
+    </div>
+    <div class="hyp">
+      <span class="tag">H3 · The diversification illusion</span>
+      <h4>Prompt diversity buys nothing; family diversity buys a little</h4>
+      <p>If true, every risk manager running an “ensemble” on one vendor’s model holds a diversification strategy that does nothing. Cheapest test, shortest path to real-world consequence.</p>
+      <p class="falsif">FALSIFIED IF intra-model &Delta;N_eff is statistically indistinguishable from cross-family &Delta;N_eff.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Elevation &mdash; from measurement to discovery</p>
+  <div class="col">
+    <h2>What turns this into a Grand Award</h2>
+    <p>Honest diagnosis: the spine above is <em class="term">“we measured a parameter well.”</em> That earns respect in a journal and rarely wins a fair. Awards go to projects with a different shape — a discovery, a mechanism, a prediction that was confirmed, an instrument you can hold. Four elevations close every gap, and three of them cost nothing.</p>
+  </div>
+  <div class="hyps" style="margin-top:22px;">
+    <div class="hyp">
+      <span class="tag">E1 · Highest value · $0</span>
+      <h4>A pre-registered prediction, tested out-of-sample</h4>
+      <p>Every paper in this literature fits a correlation to data already in hand. We have what none of them do — <strong>a panel that hasn’t happened yet.</strong> Calibrate on Weeks 1–5, then publicly commit a hashed numerical prediction: <em class="term">“on the next macro surprise above the 80th percentile, ρ̄ will exceed X and N_eff will fall below Y.”</em> Weeks 6–15 test it on events that did not exist when it was made.</p>
+      <p class="falsif">A CONFIRMED CONDITIONAL FORECAST IS A CATEGORICALLY STRONGER CLAIM THAN A FITTED COEFFICIENT. IF IT MISSES, WE REPORT THE MISS — THAT IS WHY WE PRE-REGISTER.</p>
+    </div>
+    <div class="hyp">
+      <span class="tag">E2 · Mechanism · $0</span>
+      <h4>Measure correlation at three levels, not one</h4>
+      <p><strong>Decision</strong> (do they reach the same call — what everyone measures), <strong>distribution</strong> (do they hold the same uncertainty — free, from token logprobs), and <strong>representation</strong> (do they encode the situation the same way — CKA over hidden states, local forward passes on small open-weight models).</p>
+      <p>The closest theory paper builds its entire argument on the distinction between representation homogeneity and forecast overlap, claims the former drives instability — <strong>and never measures either.</strong> We can test its central premise directly.</p>
+      <p class="falsif">FORWARD PASSES ONLY, NOT GENERATION — RUNS ON 8 GB AT 1.5–3B SCALE. STATED AS A MECHANISM PROBE ON SMALL OPEN MODELS, NOT ASSERTED AT FRONTIER SCALE.</p>
+    </div>
+    <div class="hyp">
+      <span class="tag">E3 · Reframed after checking · $0</span>
+      <h4>Lineage as a risk predictor — not a discovery</h4>
+      <p>Model phylogeny is <strong>already claimed</strong> (PhyloLM; LLM DNA; <em class="term">When Agents Look the Same</em>, Apr 2026, which finds within-family pairs more similar than cross-family across 18 models). So we don’t claim the tree — we <strong>use</strong> it: does known training lineage predict which pairs decorrelate under stress and which collapse together?</p>
+      <p class="falsif">STILL OPEN, AND DIRECTLY ACTIONABLE — IT GIVES A RISK MANAGER A RULE FOR WHICH MODELS ACTUALLY BUY INDEPENDENCE.</p>
+    </div>
+    <div class="hyp">
+      <span class="tag">E4 · The poster weapon · ~$15</span>
+      <h4>The independence meter</h4>
+      <p>Build it as a deployable instrument. A judge walks up, types a financial scenario, and seven models answer live. The dial reads <strong>6.2</strong>. Then they drag the <strong>ambiguity slider</strong> — evidence gets weaker — and watch the models converge and the dial collapse toward <strong>1.4</strong> in front of them.</p>
+      <p class="falsif">THIRTY SECONDS, VISCERAL, UNFORGETTABLE. IT ALSO REFRAMES THE PROJECT AS INSTRUMENTATION — A CLASSIC GRAND-AWARD SHAPE.</p>
+    </div>
+  </div>
+  <div class="col" style="margin-top:22px;">
+    <h3>What we cut to make room</h3>
+    <p>Elevations add ~90 hours; two trims fund them, and both are improvements. The <strong>retrospective arm shrinks to a validation set</strong> — it was always the weaker, contaminated evidence. And the <strong>agent simulation becomes a closed-form result</strong>: state price-impact and volatility scaling analytically as a function of N_eff instead of simulating an order book. Strictly better, because judges are rightly sceptical of simulation black boxes and a closed-form result cannot be accused of tuned parameters.</p>
+    <p>Net ~290 hours, unchanged. Budget unchanged at $200.</p>
+    <h3>The hook, before and after</h3>
+    <p style="color:var(--ink-3);">Before: <em class="term">“I measured how correlated AI financial decisions are.”</em></p>
+    <p><strong>After: “Seven AI models from seven different companies — and under market stress they stop being seven. I predicted when it would happen before it happened, traced it to how the models represent the situation internally, and built the instrument that measures it.”</strong></p>
+    <p>Discovery, confirmed prediction, mechanism, instrument. If ρ̄ reaches ~0.85 under stress, N_eff&nbsp;≈&nbsp;<strong>1.15</strong> — seven minds, one answer. We don’t know yet whether it will. That is the point of measuring.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Why it survives scrutiny</p>
+  <div class="col">
+    <h3>What we concede</h3>
+    <p>The metric is not ours — correlated LLM errors and effective ensemble size are established. Live contamination-free evaluation is not ours either. Both get cited prominently, and we claim neither.</p>
+    <h3>What is genuinely ours</h3>
+    <p>Financial decision tasks with <strong>economic loss functions</strong> — correlation on a Brier score is not correlation on a portfolio decision, because the second is weighted by money at risk. <strong>State-dependence</strong>, which no existing measurement attempts. <strong>Empirical calibration</strong> of the parameter the theory literature and three regulators currently have to guess. And <strong>transmission to prices</strong>, so the result carries an economic magnitude rather than just a coefficient.</p>
+    <h3>The contamination defence</h3>
+    <p>The standard kill-shot against LLM-finance work is that the model already knows the answer; a 2026 ensemble paper calls contamination “a pervasive confound.” We defeat it by construction: the prospective panel forecasts events that <strong>have not happened yet</strong> at the moment of the call. No amount of pretraining leaks an outcome that does not exist.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Workstreams</p>
+  <div class="ws">
+    <div class="ws-id">WS0</div>
+    <div class="ws-body"><h4>Instrument</h4><div class="when">Weeks 0–1</div><p>Multi-provider async client, pinned model IDs, full logging, cost accounting with a hard cap, content-addressed cache. Pre-registration frozen and timestamped before any data is collected. Local Python is 3.9.6 with no numpy or pandas — the venv is a real task, not an assumption.</p></div>
+    <div class="ws-id">WS1</div>
+    <div class="ws-body"><h4>Prospective panel — the spine</h4><div class="when">Weeks 1–10, daily</div><p>~30 decisions/day &times; 7 model families (21 pairs) on unresolved events: scheduled macro releases, upcoming earnings surprises, Kalshi/Polymarket contracts <em class="term">with a market-implied benchmark</em>, 8-K materiality ground-truthed on realised reaction, and a fixed-scenario allocation giving decision correlation weighted by money at risk.</p></div>
+    <div class="ws-id">WS2</div>
+    <div class="ws-body"><h4>Retrospective panel</h4><div class="when">Weeks 2–5</div><p>Historical tasks for statistical power and for stress states the live window may not contain. Contaminated by construction, so used only for power and cross-checking — never as a standalone claim. The WS1↔WS2 gap measures contamination’s effect on apparent diversity, which is a bonus result.</p></div>
+    <div class="ws-id">WS3</div>
+    <div class="ws-body"><h4>Econometrics</h4><div class="when">Weeks 5–9</div><p>N_eff with block-bootstrap CIs; state-dependence on VIX, realised vol, expectation dispersion, |surprise|, news volume, novelty; multiple-testing correction; shared-signal vs shared-error decomposition.</p></div>
+    <div class="ws-id">WS4</div>
+    <div class="ws-body"><h4>Transmission model</h4><div class="when">Weeks 7–10</div><p>Measured N_eff(s) enters a noisy rational-expectations market model. The point is the feedback loop: stress → higher &rho;&#772; → lower N_eff → more correlated order flow → more price impact → more stress. If measured state-dependence is strong enough, the loop self-reinforces above some AI participation share — <strong>a critical threshold</strong>. That phase diagram is the headline chart.</p></div>
+    <div class="ws-id">WS5</div>
+    <div class="ws-body"><h4>Mitigation</h4><div class="when">Weeks 8–10</div><p>Tests H3 and ranks what actually buys independence: cross-family &gt; architecture &gt; retrieval grounding &gt; persona &gt; prompt &gt; temperature. Yields a practitioner recommendation with numbers attached.</p></div>
+    <div class="ws-id">WS6</div>
+    <div class="ws-body"><h4>Artifacts and writing</h4><div class="when">Weeks 9–11</div><p>Open dataset, open-source <code>neff</code> toolkit, preprint, 20-page competition paper, poster, talk.</p></div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Candidate comparison</p>
+  <div class="tscroll">
+    <table>
+      <thead><tr><th>Criterion</th><th class="num">Wt</th><th class="num">A · Correlated Minds</th><th class="num">B · Machine-Optimised Disclosure</th><th class="num">C · Information Half-Life</th></tr></thead>
+      <tbody>
+        <tr><td>Novelty vs 2026 prior art</td><td class="num">10</td><td class="num">8</td><td class="num">6</td><td class="num">4</td></tr>
+        <tr><td>Feasibility in 180h, no institutional data</td><td class="num">10</td><td class="num">9</td><td class="num">6</td><td class="num">8</td></tr>
+        <tr><td>Falsifiability / clean design</td><td class="num">10</td><td class="num">9</td><td class="num">6</td><td class="num">6</td></tr>
+        <tr><td>Societal + policy significance</td><td class="num">10</td><td class="num">10</td><td class="num">6</td><td class="num">4</td></tr>
+        <tr><td>Judge legibility &amp; demo quality</td><td class="num">5</td><td class="num">4</td><td class="num">3</td><td class="num">3</td></tr>
+        <tr><td>Null-result survivability</td><td class="num">5</td><td class="num">4</td><td class="num">4</td><td class="num">2</td></tr>
+        <tr class="total win"><td>Total</td><td class="num">50</td><td class="num">44</td><td class="num">31</td><td class="num">27</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:14px; font-size:15px; color:var(--ink-2); max-width:68ch;">B and C are real projects and I would run either. B is the generative-era successor to Cao et al. (<em class="term">RFS</em> 2023) — but an SSRN paper already sits adjacent to it and identification is harder. C is weaker because the underlying primitive is already established.</p>
+</section>
+
+<section>
+  <p class="eyebrow">Schedule &mdash; 31 December deadline</p>
+  <div class="callout">
+    <p><strong>The December deadline buys 15 weeks of collection instead of 9.</strong> That is the single biggest quality gain available, and it costs nothing: H1 is a hypothesis about stress states, and longer windows contain more of them. The plan below carries two weeks of genuine buffer before the freeze.</p>
+  </div>
+  <div class="tscroll">
+    <table>
+      <thead><tr><th>Phase</th><th>Dates</th><th class="num">Hrs</th></tr></thead>
+      <tbody>
+        <tr><td>Week 0 — environment, pre-registration hash, GitHub Actions cron, 200-call pilot</td><td>Aug 17–23</td><td class="num">15</td></tr>
+        <tr><td><strong>WS1 goes live</strong>; WS2 build + collection</td><td>Aug 24–Sep 20</td><td class="num">60</td></tr>
+        <tr><td>First &rho;&#772; read; <strong>H3 expansion go/no-go</strong></td><td>Sep 21–27</td><td class="num">15</td></tr>
+        <tr><td>WS3 econometrics; <strong>preprint posted</strong> — priority defence</td><td>Sep 28–Oct 18</td><td class="num">45</td></tr>
+        <tr><td>WS4 market model + calibration</td><td>Oct 19–Nov 8</td><td class="num">45</td></tr>
+        <tr><td>WS5 mitigation experiments</td><td>Nov 9–22</td><td class="num">30</td></tr>
+        <tr><td>Buffer; <strong>data freeze 6 Dec</strong></td><td>Nov 23–Dec 6</td><td class="num">30</td></tr>
+        <tr class="total"><td>Final analysis, figures, paper, open artifacts</td><td>Dec 7–31</td><td class="num">290</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:14px; font-size:15px; color:var(--ink-2); max-width:68ch;">Conference targets fall after this window — ICLR 2027 workshops (~Feb), ICAIF’27 (~Aug). Nearly every 2026 deadline has already passed, so the 2027 cycle is the real target and the longer panel costs nothing in venue terms.</p>
+</section>
+
+<section>
+  <p class="eyebrow">Risk register</p>
+  <div class="tscroll">
+    <table>
+      <thead><tr><th>Risk</th><th class="num">Lik.</th><th class="num">Impact</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td>Scooped — the area is hot</td><td class="num">High</td><td class="num">High</td><td>Week-6 preprint on partial results. <strong>The prospective dataset cannot be built retroactively</strong> — a competitor starting in October cannot reconstruct our September observations at any price.</td></tr>
+        <tr><td>H1 returns null</td><td class="num">Med</td><td class="num">Med</td><td>H3 and the first financial N_eff stand alone. No single-hypothesis dependency.</td></tr>
+        <tr><td>Provider silently updates a model mid-panel</td><td class="num">High</td><td class="num">Med</td><td>Pin and log model IDs daily; treat as covariate. Version drift inside a panel is itself publishable.</td></tr>
+        <tr><td>Live window contains no stress episode</td><td class="num">Med</td><td class="num">High</td><td>WS2 supplies historical stress; extend window if ISEF-only.</td></tr>
+        <tr><td>API cost overrun</td><td class="num">Med</td><td class="num">Low</td><td>Hard cap enforced in code; open-weight families fall back to local inference.</td></tr>
+        <tr><td>Ground-truth resolution lag</td><td class="num">Med</td><td class="num">Med</td><td>Weight task mix toward fast-resolving events.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:14px; font-size:15px; color:var(--ink-2); max-width:68ch;">The design has no single point of failure: three independent findings, two independent data sources, and a theory component that stands even if an empirical arm underdelivers.</p>
+</section>
+
+<section>
+  <p class="eyebrow">Infrastructure &mdash; verified 16 Aug 2026</p>
+  <div class="tscroll">
+    <table>
+      <thead><tr><th>Resource</th><th>Status</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>SEC EDGAR submissions + full-text + XBRL</td><td><span class="chip c-open">Live</span></td><td>Free, no key. Full-text returns real hits back to 2001.</td></tr>
+        <tr><td>Kalshi public market data</td><td><span class="chip c-open">Live</span></td><td>No auth. CFTC-regulated — gives a market-implied probability benchmark.</td></tr>
+        <tr><td>Polymarket Gamma</td><td><span class="chip c-open">Live</span></td><td>No auth, ~1,000 calls/hr.</td></tr>
+        <tr><td>JKP Global Factor Data</td><td><span class="chip c-open">Live</span></td><td>153 characteristics, 93 countries, free without WRDS.</td></tr>
+        <tr><td>FRED</td><td><span class="chip c-partial">Key needed</span></td><td>Returns 400 without one; key is free.</td></tr>
+        <tr><td>Stooq daily prices</td><td><span class="chip c-closed">Unusable</span></td><td><strong>Returns HTTP 200 but the body is a proof-of-work challenge.</strong> Status code alone would have misled us. Use yfinance / Tiingo instead.</td></tr>
+        <tr><td>Local Python</td><td><span class="chip c-partial">Bare</span></td><td>3.9.6, no numpy, no pandas. Week-0 task.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Budget</p>
+  <div class="col">
+    <p><strong>The whole program fits in $200.</strong> Two findings came from checking rather than assuming, and both shape how.</p>
+    <p><strong>Claude Pro cannot be the instrument.</strong> It is a consumer subscription, not API credits — and the distinction is methodological, not just billing. The study needs seven <em class="term">different</em> model families with pinned IDs and logged raw responses; H3 is specifically the intra-model versus cross-family contrast, so a single-vendor panel cannot test it at all. Pro stays valuable for building the harness and running the analysis; the measurement needs separate credits.</p>
+    <p><strong>Local inference is largely closed</strong> on this machine — M1 with <strong>8&nbsp;GB of RAM</strong>. That reverses my earlier “run open-weight locally to save money” suggestion: 8&nbsp;GB runs a 3B–7B quantised model too slowly for a 105-day panel, and that tier isn’t representative of deployed systems anyway. Open-weight families go to hosted inference instead, which is cheap enough that it barely moves the total.</p>
+  </div>
+  <div class="col" style="margin-top:6px;">
+    <h3>The $200 build — and why the constraint improves the instrument</h3>
+    <p>The cap is $200 on top of Pro. That works, and the redesign is better science rather than a degraded version. Three moves.</p>
+    <p><strong>1 · Kill the reasoning tokens.</strong> The original estimate assumed 1,500 output tokens per call including extended thinking, and output bills at roughly 5&times; input — it dominated everything. Force a <strong>structured JSON response instead</strong>: probability, direction, confidence, one-sentence rationale. About 200 tokens. This is what we should have specified anyway — we correlate <em class="term">decisions</em>, not essays, and free-text rationales vary in length and style across families, injecting noise into the exact quantity we're estimating. Then run a <strong>10% subsample with extended reasoning on</strong>, which is where H2's mechanism analysis lives. We need rationale text from ~1,800 calls, not 18,000.</p>
+    <p><strong>2 · A mid-tier roster, which is also more representative.</strong> Seven families at mid-tier with one frontier anchor. The justification isn't only cost: <strong>mid-tier models are what institutions actually deploy for high-volume tasks</strong> — cost matters to them too. Sonnet 5 anchors the top end so we can still test whether tier affects correlation.</p>
+    <p><strong>3 · Caching and batching,</strong> as before — a 4,000-token stable prefix at ~0.1&times; on reads, and 50% off via the Batch API, since WS1 only needs the call <em class="term">made</em> before the event resolves.</p>
+  </div>
+  <div class="tscroll" style="margin-top:20px;">
+    <table>
+      <thead><tr><th>Arm</th><th class="num">Calls</th><th class="num">Cost</th></tr></thead>
+      <tbody>
+        <tr><td>WS1 prospective — 7 families &times; 25 tasks/day &times; 105 days</td><td class="num">18,375</td><td class="num">$33</td></tr>
+        <tr><td>WS2 retrospective</td><td class="num">10,000</td><td class="num">$18</td></tr>
+        <tr><td>WS5 mitigation</td><td class="num">7,000</td><td class="num">$13</td></tr>
+        <tr><td>H2 reasoning subsample — extended thinking</td><td class="num">1,800</td><td class="num">$36</td></tr>
+        <tr><td>Contingency +100% — pilot, failed batches, prompt reruns</td><td class="num">—</td><td class="num">$100</td></tr>
+        <tr class="total win"><td><strong>Total</strong></td><td class="num">~37,000</td><td class="num"><strong>$200</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col" style="margin-top:20px;">
+    <p>Free tiers on Gemini and Groq can pull real spend toward <strong>$120</strong>.</p>
+    <p><strong>What $200 costs versus $700:</strong> all seven families, the full fifteen-week window, and all three hypotheses survive adequately powered — ~315 observations per stress quintile instead of ~380. Tasks/day drops from 30 to 25. The one real loss is the five-variant H3 arm that would have made the diversification-illusion result unassailable; if the Week-5 interim read shows H3 is strong, adding variants on the <em class="term">cheap</em> families only costs about $25 and recovers most of it.</p>
+    <p><strong>What money cannot buy:</strong> fifteen weeks of prospective collection cannot be purchased faster, and a week not started is gone. The panel is the moat — <strong>starting Week 0 next week is worth more than any budget increase.</strong> If real cost per call overruns the estimate, tasks/day drops before the window ever shortens.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">One infrastructure decision worth flagging</p>
+  <div class="col">
+    <p>The panel must fire every day for 105 days, and a laptop that sleeps is not a dependable scheduler. Running it as a <strong>GitHub Actions cron job</strong> is free — and the commit history becomes a timestamped, tamper-evident record that every forecast was registered <em class="term">before</em> its event resolved.</p>
+    <p>That isn’t a workaround, it’s a methodological asset. The strongest objection to any LLM-forecasting result is “how do we know you didn’t run this after the fact?” A public commit log answers it in one line.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Decisions I need from you</p>
+  <div class="col" style="margin-bottom:20px;">
+    <p>Budget, timeline and venue are settled: <strong>$200</strong>, <strong>31 December</strong>, with the 2027 conference cycle as the submission target. One decision left.</p>
+  </div>
+  <ol class="decisions">
+    <li><h4>Pick the program</h4><p><strong>Correlated Minds</strong> is my recommendation — the only candidate where a named, live policy question is missing precisely the number we're positioned to produce. The full slate of seven ideas, each costed and checked against 2026 prior art, is in <strong>IDEAS.md</strong>. The strongest alternative is <strong>Reading the Fed</strong> (do LLMs interpret central-bank communication the way markets do?), which is cheaper at ~$40 and shares infrastructure — so it can run as a companion study at almost no marginal cost.</p></li>
+  </ol>
+  <div class="callout" style="margin-top:22px;">
+    <p>On your go, Week 0 starts with the pre-registration document and the measurement harness — both built and tested <strong>before a single data point is collected</strong>, so the analysis plan is frozen before we can be tempted by the data.</p>
+  </div>
+</section>
+
+<footer>
+  Full prior-art map with confidence flags: PRIOR-ART.md · Full program spec: RESEARCH-DOSSIER.md<br>
+  Endpoint statuses verified by status code <em>and</em> body inspection, 16 Aug 2026.
+</footer>
+
+</div>

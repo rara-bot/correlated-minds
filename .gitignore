@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/spf_raw/*.xlsx
+data/spf_raw/*.part
+run-summary.json

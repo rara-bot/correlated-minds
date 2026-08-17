@@ -1,0 +1,126 @@
+name: daily-collection
+
+# The spine of the study. Runs unattended for 15 weeks.
+#
+# The commit this job makes each day is not just bookkeeping -- it is the
+# EVIDENCE. Every forecast is committed to a public, timestamped, append-only
+# history before its event resolves. That is what makes "we registered this in
+# advance" externally checkable rather than something we merely assert, and it
+# is the single strongest answer to the standard objection against any
+# LLM-forecasting result: "how do we know you didn't run this afterwards?"
+
+on:
+  schedule:
+    # 13:10 UTC daily = 09:10 ET, after US macro releases (08:30 ET) and before
+    # the equity open, so the market-state snapshot is same-day and meaningful.
+    - cron: "10 13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Price the day without spending"
+        type: boolean
+        default: false
+      tasks:
+        description: "Tasks to collect"
+        type: string
+        default: "25"
+
+concurrency:
+  # Never let two collection runs overlap -- they would race on the ledger and
+  # on the append-only files.
+  group: daily-collection
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify estimator before spending anything
+        # If the statistics are broken, do not collect data against them.
+        run: python -m pytest tests/ -q
+
+      - name: Collect
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python -m neff.collect \
+            --tasks "${{ github.event.inputs.tasks || 25 }}" \
+            --arm ws1_prospective \
+            --concurrency 4 \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }} \
+            | tee run-summary.json
+
+      - name: Budget guard
+        # Fail loudly well before the cap so there is time to react. A silent
+        # drift to $200 discovered in December would end the study.
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          from neff.config import ARM_CAPS_USD, BUDGET_USD, LEDGER_PATH
+          from neff.ledger import Ledger
+          led = Ledger(LEDGER_PATH, cap_usd=BUDGET_USD, arm_caps=dict(ARM_CAPS_USD))
+          s = led.summary()
+          print(json.dumps(s, indent=2))
+          if s["pct_used"] > 85:
+              print(f"::error::budget {s['pct_used']}% consumed")
+              sys.exit(1)
+          if s["pct_used"] > 60:
+              print(f"::warning::budget {s['pct_used']}% consumed")
+          PY
+
+      - name: Panel health
+        run: |
+          python - <<'PY'
+          import json
+          from neff.panel import load_panel, describe
+          p = load_panel(require_resolved=False)
+          print(json.dumps(describe(p), indent=2, default=str))
+          PY
+
+      - name: Commit the day
+        run: |
+          git config user.name  "neff-collector"
+          git config user.email "actions@github.com"
+          git add -A data/
+          if git diff --staged --quiet; then
+            echo "no new data"
+          else
+            git commit -m "data: collection for $(date -u +%Y-%m-%d)"
+            # The panel may have run while a push landed; rebase rather than fail,
+            # because a lost day cannot be recovered later.
+            for i in 1 2 3; do
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
+              git push origin "HEAD:${GITHUB_REF_NAME}" && break
+              sleep 5
+            done
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run-summary-${{ github.run_number }}
+          path: run-summary.json
+          retention-days: 90
