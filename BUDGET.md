@@ -1,4 +1,26 @@
 # Budget & Resourcing — Correlated Minds
+
+> ## ⚠️ SUPERSEDED BY MEASURED COSTS — 17 Aug 2026
+>
+> The estimates below were made before the instrument existed. Now that it does,
+> the real per-call cost has been measured with a live dry run, and **I was wrong
+> by roughly a factor of ten.**
+>
+> | | Estimated here | **Measured** |
+> |---|---|---|
+> | One day, 25 tasks × 7 models | ~$2 | **$0.22** |
+> | Full 15-week panel | $178 | **$23** |
+> | Plus 5 prompt variants (full H3 arm) | "~$2,000, maximal tier" | **$113** |
+>
+> **Why the error:** these estimates assumed ~6,000 input and ~1,500 output tokens
+> per call, with extended reasoning on. The structured-output design that survived
+> Week 0 uses ~500 input and ~250 output on mid-tier models — 12× less input, 6× less
+> output.
+>
+> **What it changes:** the five-variant H3 arm I deferred as unaffordable is
+> affordable now. Year 1 can ship the *maximal* version of the study inside the $200
+> cap, not a compromised one. Tiering by budget is no longer necessary; §3 below is
+> retained only as a record of the original reasoning.
 **Timeline:** 16 Aug → 31 Dec 2026 (19.5 weeks) · **Effort:** 15 h/week ≈ 290 hours
 
 ---
