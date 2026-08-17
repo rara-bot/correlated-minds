@@ -199,7 +199,7 @@ def resolve_outcomes() -> Dict[str, object]:
     only once per task -- a task that is already resolved is never revisited, so
     a later data revision cannot silently rewrite history.
     """
-    from .sources import kalshi
+    from .sources import edgar, kalshi
 
     task_store = JsonlStore(TASKS_PATH)
     resolution_store = JsonlStore(RESOLUTIONS_PATH)
@@ -224,7 +224,27 @@ def resolve_outcomes() -> Dict[str, object]:
     new: List[Resolution] = []
 
     for ref, group in by_ref.items():
-        outcome = kalshi.fetch_settlement(ref)
+        if ref.startswith("edgar:"):
+            # edgar:<cik>:<last_reported_period_end>
+            try:
+                _, cik_s, last_end = ref.split(":", 2)
+                threshold = next(
+                    (
+                        float(t["state"]["threshold"])
+                        for t in group
+                        if isinstance(t.get("state"), dict)
+                        and t["state"].get("threshold") is not None
+                    ),
+                    None,
+                )
+            except (ValueError, TypeError):
+                continue
+            if threshold is None:
+                continue
+            outcome = edgar.resolve_filing_task(int(cik_s), last_end, threshold)
+        else:
+            outcome = kalshi.fetch_settlement(ref)
+
         if outcome is None:
             continue
         for task in group:

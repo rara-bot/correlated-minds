@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from .config import DATA_FREEZE, TASKS_PER_DAY
 from .providers import RESPONSE_INSTRUCTIONS
-from .sources import fred, kalshi
+from .sources import edgar, fred, kalshi
 from .store import Task
 
 PROMPT_TEMPLATE = """\
@@ -117,6 +117,7 @@ def build_daily_tasks(
     min_days_out: float = 3.0,
     max_days_out: Optional[float] = None,
     respect_freeze: bool = True,
+    filing_fraction: float = 0.4,
 ) -> List[Task]:
     """Assemble today's questions.
 
@@ -126,6 +127,23 @@ def build_daily_tasks(
 
     max_days_out is capped at the data freeze by default, so every question we
     pay for can actually be scored inside the study.
+
+    filing_fraction splits the battery between two task types, and the split is
+    a validity decision rather than a convenience:
+
+      MACRO (Kalshi)   -- directly comparable to the Philadelphia Fed's human
+                          forecaster panel, which is the study's headline
+                          benchmark. But macro forecasting is NOT the dominant
+                          real-world use of LLMs in finance.
+
+      FILING (EDGAR)   -- read a company's own SEC filings, then judge its next
+                          reported quarter. This matches what banks and funds
+                          actually deploy: the BoE/FCA survey and 2026 industry
+                          data both put document-grounded analysis of financial
+                          reports at the centre of real use.
+
+    Running both lets us test whether error correlation is a property of the
+    models or an artefact of one task format -- which is itself a result.
     """
     today = as_of or datetime.now(timezone.utc).date()
 
@@ -143,8 +161,11 @@ def build_daily_tasks(
             state = {}
     context = _format_context(state)
 
+    n_filing = int(round(max_tasks * max(0.0, min(1.0, filing_fraction))))
+    n_event = max_tasks - n_filing
+
     candidates = kalshi.select_tasks(
-        max_tasks=max_tasks,
+        max_tasks=n_event,
         min_days_out=min_days_out,
         max_days_out=horizon_cap,
         broaden_if_short=True,
@@ -181,6 +202,43 @@ def build_daily_tasks(
             )
         )
 
+    # --- document-grounded filing tasks ---------------------------------
+    if n_filing > 0:
+        try:
+            filings = edgar.build_universe_tasks(today, max_tasks=n_filing)
+        except Exception:                                  # noqa: BLE001
+            filings = []
+
+        for candidate in filings:
+            prompt = build_prompt(
+                title=candidate["title"],
+                resolution_criteria=candidate.get("rules", ""),
+                close_time="when the company files its next 10-Q or 10-K",
+                context=candidate.get("context", "") + "\n\n" + context,
+                as_of=today,
+                variant=0,
+            )
+            tasks.append(
+                Task(
+                    task_id=_task_id(candidate["source_ref"], today),
+                    kind="filing",
+                    prompt=prompt,
+                    resolves_after="",
+                    source="edgar",
+                    source_ref=candidate["source_ref"],
+                    outcome_kind="binary",
+                    market_implied=None,
+                    state=dict(
+                        state,
+                        ticker=candidate["ticker"],
+                        cik=candidate["cik"],
+                        threshold=candidate["threshold"],
+                        last_reported_end=candidate["last_reported_end"],
+                        asked_on=today.isoformat(),
+                    ),
+                )
+            )
+
     return tasks[:max_tasks]
 
 
@@ -194,8 +252,13 @@ def summarize(tasks: List[Task]) -> Dict[str, Any]:
         if isinstance(days_out, (int, float)):
             horizons.append(float(days_out))
 
+    by_kind: Dict[str, int] = {}
+    for task in tasks:
+        by_kind[task.kind] = by_kind.get(task.kind, 0) + 1
+
     return {
         "n_tasks": len(tasks),
+        "by_kind": by_kind,
         "by_series": dict(sorted(by_series.items())),
         "median_days_out": (
             round(sorted(horizons)[len(horizons) // 2], 1) if horizons else None
