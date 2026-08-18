@@ -159,3 +159,34 @@ class TestHeadlineStatisticIsBounded:
     def test_undefined_ratio_draws_are_reported_not_hidden(self):
         out = headroom_ratio(self._errors(0.88), self._errors(0.9), n_boot=200)
         assert out["n_boot_valid"] + out["n_boot_ratio_undefined"] == 200
+
+
+class TestMockDataCannotEnterAPanel:
+    """Synthetic smoke-test rows must never be analysed as study data."""
+
+    def test_is_mock_detects_both_markers(self):
+        from neff.panel import _is_mock
+        assert _is_mock({"provider": "mock"})
+        assert _is_mock({"provider": "anthropic", "model_id_returned": "claude-sonnet-5-mock"})
+        assert not _is_mock({"provider": "anthropic", "model_id_returned": "claude-sonnet-5"})
+
+    def test_load_panel_excludes_mock_by_default(self, tmp_path):
+        import json
+        from neff.panel import load_panel
+        obs = tmp_path / "obs.jsonl"
+        tasks = tmp_path / "tasks.jsonl"
+        res = tmp_path / "res.jsonl"
+        rows = []
+        for i in range(4):
+            for key, provider in (("a", "mock"), ("b", "mock")):
+                rows.append({"task_id": f"t{i}", "model_key": key, "provider": provider,
+                             "forecast": 0.5, "prompt_variant": 0})
+        obs.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+        tasks.write_text("")
+        res.write_text("")
+        panel = load_panel(obs_path=obs, resolutions_path=res, tasks_path=tasks,
+                           model_keys=["a", "b"], require_resolved=False)
+        assert panel.n_tasks == 0
+        kept = load_panel(obs_path=obs, resolutions_path=res, tasks_path=tasks,
+                          model_keys=["a", "b"], require_resolved=False, include_mock=True)
+        assert kept.n_tasks == 4

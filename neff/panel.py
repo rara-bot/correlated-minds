@@ -28,6 +28,16 @@ from .config import OBS_PATH, RESOLUTIONS_PATH, TASKS_PATH, enabled_panel
 from .store import JsonlStore
 
 
+def _is_mock(record: Dict) -> bool:
+    """Is this a synthetic observation from `neff.collect --mock`?
+
+    Checked two ways because either alone could be lost in a schema change.
+    """
+    if str(record.get("provider", "")).lower() == "mock":
+        return True
+    return str(record.get("model_id_returned", "")).endswith("-mock")
+
+
 @dataclass
 class Panel:
     """A resolved panel ready for analysis."""
@@ -108,6 +118,7 @@ def load_panel(
     prompt_variant: int = 0,
     require_resolved: bool = True,
     min_models_per_task: int = 2,
+    include_mock: bool = False,
 ) -> Panel:
     """Build a Panel from the stored record.
 
@@ -117,6 +128,19 @@ def load_panel(
             when nothing has resolved yet).
         min_models_per_task: drop tasks answered by too few models to contribute
             any pair.
+        include_mock: DEFAULT FALSE, and it should stay that way.
+
+            `neff.collect --mock` writes synthetic observations into the same
+            observations.jsonl as real ones. They are labelled -- provider is
+            "mock" and model_id_returned ends in "-mock" -- but nothing in the
+            ANALYSIS layer respected that label, so a smoke-test run would be
+            silently ingested as study data and analysed as though real. A
+            pre-collection dry run on 17 Aug 2026 left 140 such rows in the file
+            and load_panel built a clean-looking 20-task panel out of them.
+
+            Fabricated forecasts entering a real panel is the worst failure this
+            codebase could have, so the filter is on by default and has to be
+            switched off deliberately.
     """
     keys = model_keys or [m.key for m in enabled_panel()]
     key_index = {k: i for i, k in enumerate(keys)}
@@ -145,8 +169,12 @@ def load_panel(
 
     # task_id -> model_key -> forecast
     grid: Dict[str, Dict[str, float]] = {}
+    n_mock_skipped = 0
     for record in JsonlStore(obs_path).read():
         if int(record.get("prompt_variant", 0)) != prompt_variant:
+            continue
+        if not include_mock and _is_mock(record):
+            n_mock_skipped += 1
             continue
         model_key = record.get("model_key")
         if model_key not in key_index:
@@ -285,3 +313,9 @@ def describe(panel: Panel) -> Dict[str, object]:
         "distinct_days": len({d for d in panel.asked_on if d}),
         "rows_time_ordered": panel.asked_on == sorted(panel.asked_on),
     }
+
+
+def count_mock_observations(obs_path=OBS_PATH) -> int:
+    """How many synthetic rows are sitting in the observation log. Should be 0
+    once real collection starts; reported by the daily health check."""
+    return sum(1 for record in JsonlStore(obs_path).read() if _is_mock(record))
