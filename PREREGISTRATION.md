@@ -46,15 +46,43 @@ Human forecast errors are *already* highly correlated, because errors are
 dominated by the common surprise that nobody anticipated. Excluding 2020 does
 not change this.
 
+**A second calibration result then corrected the first.** The obvious fix --
+correlating residuals after removing the cross-panel mean error ("excess
+correlation over the common component") -- **is mathematically broken.**
+Residuals sum to zero by construction, so for independent idiosyncratic parts
+their pairwise correlation is exactly `-1/(M-1)`, regardless of the true
+correlation. Simulation at rho_true = 0.0, 0.5, 0.9 for M = 3, 5, 7, 12 returned
+`-1/(M-1)` to three decimals in every cell. That statistic carries no
+information. **It appeared in an earlier draft of this document and has been
+removed.**
+
+The correct diagnosis is that raw correlation is not saturated, only badly
+scaled. Writing rho = 1 - eps gives `N_eff - 1 ~ ((M-1)/M) * eps`, so the
+practical benefit of ensembling is proportional to `(1 - rho)`. That quantity is
+estimated to four decimal places with 400 tasks: rho = 0.996 separates from
+0.990 at 7.7 sigma.
+
+Measured human headroom, by horizon (7-forecaster matched panels):
+
+| Variable | Horizon | rho_bar | N_eff | Headroom | Variance cut by ensembling |
+|---|---|---|---|---|---|
+| Unemployment | nowcast | 0.9961 | 1.003 | 0.003 | 0.3% |
+| Unemployment | 3q ahead | 0.8666 | 1.126 | **0.126** | **11.2%** |
+| CPI | nowcast | 0.9994 | 1.001 | 0.001 | 0.1% |
+| CPI | 3q ahead | 0.9059 | 1.086 | **0.086** | **7.9%** |
+| Payrolls | nowcast | 0.9975 | 1.002 | 0.002 | 0.2% |
+| Real GDP | nowcast | 0.9999 | 1.000 | 0.000 | 0.0% |
+
 **Three consequences, all incorporated below:**
 
-1. **A naive "AI is more correlated than humans" hypothesis is untestable at
-   short horizons** — the metric saturates near 1.0 for humans, leaving no room.
-   H1 is therefore specified on *genuinely uncertain* questions only.
-2. **Raw error correlation is the wrong primary outcome.** We pre-specify
-   **excess correlation over the common component** (§4.1) as primary, with raw
-   rho_bar reported as secondary.
-3. **Task selection must exclude near-settled questions** (§3.3).
+1. **The primary outcome is diversification headroom, `N_eff - 1`,** reported
+   alongside a model-free variance-reduction ratio. Not raw rho as a level, and
+   not the residual metric.
+2. **Tasks must be genuinely uncertain.** At nowcast horizons no panel -- human
+   or machine -- has measurable headroom, so no comparison is possible there.
+   Task selection targets the horizon-4 end, where human headroom is ~0.09-0.13.
+3. **The headline claim is a RATIO of headroom**, human versus AI, because
+   numbers that both "round to 1" can differ twentyfold in practical benefit.
 
 This is exactly what a calibration phase is for, and it is disclosed rather than
 discovered later.
@@ -92,33 +120,44 @@ observation; the repeated-measures structure is handled by the block bootstrap
 
 ## 4. Hypotheses
 
-### 4.1 Primary outcome: excess correlation
+### 4.1 Primary outcome: diversification headroom
 
-For task *t* and models *i*, error `e_it = f_it − y_t`. Decompose
+For task *t* and model *i*, error `e_it = f_it - y_t`. With mean pairwise error
+correlation `rho_bar` across M forecasters:
 
-    e_it = c_t + u_it
+    N_eff    = M / (1 + (M - 1) * rho_bar)
+    headroom = N_eff - 1
 
-where `c_t` is the cross-model mean error on task *t* (the common surprise, which
-no forecaster could avoid) and `u_it` is the idiosyncratic residual.
+`headroom` is the primary outcome. It is zero when the panel is worth exactly one
+opinion, and near saturation it is approximately `((M-1)/M) * (1 - rho_bar)` --
+linear in the quantity we can measure precisely.
 
-**Excess correlation** is the mean pairwise correlation of `u_it`, and
+Reported alongside it, always:
 
-    N_eff_excess = M / (1 + (M − 1) · rho_excess)
+- **`variance_reduction`** -- the model-free ratio `Var(panel mean error) /
+  mean(Var of individual errors)`. It assumes no correlation structure and simply
+  measures what happens to error variance when the panel is averaged. Under
+  equicorrelation it equals `1/N_eff`; **where the two diverge, the
+  equicorrelation assumption is doing work and we report that divergence rather
+  than concealing it.**
+- **`rho_bar`** itself, to four decimal places, so nothing is hidden by scaling.
 
-This isolates redundancy that is *not* explained by the question simply being
-hard — which is the quantity relevant to systemic risk, and the one that does not
-saturate.
+We correlate **errors, not forecasts**. Forecasters who agree because a question
+had a knowable answer are not redundant; correlating errors isolates shared
+*wrongness*, which is the only kind that creates systemic risk.
 
 ### H1 — Conditional collapse
-`rho_excess` increases, and `N_eff_excess` decreases, with market stress and
-question ambiguity.
+`headroom` decreases (and `rho_bar` increases) with market stress and question
+ambiguity. Tested as a *change* across states, which is unaffected by the level
+sitting near saturation.
 
 - **State variables (fixed, no additions permitted):** VIX level, 20-day realised
   volatility, cross-model forecast dispersion, |macro surprise|, days-to-resolution,
   novelty score.
 - **Test:** regression of pairwise error products on standardised state
-  variables with task-clustered standard errors; and comparison of `rho_excess`
-  between top and bottom stress terciles with a block-bootstrap interval.
+  variables with task-clustered standard errors; and comparison of `headroom`
+  between top and bottom stress terciles with a block-bootstrap interval, on the
+  `headroom` scale.
 - **Correction:** Benjamini–Hochberg at FDR 0.05 across the six state variables.
 - **FALSIFIED IF:** no state variable shows a positive, BH-surviving coefficient,
   and the tercile difference interval contains zero.
@@ -139,9 +178,14 @@ Intra-model diversity buys materially less independence than cross-family divers
   the same family, (c) two models from different families — matched on panel size.
 - **FALSIFIED IF:** the intra-model and cross-family `N_eff` intervals overlap.
 
-### H4 — Human comparison (confirmatory)
-On matched questions and matched panel size (M = 7), `rho_excess` is higher for
-the AI panel than for SPF human forecasters.
+### H4 — Human comparison (confirmatory) — the headline
+On matched questions and matched panel size (M = 7), **AI diversification
+headroom is smaller than human headroom**, i.e.
+
+    headroom_ratio = headroom(humans) / headroom(AI)  >  1
+
+Human benchmarks are already measured (section 2): headroom 0.126 for
+unemployment and 0.086 for CPI at three quarters ahead.
 
 - **Matching:** SPF variables (unemployment, CPI, payrolls, GDP) at horizons whose
   uncertainty is comparable to our questions; human panels subsampled to 7 over
@@ -168,7 +212,7 @@ On **27 Sep 2026** (end of Week 5) we fit H1 on weeks 1–5, then publish a hash
 timestamped numerical prediction of the form:
 
 > "On the next macro release with |surprise| above the 80th percentile,
-> `rho_excess` will exceed X and `N_eff_excess` will fall below Y."
+> `headroom` will fall below X and `rho_bar` will exceed Y."
 
 Weeks 6–15 are a genuine holdout. The prediction is never revised. A miss is
 reported as a miss.
@@ -191,8 +235,10 @@ target provides ~600, giving headroom for attrition.
 ## 7. What would make us abandon a hypothesis
 
 - **H1:** stated in §4. A null is publishable and will be published.
-- **H4:** if human `rho_excess` also saturates on matched questions, we report the
-  comparison as uninformative rather than straining for a difference.
+- **H4:** if matched questions turn out to have negligible headroom for humans
+  too, we report the comparison as uninformative rather than straining for a
+  difference. Section 2 shows this is a real risk at short horizons, which is
+  precisely why task selection targets longer ones.
 - **Whole study:** if usable coverage falls below 50% across the panel, we report
   a methods paper on why multi-provider panels are hard to run, and say so plainly.
 
