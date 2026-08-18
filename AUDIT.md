@@ -4,7 +4,9 @@ Everything below was found by deliberately attacking this project the day before
 data collection was due to start, while every finding was still free to fix.
 None of it caused a crash. Every one produced plausible-looking numbers.
 
-**Eight defects. All fixed. All covered by tests (`tests/test_regressions.py`).**
+**Ten defects. All fixed. Core estimator and panel defects are covered by
+tests (`tests/test_regressions.py`); the design fixes are verified against live
+data and synthetic ground truth.**
 
 ---
 
@@ -140,6 +142,33 @@ predicts:
 **Fixed:** the reported headline is now the **difference in variance reduction**,
 bounded in [0,1]; the ratio is secondary, with its interval and its count of
 undefined bootstrap draws.
+
+## 9. Task selection suppressed the variance the primary hypothesis needs
+
+`select_tasks` took only the strikes nearest each ladder's median — maximising
+average uncertainty and thereby holding ambiguity nearly **constant**. H1, now
+the primary hypothesis, predicts correlation *rises with ambiguity*. A sample
+with no ambiguity variation cannot test it.
+
+**Fixed:** graded sampling across each ladder's interior, with `ladder_distance`
+(normalised distance from the ladder median) recorded per task and registered as
+an H1 state variable. Live check: ladder_distance now spans 0.00–0.52 instead of
+sitting at the median. Crucially it is populated **every day**, so H1's ambiguity
+leg no longer depends on markets supplying a stress event — the study's single
+largest un-fixable risk is now only half un-fixable.
+
+## 10. H2 was registered with no method for either of its legs
+
+Rationales were being *collected* but nothing measured "cross-model rationale
+similarity" or "evidence sensitivity" — the same defect as H6.
+
+**Fixed by splitting it.** The tractable leg, **base-rate convergence**, is now
+implemented and confirmatory: does the panel median drift toward the category
+base rate as ambiguity rises? Validated on synthetic ground truth (true case
+−0.118, false case −0.017). The intractable leg, rationale similarity, is
+**demoted to exploratory** — measuring it honestly needs sentence embeddings and
+a validation study of its own, and 25-word rationales are thin evidence for a
+confirmatory claim.
 
 ---
 
