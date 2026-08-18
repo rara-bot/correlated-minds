@@ -171,11 +171,45 @@ def select_tasks(
         strikes = [m for m in markets if m["strike"] is not None]
         if len(strikes) >= 3:
             strikes.sort(key=lambda m: m["strike"])
-            median_strike = statistics.median([m["strike"] for m in strikes])
-            # take the strikes closest to the ladder's median
-            strikes.sort(key=lambda m: abs(m["strike"] - median_strike))
-            selected.extend(strikes[:strikes_per_event])
+            values = [m["strike"] for m in strikes]
+            median_strike = statistics.median(values)
+            span = max(values) - min(values)
+
+            # LADDER POSITION IS DELIBERATELY VARIED, NOT HELD CONSTANT.
+            #
+            # An earlier version took only the strikes nearest the ladder median.
+            # That maximises average uncertainty -- but H1, now the PRIMARY
+            # hypothesis, predicts that correlation RISES WITH AMBIGUITY, and a
+            # sample with no ambiguity variation cannot test it. Holding ambiguity
+            # constant suppresses exactly the variance the primary test consumes.
+            #
+            # We instead sample graded positions across the ladder's INTERIOR, so
+            # ambiguity varies by construction rather than waiting on the market
+            # to supply a stress event. Extremes are still avoided: the registered
+            # [0.05, 0.95] first-day median rule (PREREGISTRATION.md 3.3) excludes
+            # anything effectively settled, so this widens the ambiguity range
+            # without admitting foregone conclusions.
+            #
+            # ladder_distance -- normalised |strike - median| / span, in [0, 1] --
+            # is recorded per task and is a registered H1 state variable. Unlike
+            # VIX, it is available every single day regardless of market calm.
+            for market in strikes:
+                market["ladder_distance"] = (
+                    abs(market["strike"] - median_strike) / span if span > 0 else 0.0
+                )
+            ordered = sorted(strikes, key=lambda m: m["ladder_distance"])
+            interior = ordered[: max(strikes_per_event, len(ordered) - 1)]
+            if len(interior) <= strikes_per_event:
+                selected.extend(interior)
+            else:
+                # even spread across the interior: nearest the median, furthest
+                # still-included, and graded steps between.
+                step = (len(interior) - 1) / max(1, strikes_per_event - 1)
+                picks = {int(round(k * step)) for k in range(strikes_per_event)}
+                selected.extend(interior[i] for i in sorted(picks))
         else:
+            for market in markets:
+                market.setdefault("ladder_distance", 0.0)
             selected.extend(markets[:strikes_per_event])
 
     # Prefer questions that resolve sooner: they get scored inside the window,

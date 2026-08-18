@@ -220,6 +220,7 @@ DATA_FREEZE = "2026-12-06"
 # Market-state variables used for the H1 conditional test. Registered here so the
 # analysis cannot quietly grow new ones after seeing results.
 STATE_VARIABLES = [
+    "ladder_distance",     # experimentally varied ambiguity; available EVERY day
     "vix_level",
     "realized_vol_20d",
     "expectation_dispersion",

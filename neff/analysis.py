@@ -343,3 +343,70 @@ def horizon_strata(state: Sequence[Dict]) -> Dict[str, np.ndarray]:
                 out[label].append(i)
                 break
     return {k: np.asarray(v, dtype=int) for k, v in out.items()}
+
+
+# ---------------------------------------------------------------------------
+# H2 — SHARED-PRIOR MECHANISM
+#
+# H2 registered two legs. Only one of them had a method, which is the same
+# defect that H6 had: a registered analysis nobody has written is a promise, not
+# a hypothesis. Resolved by implementing the tractable leg and demoting the other.
+#
+#   KEPT, CONFIRMATORY -- base-rate convergence. If models fall back on absorbed
+#     priors when evidence is weak, the panel's judgement should drift toward the
+#     category base rate as ambiguity rises. This is measurable from the forecasts
+#     alone: no text, no embeddings, no judgement calls from us.
+#
+#   DEMOTED TO EXPLORATORY -- cross-model rationale similarity. Measuring it
+#     honestly needs sentence embeddings and a validation study of its own, and
+#     the rationales we collect are capped at 25 words, which is thin evidence for
+#     a confirmatory claim. Reported as exploratory and labelled as such.
+# ---------------------------------------------------------------------------
+
+
+def base_rate_convergence(
+    forecasts: np.ndarray,
+    outcomes: np.ndarray,
+    ambiguity: Sequence[float],
+    n_terciles: int = 3,
+) -> Dict[str, float]:
+    """Does the panel drift toward the base rate as questions get more ambiguous?
+
+    Returns the mean absolute distance between the panel median forecast and the
+    sample base rate, by ambiguity tercile. H2 predicts this SHRINKS with
+    ambiguity: under weak evidence the panel stops discriminating between
+    questions and reverts to what it absorbed in training.
+    """
+    f = np.asarray(forecasts, dtype=float)
+    y = np.asarray(outcomes, dtype=float)
+    a = np.asarray(list(ambiguity), dtype=float)
+
+    usable = np.isfinite(a) & np.any(~np.isnan(f), axis=1)
+    if int(usable.sum()) < 3 * n_terciles:
+        return {"estimable": 0.0}
+
+    f, y, a = f[usable], y[usable], a[usable]
+    base = float(np.nanmean(y))
+    with np.errstate(invalid="ignore"):
+        median = np.nanmedian(f, axis=1)
+    distance = np.abs(median - base)
+
+    cuts = np.quantile(a, np.linspace(0, 1, n_terciles + 1)[1:-1])
+    bucket = np.digitize(a, cuts)
+
+    out: Dict[str, float] = {"estimable": 1.0, "base_rate": base}
+    means = []
+    for b in range(n_terciles):
+        rows = bucket == b
+        value = float(np.mean(distance[rows])) if rows.any() else float("nan")
+        out[f"tercile_{b}_distance"] = value
+        out[f"tercile_{b}_n"] = float(rows.sum())
+        means.append(value)
+    if np.all(np.isfinite(means)):
+        # Negative => the panel converges on the base rate as ambiguity rises,
+        # which is the direction H2 predicts.
+        out["high_minus_low"] = float(means[-1] - means[0])
+    return out
+
+
+__all__ += ["base_rate_convergence"]

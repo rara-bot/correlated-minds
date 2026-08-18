@@ -363,9 +363,22 @@ including our own H4. H1 cannot be explained that way: capability does not chang
 between Tuesday and Thursday. It is also the question the closest prior work
 (arXiv 2605.00844) explicitly leaves open.
 
-- **State variables (fixed, no additions permitted):** VIX level, 20-day realised
-  volatility, cross-model forecast dispersion, |macro surprise|, days-to-resolution,
-  novelty score.
+- **State variables (fixed, no additions permitted):** ladder distance, VIX level,
+  20-day realised volatility, cross-model forecast dispersion, |macro surprise|,
+  days-to-resolution, novelty score.
+
+- **Ambiguity is varied by design, not merely observed.** The single largest risk
+  to H1 is that 15 weeks contain no genuine market stress event, leaving the
+  hypothesis with no variation to consume. Market stress is not ours to
+  manufacture — but *question* ambiguity is. Kalshi's strike ladders let us
+  sample graded positions across each ladder's interior, and `ladder_distance`
+  (normalised distance from the ladder median, in [0,1]) records where each
+  question sat. This makes the ambiguity leg of H1 **partly experimental rather
+  than purely observational**, and unlike VIX it is populated on every single day
+  of collection regardless of what markets do. Extremes remain excluded by the
+  [0.05, 0.95] rule in §3.3, so widening the range does not admit foregone
+  conclusions. The VIX and realised-volatility legs remain observational and may
+  simply fail to vary; that is disclosed here rather than discovered in December.
 - **Test:** regression of pairwise error products on standardised state
   variables with task-clustered standard errors; and comparison of `headroom`
   between top and bottom stress terciles with a block-bootstrap interval, on the
@@ -377,11 +390,19 @@ between Tuesday and Thursday. It is also the question the closest prior work
 ### H2 — Shared-prior mechanism
 The collapse is driven by convergence on shared priors when evidence is weak.
 
-- **Test:** on the 10% extended-reasoning subsample, in the top ambiguity
-  tercile, (a) cross-model rationale similarity rises, and (b) the panel median
-  forecast becomes less sensitive to question-specific evidence and closer to the
-  category base rate.
-- **FALSIFIED IF:** evidence-sensitivity does not differ across ambiguity terciles.
+- **Confirmatory test — base-rate convergence.** The panel median forecast moves
+  closer to the category base rate as ambiguity rises: mean |panel median − base
+  rate| is compared across ambiguity terciles with a block-bootstrap interval on
+  the top-minus-bottom difference. Measurable from forecasts alone — no text
+  analysis, no judgement calls from us.
+- **FALSIFIED IF:** the top-minus-bottom tercile difference is not negative with
+  an interval excluding zero.
+- **DEMOTED TO EXPLORATORY — rationale similarity.** The original plan also
+  registered "cross-model rationale similarity rises" as confirmatory. Doing that
+  honestly requires sentence embeddings plus a validation study of its own, and
+  our rationales are capped at 25 words — thin evidence for a confirmatory claim.
+  It is reported as exploratory and labelled as such. A registered analysis with
+  no method is a promise, not a hypothesis.
 
 ### H3 — The diversification illusion
 Intra-model diversity buys materially less independence than cross-family diversity.
@@ -594,8 +615,13 @@ prediction date.
    cannot run it at a defensible scale.
 4. Providers may update models mid-panel. We log the served id every call and
    report drift; we cannot prevent it.
-5. 15 weeks may contain no genuine market stress event. The graded ambiguity
-   variation partly substitutes, but a real shock cannot be manufactured.
+5. 15 weeks may contain no genuine market stress event, which would leave the
+   market-stress leg of H1 (now the primary hypothesis) untestable. The
+   experimentally varied `ladder_distance` ambiguity leg is populated every day
+   and does not depend on markets cooperating, so H1 remains testable in a calm
+   regime — but a genuine shock cannot be manufactured, and if none occurs we
+   report the stress leg as untested rather than straining a null out of a quiet
+   market.
 
 ---
 
