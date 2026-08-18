@@ -17,15 +17,54 @@ observation is collected.
 
 ## 1. Background and motivation
 
-The Financial Stability Board (Oct 2025), the Bank of England (Jul 2026) and the
-IMF (Jul 2026) have each identified correlated behaviour among financial
-institutions running similar AI models as a systemic risk. Theoretical work
-models the consequences of such correlation. **None of it measures the
-correlation itself on financial decisions.** The metric — error correlation and
-effective ensemble size — is established in general-domain work but has not been
-applied to finance, and never conditionally on market state.
+The Financial Stability Board (*Monitoring Adoption of Artificial Intelligence
+and Related Vulnerabilities in the Financial Sector*, 10 Oct 2025; building on
+its 2024 report, which names market correlation as a vulnerability), the Bank of
+England and the IMF have each identified correlated behaviour among financial
+institutions running similar AI models as a systemic risk.
 
-This study supplies that measurement.
+**An earlier draft of this document claimed nobody has measured this. That claim
+was false, and it is withdrawn.** A literature check on 17 Aug 2026, before
+collection, found four papers measuring LLM error correlation directly:
+
+| Work | What it measured | Result | What it did not do |
+|---|---|---|---|
+| Kim et al., *Correlated Errors in LLMs*, ICML 2025 (arXiv 2506.07962) | 350+ models, general benchmarks | agree ~60% of the time when both err; larger/more accurate models correlate MORE | not finance, not prospective, no human panel, no state-dependence |
+| *The Oracle's Fingerprint* (arXiv 2605.00844) | GPT-4o / Claude / Gemini on **568 already-resolved** binary questions | r = 0.77 (0.78 excluding likely-leaked items) | retrospective; general forecasting; no conditional test — its own stated gap is *"a monoculture built but not yet activated"* |
+| *Preference Optimization Drives Monoculture in LLM Prediction Markets* (arXiv 2606.26583) | simulated DPO-tuned agents, 8B/70B | rho = 0.70; **10 agents ≈ 1.4 effective**; cross-model diversity cuts rho 0.68 → 0.40 | simulation, not live markets; no humans; no state-dependence |
+| *Nine Judges, Two Effective Votes* (arXiv 2605.29800) | LLM-as-judge panels | 9 judges ≈ 2 effective votes | evaluation, not forecasting; no state-dependence |
+
+Two consequences we accept rather than argue with:
+
+1. **The headline number in our own pitch — "seven AI systems behave like about
+   1.4" — is already in the literature and must be retired from our framing** (arXiv 2606.26583, for ten simulated
+   agents). We must not present that figure as our discovery. Our contribution is
+   not the existence of correlation; it is the *conditions under which it moves*.
+2. **The level of correlation is not novel. Five things about this design still
+   are**, and they define the contribution:
+
+   - **Prospective and pre-registered.** Every existing measurement is either
+     retrospective on already-resolved questions — where contamination is a live
+     concern the authors themselves flag — or simulated. Here the outcome does
+     not exist when the question is asked, so contamination is impossible by
+     construction rather than by argument.
+   - **Conditional on market state (H1).** No published work measures whether
+     correlation *rises* under stress or ambiguity. The closest paper names this
+     as the priority open question in its own conclusion. This is our primary
+     hypothesis.
+   - **A structurally matched human benchmark (H4).** No existing work compares
+     LLM error correlation to individual human professionals producing the same
+     object. SPF RECESS — individual probability forecasts of a binary event —
+     makes that possible (§2.3).
+   - **Capability-controlled (H6).** arXiv 2607.20768 shows diversity metrics are
+     mostly a restatement of accuracy (Spearman rho = +0.99 against one minus
+     mean accuracy). Any correlation finding that does not control for capability
+     is not interpretable. We register the control in advance.
+   - **Document-grounded finance tasks** whose targets are quarters not yet
+     filed.
+
+This study supplies the conditional, capability-controlled, human-benchmarked
+measurement. It does not claim to be the first to observe that LLMs err together.
 
 ---
 
@@ -46,6 +85,69 @@ Human forecast errors are *already* highly correlated, because errors are
 dominated by the common surprise that nobody anticipated. Excluding 2020 does
 not change this.
 
+### 2.1 A units bug in that first measurement, found and fixed before freeze
+
+Re-verifying the above on 17 Aug 2026 revealed that two of the four series were
+scored against the wrong object. SPF reports CPI as an **annualised inflation
+rate** (~2.7) and was being differenced against the **CPI index level** (~333);
+SPF reports real GDP as a **level in the chain base current at survey time** and
+was being differenced against a 2017-base series. Measured damage on 2000+ data:
+
+| Series | median abs error | rho_bar | verdict |
+|---|---|---|---|
+| CPI h=1, as originally coded | **229.07** | **1.0000** | artifact |
+| RGDP h=1, as originally coded | **3488.46** | **1.0000** | artifact |
+
+Both produced a *perfect* correlation manufactured entirely by a units mismatch,
+in the numbers that set this study's human benchmark. Corrected — comparing
+annualised growth to annualised growth, which is invariant to the index base —
+CPI h=4 headroom moves from 0.0047 to **0.0797**, a 17-fold change in a quantity
+that appears in the headline comparison.
+
+**Corrected human baselines (2000+, matched to the AI panel size M = 9):**
+
+| Variable | h=2 rho_bar | h=2 headroom | h=4 rho_bar | h=4 headroom |
+|---|---|---|---|---|
+| Unemployment | 0.9026 | 0.0976 | 0.8760 | 0.1297 |
+| CPI inflation | 0.8397 | 0.1688 | 0.9169 | 0.0826 |
+| Real GDP | 0.8982 | 0.1050 | 0.9100 | 0.0942 |
+| Payrolls | 0.8215 | 0.1915 | 0.8249 | 0.1903 |
+
+The design conclusion survives and sharpens: **nowcasts saturate** (unemployment
+h=1: rho 0.9960, headroom 0.0041) but **every horizon from h=2 out carries
+measurable human headroom of roughly 0.08–0.19.** Task selection targets that band.
+
+### 2.2 Why the old comparison was structurally unfair, in both directions
+
+Our models emit a **probability of a binary event** (error `p − y`, `y ∈ {0,1}`);
+SPF point forecasts are **continuous levels**. Headroom is approximately
+`tau^2 / (sigma_c^2 + tau^2)` — the share of error variance that is
+idiosyncratic — and the mechanical floor of `sigma_c^2` is not the same for a
+Bernoulli outcome as for a continuous one. Comparing across that gap invites the
+obvious objection that any human-versus-AI difference is a task-format artifact.
+
+### 2.3 The fix: a structurally matched human panel (SPF RECESS)
+
+Every quarter since 1968 the SPF asks each panelist for the **probability that
+real GDP will decline** in the survey quarter and each of the next four. That is
+a probability forecast of a binary event, at the individual level, resolved by
+the national accounts — the same object our models produce, scored the same way,
+by the professionals they are said to replace.
+
+Measured (2000+, 106 quarterly rounds, ~31 forecasters per round, 13% base rate):
+
+| Horizon | rho_bar | headroom @ M=9 | 95% CI |
+|---|---|---|---|
+| 1 (survey quarter) | 0.8417 | **0.1710** | [0.076, 0.356] |
+| 2 | 0.8864 | 0.1206 | [0.044, 0.288] |
+| 3 | 0.8949 | 0.1120 | [0.038, 0.288] |
+| 4 | 0.8906 | 0.1222 | [0.028, 0.311] |
+| 5 | 0.8844 | 0.1347 | [0.029, 0.393] |
+
+**This is the primary human benchmark for H4.** That it lands in the same
+0.08–0.19 band as the corrected point-forecast baselines, by a completely
+different route, is the main reason we believe the corrected numbers.
+
 **A second calibration result then corrected the first.** The obvious fix --
 correlating residuals after removing the cross-panel mean error ("excess
 correlation over the common component") -- **is mathematically broken.**
@@ -59,8 +161,18 @@ removed.**
 The correct diagnosis is that raw correlation is not saturated, only badly
 scaled. Writing rho = 1 - eps gives `N_eff - 1 ~ ((M-1)/M) * eps`, so the
 practical benefit of ensembling is proportional to `(1 - rho)`. That quantity is
-estimated to four decimal places with 400 tasks: rho = 0.996 separates from
-0.990 at 7.7 sigma.
+estimated precisely with 400 tasks. Simulated separation of rho = 0.996 from
+rho = 0.990 at M = 7, T = 400, by the serial dependence of the common component:
+
+| AR(1) in the common component | separation |
+|---|---|
+| 0.0 (i.i.d. tasks) | 10.4 sigma |
+| 0.5 | 8.3 sigma |
+| 0.8 (strong) | 5.3 sigma |
+
+An earlier draft quoted "7.7 sigma" with no dependence assumption stated. Because
+questions are re-asked daily, tasks are *not* i.i.d.; **the honest figure is
+"at least 5 sigma even under strong serial dependence."**
 
 Measured human headroom, by horizon (7-forecaster matched panels):
 
@@ -81,8 +193,9 @@ Measured human headroom, by horizon (7-forecaster matched panels):
 2. **Tasks must be genuinely uncertain.** At nowcast horizons no panel -- human
    or machine -- has measurable headroom, so no comparison is possible there.
    Task selection targets the horizon-4 end, where human headroom is ~0.09-0.13.
-3. **The headline claim is a RATIO of headroom**, human versus AI, because
-   numbers that both "round to 1" can differ twentyfold in practical benefit.
+3. **The human-versus-AI comparison is reported as a bounded difference in
+   variance reduction, not as a ratio** (§5.5), because a ratio whose
+   denominator approaches zero is not a reportable headline.
 
 This is exactly what a calibration phase is for, and it is disclosed rather than
 discovered later.
@@ -92,11 +205,27 @@ discovered later.
 ## 3. Design
 
 ### 3.1 Panel
-**Seven models across six vendor families**, pinned by exact API id and logged
-per call: Anthropic (Claude Sonnet 5, Claude Haiku 4.5), OpenAI (mid-tier),
-Google (Gemini Flash-Lite), Meta (Llama), Alibaba (Qwen), DeepSeek. Seven models
-→ **21 pairs**; six families. The two Anthropic models form a deliberate
-**within-family control** for H3.
+**Nine models across six vendor families**, pinned by exact API id and logged per
+call: Anthropic (Claude Sonnet 5, Claude Haiku 4.5), OpenAI (two tiers), Google
+(two tiers), Meta (Llama), Alibaba (Qwen), DeepSeek. Nine models → **36 pairs**,
+of which **three are within-family**.
+
+**Why three within-family pairs and not one.** H3 and H6 rest entirely on the
+within-family contrast. With a single within-family pair (the original
+seven-model panel) that contrast is close to undecidable:
+
+- Cluster-robust inference is invalid. Clustering is by pair, so the
+  `same_family` coefficient's variance would come from one cluster. Tested on
+  synthetic data containing **no family structure at all**, the clustered
+  t-statistic returned **+7.06** and declared the effect real — a false positive
+  manufactured by the estimator, not by the data.
+- The valid alternative, an exact permutation test over family labels, admits
+  only C(7,2) = 21 distinct labelings, so its **best achievable p-value was
+  1/21 = 0.048** — a headline hypothesis whose ceiling is the threshold.
+
+Three within-family pairs (Anthropic, OpenAI, Google), each the same vendor at a
+different tier so the pairs are structurally comparable, drop the permutation
+floor below 0.001. Marginal cost is roughly $7 on a $30 study.
 
 The panel is chosen to span **pretraining lineage**, which is the level at which
 the shared-prior hypothesis lives, not to replicate any one institution's vendor
@@ -189,10 +318,50 @@ We correlate **errors, not forecasts**. Forecasters who agree because a question
 had a knowable answer are not redundant; correlating errors isolates shared
 *wrongness*, which is the only kind that creates systemic risk.
 
-### H1 — Conditional collapse
+### 4.2 Co-primary: the same quantity on the uncentered scale
+
+**Pearson correlation subtracts each forecaster's own mean error, so a bias the
+whole panel shares is differenced away.** "Every model wrong in the same
+direction" is precisely the failure this study exists to measure, so an
+estimator blind to it cannot be the sole primary. Simulated at M = 7, T = 400,
+independent idiosyncratic errors plus a common bias `b` added to all seven:
+
+| common bias | Pearson rho | Pearson headroom | true N_eff (MSE) |
+|---|---|---|---|
+| 0.00 | +0.016 | 5.40 | 6.38 |
+| 0.10 | −0.008 | 6.35 | 3.27 |
+| 0.20 | +0.010 | 5.59 | 1.70 |
+| 0.30 | +0.013 | 5.49 | 1.37 |
+
+Pearson reports "seven nearly independent minds" at every bias level while the
+panel is in fact collapsing to one. The registered `variance_reduction` is
+centred too and is equally blind.
+
+We therefore report, always and together:
+
+- **`n_eff_mse` = mean_i MSE_i / MSE(panel mean)** — model-free, assumes neither
+  equicorrelation nor zero bias. **This is the primary for the systemic-risk
+  claim**, because it answers the operational question directly: by what factor
+  does averaging this panel actually reduce squared error?
+- **`rho_bar` and `headroom` (Pearson)** — kept because it is what the existing
+  literature reports, so our numbers remain comparable to arXiv 2506.07962,
+  2605.00844 and 2606.26583.
+- **The gap between them.** Where the two diverge, the divergence *is* the
+  shared-bias finding and is reported as such, not smoothed over.
+
+### H1 — Conditional collapse — **PRIMARY HYPOTHESIS**
 `headroom` decreases (and `rho_bar` increases) with market stress and question
 ambiguity. Tested as a *change* across states, which is unaffected by the level
 sitting near saturation.
+
+**Why this is the primary, and not the human comparison.** H1 is a *within-panel*
+contrast: the same nine models, the same questions, split by market state.
+Model capability is held constant by construction. That matters because arXiv
+2607.20768 shows cross-model correlation findings are largely a restatement of
+model accuracy — a confound that undermines every *between*-panel comparison,
+including our own H4. H1 cannot be explained that way: capability does not change
+between Tuesday and Thursday. It is also the question the closest prior work
+(arXiv 2605.00844) explicitly leaves open.
 
 - **State variables (fixed, no additions permitted):** VIX level, 20-day realised
   volatility, cross-model forecast dispersion, |macro surprise|, days-to-resolution,
@@ -217,22 +386,35 @@ The collapse is driven by convergence on shared priors when evidence is weak.
 ### H3 — The diversification illusion
 Intra-model diversity buys materially less independence than cross-family diversity.
 
-- **Test:** `N_eff` for (a) one model under 5 prompt variants, (b) two models from
-  the same family, (c) two models from different families — matched on panel size.
+- **Test:** `N_eff` for (a) one model under 5 prompt variants, (b) the three
+  within-family pairs, (c) family-matched cross-family pairs — matched on panel
+  size, with permutation inference.
 - **FALSIFIED IF:** the intra-model and cross-family `N_eff` intervals overlap.
 
-### H4 — Human comparison (confirmatory) — the headline
-On matched questions and matched panel size (M = 7), **AI diversification
+### H4 — Human comparison (confirmatory secondary)
+On matched questions and matched panel size (M = 9), **AI diversification
 headroom is smaller than human headroom**, i.e.
 
-    headroom_ratio = headroom(humans) / headroom(AI)  >  1
+    benefit(humans) - benefit(AI)  >  0     [bounded; see 5.5]
 
-Human benchmarks are already measured (section 2): headroom 0.126 for
-unemployment and 0.086 for CPI at three quarters ahead.
+**Primary human benchmark: SPF RECESS** (§2.3) — individual probability forecasts
+of a binary event, structurally identical to our task. Measured headroom at
+M = 9 is 0.112–0.171 across horizons 1–5. Corrected point-forecast baselines (§2.1)
+serve as a secondary check and land in the same band (0.083–0.192).
 
-- **Matching:** SPF variables (unemployment, CPI, payrolls, GDP) at horizons whose
-  uncertainty is comparable to our questions; human panels subsampled to 7 over
-  500 random draws.
+**Accuracy control is mandatory here.** A panel can show low headroom simply by
+being accurate: as forecasters converge on the true posterior, disagreement
+`tau^2` shrinks while the irreducible common component `sigma_c^2` does not, so
+`rho` rises. We therefore never report a human-versus-AI headroom difference
+without reporting both panels' Brier scores, and we report the comparison
+**at matched accuracy** — restricting the human panel to the accuracy stratum
+closest to the AI panel's — as the confirmatory form of the test. If AI and human
+accuracy do not overlap on matched questions, we report the comparison as
+confounded and say so, rather than presenting it as clean.
+
+- **Matching:** human panels subsampled to **M = 9**, the AI panel size, over 500
+  random draws, so no part of the difference is a panel-size artifact. Matched
+  human headroom on SPF RECESS at M = 9: 0.112–0.171 across horizons 1–5.
 - **Reported regardless of direction.** If AI is *less* correlated than humans,
   that is a genuinely reassuring result and will be reported with equal emphasis.
 
@@ -254,6 +436,32 @@ worth reporting.
   on the difference.
 - **Reported regardless of direction.** No falsification clause: this is a
   descriptive contrast, not a directional claim.
+
+### H6 — Lineage, not capability (registered confound control)
+Measured error correlation reflects shared pretraining lineage over and above
+shared capability.
+
+arXiv 2607.20768 audited five diversity metrics across 31,900 subsets of 30 LLMs
+and found them "heavily entangled with accuracy rather than measuring true
+complementarity" (Spearman rho = +0.99 against one minus mean accuracy). Under
+that critique, a raw finding that our nine models correlate is uninterpretable:
+it may say only that they are all good.
+
+- **Test:** regress pairwise error correlation on (a) a `same_family` indicator,
+  (b) the pair's mean Brier skill score, (c) the absolute difference in the
+  pair's Brier skill. **Inference is by exact permutation over family labels
+  (family sizes held fixed), not by the cluster-robust t-statistic** — see §3.1
+  for why the latter is invalid here. The lineage claim requires the same-family
+  correlation gap to survive with the capability terms in the model.
+- **Also reported:** correlation within accuracy-matched pairs drawn from
+  different families versus the same family.
+- **FALSIFIED IF:** the `same_family` coefficient is not distinguishable from
+  zero once the capability terms are included. In that case we report that the
+  measured correlation is a capability phenomenon, not a lineage phenomenon,
+  and H3 is reinterpreted accordingly.
+
+This hypothesis can overturn the study's framing. It is registered because a
+result that survives it is worth far more than one that never faced it.
 
 ---
 
@@ -279,7 +487,60 @@ timestamped numerical prediction of the form:
 Weeks 6–15 are a genuine holdout. The prediction is never revised. A miss is
 reported as a miss.
 
-### 5.4 Exclusions
+### 5.4 Registered measurement threats and their pre-committed handling
+
+Three artifacts could produce our predicted result for reasons unrelated to the
+hypothesis. Each has a handling rule fixed now.
+
+**(a) Forecast granularity.** Language models emit round probabilities (0.6,
+0.70, 0.75). If several models land on the *same* round number, cross-model
+dispersion `tau^2` collapses and `rho` rises for a reason that is about verbal
+habit, not shared priors. Simulation shows independent rounding pushes the other
+way (coarse rounding *adds* idiosyncratic noise: rho 0.9741 → 0.9582 on a 0.25
+grid), so the threat is specifically **shared mass points**, not rounding as such.
+Pre-committed: report the full distribution of emitted values and the **exact-tie
+rate** (fraction of task-days where all responding models return an identical
+value); re-estimate excluding exact ties as a registered sensitivity; and for the
+four models exposing logprobs, re-estimate on logprob-derived probabilities.
+
+**(b) Horizon drift toward the freeze.** Eligible questions must resolve on or
+before 6 Dec 2026, so the maximum available horizon shrinks by one day per day
+and reaches zero at the freeze. Since §2 shows nowcasts saturate, an unmanaged
+panel drifts into exactly the regime where nothing is measurable, *as the sample
+grows*. Pre-committed: **long-horizon enrolment is front-loaded** — questions
+resolving more than 60 days out are enrolled preferentially in weeks 1–6, since
+after ~mid-October none can be enrolled at all; days-to-resolution is already a
+registered H1 state variable; and all primary estimates are reported **stratified
+by horizon band** (3–14, 15–45, 46–90, 91+ days) so a composition shift cannot
+masquerade as a state effect.
+
+**(c) Final-vintage outcomes for the human panel.** SPF errors are scored against
+current FRED vintages, not the real-time data forecasters were judged on. Data
+revisions add a common error component and therefore *inflate* human `rho`. This
+biases H4 **against** our own hypothesis (it shrinks human headroom, the
+numerator), so we report it rather than correct it, and note the direction.
+
+### 5.5 The reported comparison statistic
+
+The headline human-versus-AI number is the **difference in variance reduction**
+(fraction of squared error removed by averaging the panel), which is bounded in
+[0, 1] and directly interpretable. The **ratio** of headroom is reported as a
+secondary with its interval and the count of undefined bootstrap draws.
+
+Reason, simulated: as the AI panel's headroom approaches zero — the outcome H4
+predicts — the ratio runs away while the bounded statistic does not.
+
+| rho_AI | benefit difference | ratio |
+|---|---|---|
+| 0.970 | 0.064 | 3.9 |
+| 0.995 | 0.098 | 29.5 |
+| 0.999 | 0.110 | 145.4 |
+| 0.9999 | 0.103 | 1294.3 |
+
+"AI is 1294 times less diversified" is arithmetically true and rhetorically
+worthless. The bounded statistic says the same thing and survives scrutiny.
+
+### 5.6 Exclusions
 Observations with `error` set are excluded from estimation but **counted and
 reported**. If usable coverage falls below 80% for any model, that model is
 reported separately and excluded from the primary panel.
@@ -288,7 +549,7 @@ reported separately and excluded from the primary panel.
 
 ## 6. Sample size
 
-Target ≈ 25 task-days × 7 models × 105 days ≈ 18,375 observations. Powering the
+Target ≈ 25 task-days × 9 models × 105 days ≈ 23,625 observations. Powering the
 tercile contrast in H1 requires roughly 300 task-days per stress tercile; the
 target provides ~600, giving headroom for attrition.
 
@@ -317,8 +578,8 @@ append-only JSONL committed daily by an automated job, which makes the
 ## 9. Researcher degrees of freedom we are giving up
 
 Fixed in advance and not revisable after the freeze: the model roster; the
-60/40 macro/filing task mix; sampling temperature; the six state variables; the primary outcome; the block-bootstrap
-parameters; the inclusion criteria; the multiple-testing correction; the
+60/40 macro/filing task mix; sampling temperature; the six state variables; the primary outcome (both scales); the capability
+control in H6; the block-bootstrap parameters; the inclusion criteria; the multiple-testing correction; the
 prediction date.
 
 ---

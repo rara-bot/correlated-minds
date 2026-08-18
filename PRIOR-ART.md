@@ -74,7 +74,23 @@ version would be an application, not a discovery.
 ### A7. Correlated LLM error / effective ensemble size ← **closest to our recommendation**
 | Work | ID | Claim | Domain |
 |---|---|---|---|
-| Correlated Errors in Large Language Models | arXiv 2506.07962, ICML 2025 **[S]** | 350+ models; agree 60% of the time when both err | General |
+| Correlated Errors in Large Language Models | arXiv 2506.07962, ICML 2025 **[S]** | 350+ models; agree 60% of the time when both err; **more accurate models correlate MORE** | General |
+| The Oracle's Fingerprint | arXiv 2605.00844 **[S]** | GPT-4o/Claude/Gemini, **568 already-resolved** binary questions, r = 0.77 (0.78 ex-leaked). Retrospective. Its own stated gap: *"a monoculture built but not yet activated"* | General forecasting |
+| Preference Optimization Drives Monoculture in LLM Prediction Markets | arXiv 2606.26583 **[S]** | Simulated DPO agents 8B/70B; rho = 0.70; **10 agents ≈ 1.4 effective**; cross-model diversity 0.68 → 0.40. **Publishes the "1.4" figure our pitch was using.** | Prediction markets (simulated) |
+| Nine Judges, Two Effective Votes | arXiv 2605.29800 **[S]** | 9 LLM judges ≈ 2 effective votes; ~¾ of nominal independence lost | LLM-as-judge |
+| Are Diversity Metrics Measuring Diversity? | arXiv 2607.20768 **[S]** | 31,900 subsets of 30 LLMs; diversity metrics are **entangled with accuracy** (Spearman rho = +0.99 vs 1 − mean accuracy); voting beats the best member in only 10% of size-3 subsets. **Demands explicit capability controls.** | General |
+
+**What this means for us (assessed 17 Aug 2026).** The *level* of LLM error
+correlation is no longer novel, and our original "nobody has measured this" claim
+is withdrawn. Five things remain genuinely unoccupied, and they are now the
+contribution: (1) prospective, pre-registered collection where the outcome does
+not exist at ask time, so contamination is impossible by construction rather than
+argued away; (2) **conditional** measurement — whether correlation rises under
+stress and ambiguity — which arXiv 2605.00844 explicitly names as its own open
+question; (3) a **structurally matched** human benchmark (SPF RECESS: individual
+probability forecasts of a binary event); (4) an explicit **capability control**,
+which arXiv 2607.20768 shows most work in this area fails; (5) document-grounded
+finance tasks whose targets are quarters not yet filed.
 | The Oracle's Fingerprint: Correlated AI Forecasting Errors | arXiv 2605.00844 **[F]** | 568 resolved binary questions; pairwise error r ≈ 0.74–0.82 vs 0.1–0.3 for humans | **Not finance.** No conditional analysis. |
 | Nine Judges, Two Effective Votes: Correlated Errors Undermine LLM Evaluation Panels | arXiv 2605.29800 **[S]** | 9-judge panel → 2.18 effective voters | LLM-as-judge |
 | Wisdom of LLM Crowds: Aggregation and Contamination in Language Model Ensembles | arXiv 2607.18269 **[F]** | 15 LLMs × 254 prediction-market questions; learned aggregation beats individuals; contamination is "a pervasive confound" | Prediction markets. **No state-dependent correlation.** |

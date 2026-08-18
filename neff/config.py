@@ -61,9 +61,29 @@ class ModelSpec:
 
 
 # --- the panel --------------------------------------------------------------
-# Seven models across SIX families => 21 pairs. The two Anthropic models are a
-# deliberate within-family control: H3 asks whether cross-family diversity buys
-# real independence where same-family and prompt-level diversity do not.
+# NINE models across SIX families => 36 pairs, of which THREE are within-family.
+#
+# The three within-family pairs (Anthropic, OpenAI, Google) are the entire
+# evidence base for H3 ("intra-vendor diversity is an illusion") and for the H6
+# capability control. An earlier version of this panel had SEVEN models and
+# exactly ONE within-family pair, which made both hypotheses nearly undecidable:
+#
+#   - Inference by cluster-robust SE was invalid outright. Clustering is by pair,
+#     so with one within-family pair the `same_family` coefficient's variance came
+#     from a single cluster. On synthetic data with NO family structure it
+#     returned t = +7.06 and declared the effect real -- a false positive
+#     manufactured by the estimator.
+#   - The valid alternative, an exact permutation test over family labels, has
+#     only C(7,2) = 21 distinct labelings, so its BEST ACHIEVABLE p-value was
+#     1/21 = 0.048. A headline hypothesis cannot rest on a test whose ceiling is
+#     the significance threshold.
+#
+# With three within-family pairs the permutation floor drops below 0.001. The
+# marginal cost is a few dollars on a $23 study; the marginal rigour is the
+# difference between a decidable hypothesis and an undecidable one.
+#
+# Each added model is the SAME vendor at a DIFFERENT tier, mirroring the
+# Anthropic pair, so the three within-family pairs are structurally comparable.
 #
 # !! model_id values MUST be verified against each provider's live model list
 #    before collection starts. `python -m neff.verify` does this and fails loudly.
@@ -106,6 +126,25 @@ PANEL: List[ModelSpec] = [
         price=Price(input_per_mtok=0.10, output_per_mtok=0.40),
         tier="mid",
         notes="Free tier may cover much of the pilot. VERIFY id and price.",
+    ),
+    ModelSpec(
+        key="gpt_small",
+        provider="openai",
+        model_id="gpt-5-nano",
+        family="openai",
+        price=Price(input_per_mtok=0.05, output_per_mtok=0.40),
+        tier="small",
+        supports_logprobs=True,
+        notes="Second within-family pair (with gpt_mid). VERIFY id and price.",
+    ),
+    ModelSpec(
+        key="gemini_flash_pro",
+        provider="google",
+        model_id="gemini-2.5-flash",
+        family="google",
+        price=Price(input_per_mtok=0.30, output_per_mtok=2.50),
+        tier="mid",
+        notes="Third within-family pair (with gemini_flash). VERIFY id and price.",
     ),
     ModelSpec(
         key="llama",

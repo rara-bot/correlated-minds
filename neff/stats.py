@@ -246,3 +246,102 @@ def signal_error_decomposition(
         "n_eff_forecast": n_eff(forecast_corr, f.shape[1]),
         "n_eff_error": n_eff(error_corr, f.shape[1]),
     }
+
+
+# ---------------------------------------------------------------------------
+# UNCENTERED (SECOND-MOMENT) ESTIMATORS
+#
+# Added 17 Aug 2026, before collection, after a simulation showed the Pearson
+# estimators above are BLIND to the failure mode this study exists to measure.
+#
+# Pearson correlation subtracts each forecaster's own mean error, so a bias that
+# every forecaster shares is differenced away. Simulated at M = 7, T = 400 with
+# independent idiosyncratic errors and a common bias b added to all seven:
+#
+#     b = 0.00 -> Pearson rho = +0.016, headroom 5.40  | true N_eff(MSE) = 6.38
+#     b = 0.10 -> Pearson rho = -0.008, headroom 6.35  | true N_eff(MSE) = 3.27
+#     b = 0.20 -> Pearson rho = +0.010, headroom 5.59  | true N_eff(MSE) = 1.70
+#     b = 0.30 -> Pearson rho = +0.013, headroom 5.49  | true N_eff(MSE) = 1.37
+#
+# Pearson reports "seven nearly independent minds" at every bias level while the
+# panel is in fact collapsing to one. "Every model wrong in the same direction"
+# IS the systemic-risk story, so an estimator that cannot see it is the wrong
+# primary. These uncentered versions keep the mean in.
+# ---------------------------------------------------------------------------
+
+
+def uncentered_pairwise_correlations(
+    errors: np.ndarray, min_overlap: int = 3
+) -> Tuple[np.ndarray, List[Tuple[int, int]]]:
+    """Second-moment correlation E[e_i e_j] / sqrt(E[e_i^2] E[e_j^2]) per pair.
+
+    Identical in structure to `pairwise_error_correlations` but WITHOUT removing
+    each forecaster's mean error, so shared bias counts as shared error -- which
+    is what it is.
+    """
+    arr = _as_error_matrix(errors)
+    n_forecasters = arr.shape[1]
+
+    correlations: List[float] = []
+    pairs: List[Tuple[int, int]] = []
+
+    for i in range(n_forecasters):
+        for j in range(i + 1, n_forecasters):
+            a, b = arr[:, i], arr[:, j]
+            mask = ~np.isnan(a) & ~np.isnan(b)
+            if int(mask.sum()) < min_overlap:
+                continue
+            av, bv = a[mask], b[mask]
+            denom = np.sqrt(np.mean(av**2) * np.mean(bv**2))
+            if not np.isfinite(denom) or denom == 0.0:
+                continue
+            correlations.append(float(np.mean(av * bv) / denom))
+            pairs.append((i, j))
+
+    return np.asarray(correlations, dtype=float), pairs
+
+
+def mean_uncentered_correlation(errors: np.ndarray, min_overlap: int = 3) -> float:
+    """rho_bar computed on second moments rather than on deviations from the mean."""
+    correlations, _ = uncentered_pairwise_correlations(errors, min_overlap=min_overlap)
+    if correlations.size == 0:
+        return float("nan")
+    return float(np.mean(correlations))
+
+
+def n_eff_mse(errors: np.ndarray, min_models: int = 2) -> float:
+    """Model-free effective panel size on the MSE scale.
+
+        N_eff_mse = mean_i MSE_i / MSE(panel mean)
+
+    This makes no equicorrelation assumption and no zero-bias assumption. It
+    answers the operational question directly: by what factor does averaging the
+    panel actually reduce squared error? A panel that shares a bias cannot
+    average it away, and this statistic shows that; the Pearson version does not.
+    """
+    arr = np.asarray(errors, dtype=float)
+    if arr.ndim != 2:
+        raise ValueError("errors must be 2-D (n_tasks, n_forecasters)")
+
+    counts = np.sum(~np.isnan(arr), axis=1)
+    keep = counts >= min_models
+    if int(keep.sum()) < 3:
+        return float("nan")
+    arr = arr[keep]
+
+    with np.errstate(invalid="ignore"):
+        per_model_mse = np.nanmean(arr**2, axis=0)
+        panel_mean = np.nanmean(arr, axis=1)
+
+    mean_mse = float(np.nanmean(per_model_mse))
+    panel_mse = float(np.mean(panel_mean**2))
+    if not np.isfinite(mean_mse) or panel_mse <= 0:
+        return float("nan")
+    return mean_mse / panel_mse
+
+
+__all__ += [
+    "uncentered_pairwise_correlations",
+    "mean_uncentered_correlation",
+    "n_eff_mse",
+]

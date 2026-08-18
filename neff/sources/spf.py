@@ -53,13 +53,42 @@ MICRODATA_URL = (
 
 CACHE_PATH = DATA_DIR / "spf_raw" / "SPFmicrodata.xlsx"
 
-# SPF sheet -> (FRED series for the realized outcome, how to aggregate it)
+# SPF sheet -> (FRED series, how to aggregate, WHAT THE SPF COLUMN ACTUALLY IS)
+#
+# !! CORRECTED 17 Aug 2026, BEFORE FREEZE. The previous version of this table
+#    compared every SPF column to a FRED LEVEL, which is only correct for UNEMP.
+#    Measured damage on the 2000+ sample:
+#
+#      CPI  h=1 : median |error| 229.07   rho_bar 1.0000   (SPF reports an
+#                 annualised inflation RATE ~2.7%; CPIAUCSL is an index ~333)
+#      RGDP h=1 : median |error| 3488.46  rho_bar 1.0000   (SPF levels are in the
+#                 chain base current at survey time; GDPC1 is 2017 dollars)
+#
+#    Both produced rho_bar = 1.0000 -- a perfect correlation manufactured
+#    entirely by a units mismatch, in the numbers that set this study's human
+#    benchmark. Corrected, CPI h=4 headroom moves from 0.0047 to 0.0797: a 17x
+#    change in a quantity that appears in the denominator of the headline.
+#
+# unit semantics:
+#   "level"  -- SPF column is the same object as the FRED series (UNEMP only)
+#   "growth" -- SPF column is a level in a drifting chain base; the base cancels
+#               in the annualised quarter-on-quarter growth rate, so we compare
+#               growth to growth
+#   "rate"   -- SPF column is ALREADY an annualised percent change; build the
+#               same object from the FRED index
 VARIABLE_MAP = {
-    "UNEMP": ("UNRATE", "quarterly_mean"),
-    "CPI": ("CPIAUCSL", "quarterly_mean"),
-    "EMP": ("PAYEMS", "quarterly_mean"),
-    "RGDP": ("GDPC1", "quarterly_level"),
+    "UNEMP": ("UNRATE", "quarterly_mean", "level"),
+    "CPI": ("CPIAUCSL", "quarterly_mean", "rate"),
+    "EMP": ("PAYEMS", "quarterly_mean", "growth"),
+    "RGDP": ("GDPC1", "quarterly_level", "growth"),
 }
+
+# Individual probability forecasts of a BINARY event. Structurally identical to
+# the AI task (a probability in [0,1], an outcome in {0,1}, error = p - y), which
+# is what makes H4 an apples-to-apples comparison rather than a comparison
+# between binary probabilities and continuous point forecasts.
+RECESS_SHEET = "RECESS"
+RECESS_OUTCOME_SERIES = "GDPC1"
 
 
 @dataclass
@@ -177,8 +206,21 @@ def realized_outcomes(
     """
     from . import fred
 
-    series_id, mode = VARIABLE_MAP[variable]
+    series_id, mode, units = VARIABLE_MAP[variable]
     history = fred.fetch_series(series_id)
+
+    def _value(year: int, quarter: int) -> Optional[float]:
+        if mode == "quarterly_mean":
+            return fred.quarterly_average(series_id, year, quarter, series=history)
+        month = 3 * (quarter - 1) + 1
+        return next(
+            (
+                v
+                for d, v in history
+                if d.year == year and d.month == month and v is not None
+            ),
+            None,
+        )
 
     outcomes = np.full(len(rounds), np.nan, dtype=float)
     for i, (year, quarter) in enumerate(rounds):
@@ -186,22 +228,62 @@ def realized_outcomes(
         target_y = year + (target_q - 1) // 4
         target_q = ((target_q - 1) % 4) + 1
 
-        if mode == "quarterly_mean":
-            value = fred.quarterly_average(series_id, target_y, target_q, series=history)
+        if units == "level":
+            value = _value(target_y, target_q)
         else:
-            month = 3 * (target_q - 1) + 1
-            value = next(
-                (
-                    v
-                    for d, v in history
-                    if d.year == target_y and d.month == month and v is not None
-                ),
-                None,
+            # Both "rate" and "growth" compare an annualised quarter-on-quarter
+            # percent change, which is invariant to the index base.
+            prev_q, prev_y = (target_q - 1, target_y) if target_q > 1 else (4, target_y - 1)
+            current, previous = _value(target_y, target_q), _value(prev_y, prev_q)
+            value = (
+                ((current / previous) ** 4 - 1) * 100
+                if current is not None and previous not in (None, 0)
+                else None
             )
         if value is not None:
             outcomes[i] = value
 
     return outcomes
+
+
+def growth_matrix(
+    frame: pd.DataFrame,
+    variable: str,
+    horizon: int,
+    min_year: int = 2000,
+    min_forecasters: int = 8,
+) -> Tuple[np.ndarray, List[Tuple[int, int]], List[int]]:
+    """Annualised growth implied by each forecaster's OWN consecutive levels.
+
+    For "growth" variables the SPF column is a level denominated in whatever
+    chain base was current at survey time. Differencing two horizons from the
+    SAME respondent cancels that base exactly, which is why growth is the only
+    base-safe way to score these series against a modern FRED vintage.
+    """
+    if horizon < 2:
+        raise ValueError("growth needs horizon >= 2 (it differences h-1 and h)")
+
+    hi, lo = f"{variable}{horizon}", f"{variable}{horizon - 1}"
+    for column in (hi, lo):
+        if column not in frame.columns:
+            raise ValueError(f"column {column!r} not in sheet")
+
+    recent = frame[frame["YEAR"] >= min_year][["YEAR", "QUARTER", "ID", hi, lo]].copy()
+    for column in (hi, lo):
+        recent[column] = pd.to_numeric(recent[column], errors="coerce")
+    recent = recent.dropna(subset=[hi, lo])
+    recent = recent[recent[lo] > 0]
+    recent["_g"] = ((recent[hi] / recent[lo]) ** 4 - 1) * 100
+
+    counts = recent["ID"].value_counts()
+    recent = recent[recent["ID"].isin(counts[counts >= 12].index)]
+
+    pivot = recent.pivot_table(
+        index=["YEAR", "QUARTER"], columns="ID", values="_g", aggfunc="first"
+    )
+    pivot = pivot[pivot.notna().sum(axis=1) >= min_forecasters]
+    rounds = [(int(y), int(q)) for y, q in pivot.index]
+    return pivot.to_numpy(dtype=float), rounds, [int(i) for i in pivot.columns]
 
 
 def measure(
@@ -219,9 +301,15 @@ def measure(
     directly comparable by construction rather than by argument.
     """
     frame = load_variable(variable, path=path)
-    forecasts, rounds, ids = forecast_matrix(
-        frame, variable, horizon=horizon, min_year=min_year
-    )
+    units = VARIABLE_MAP[variable][2]
+    if units == "growth":
+        forecasts, rounds, ids = growth_matrix(
+            frame, variable, horizon=horizon, min_year=min_year
+        )
+    else:
+        forecasts, rounds, ids = forecast_matrix(
+            frame, variable, horizon=horizon, min_year=min_year
+        )
     outcomes = realized_outcomes(variable, rounds, horizon=horizon)
 
     usable = ~np.isnan(outcomes)
@@ -282,3 +370,128 @@ def measure_all(
         except Exception as exc:                       # noqa: BLE001
             print(f"  [skip] {variable}: {type(exc).__name__}: {exc}")
     return out
+
+
+# ---------------------------------------------------------------------------
+# THE STRUCTURALLY MATCHED HUMAN BENCHMARK
+#
+# Added 17 Aug 2026, before collection. H4 compares human and AI diversification
+# headroom. The point-forecast baselines above are a comparison between two
+# different objects: our models emit a PROBABILITY of a BINARY event (error
+# p - y, y in {0,1}), while SPF point forecasts are continuous levels. Headroom
+# is approximately tau^2 / (sigma_c^2 + tau^2) -- the share of error variance
+# that is idiosyncratic -- and the mechanical floor of sigma_c^2 differs between
+# a Bernoulli outcome and a continuous one. Comparing across that gap invites
+# the obvious objection that the headline result is a task-format artifact.
+#
+# RECESS closes it. Every quarter since 1968 the SPF asks each panelist for the
+# probability that real GDP will DECLINE in the survey quarter and in each of the
+# next four. That is a probability forecast of a binary event, at the individual
+# level, resolved by the national accounts: the same object our models produce,
+# scored the same way, by the professionals they are said to replace.
+#
+# Measured on 2000+ (106 rounds, 79 forecasters, 13% base rate):
+#     h=1  rho_bar 0.8417   headroom@M=7 0.1702
+#     h=4  rho_bar 0.8906   headroom@M=7 0.1153
+# ---------------------------------------------------------------------------
+
+
+def _gdp_declined(series: List[Tuple], year: int, quarter: int) -> Optional[float]:
+    """1.0 if real GDP fell that quarter versus the previous one."""
+    levels = {(d.year, (d.month - 1) // 3 + 1): v for d, v in series if v is not None}
+    prev_q, prev_y = (quarter - 1, year) if quarter > 1 else (4, year - 1)
+    current, previous = levels.get((year, quarter)), levels.get((prev_y, prev_q))
+    if current is None or previous is None:
+        return None
+    return float(current < previous)
+
+
+def measure_binary(
+    horizon: int = 1,
+    min_year: int = 2000,
+    matched_panel_size: int = 7,
+    n_subsamples: int = 500,
+    seed: int = 0,
+    path: Optional[Path] = None,
+    min_forecasters: int = 8,
+) -> HumanBaseline:
+    """Human independence on PROBABILITY forecasts of a BINARY event (SPF RECESS).
+
+    This is the primary human benchmark for H4, because it is the only public
+    human panel that produces the same kind of object our models produce.
+
+    horizon: 1 = probability of decline in the survey quarter ... 5 = four
+        quarters ahead.
+    """
+    source = Path(path) if path else download_microdata()
+    frame = pd.read_excel(source, sheet_name=RECESS_SHEET)
+    frame.columns = [str(c).strip().upper() for c in frame.columns]
+
+    column = f"{RECESS_SHEET}{horizon}"
+    if column not in frame.columns:
+        raise ValueError(f"column {column!r} not in RECESS sheet")
+
+    recent = frame[frame["YEAR"] >= min_year][["YEAR", "QUARTER", "ID", column]].copy()
+    recent[column] = pd.to_numeric(recent[column], errors="coerce")
+    recent = recent.dropna(subset=[column])
+
+    counts = recent["ID"].value_counts()
+    recent = recent[recent["ID"].isin(counts[counts >= 12].index)]
+
+    pivot = recent.pivot_table(
+        index=["YEAR", "QUARTER"], columns="ID", values=column, aggfunc="first"
+    )
+    pivot = pivot[pivot.notna().sum(axis=1) >= min_forecasters]
+
+    rounds = [(int(y), int(q)) for y, q in pivot.index]
+    # SPF records these as percentages; our models emit probabilities.
+    forecasts = pivot.to_numpy(dtype=float) / 100.0
+
+    from . import fred
+
+    history = fred.fetch_series(RECESS_OUTCOME_SERIES)
+    outcomes = np.full(len(rounds), np.nan, dtype=float)
+    for i, (year, quarter) in enumerate(rounds):
+        target_q = quarter + (horizon - 1)
+        target_y = year + (target_q - 1) // 4
+        target_q = ((target_q - 1) % 4) + 1
+        value = _gdp_declined(history, target_y, target_q)
+        if value is not None:
+            outcomes[i] = value
+
+    usable = ~np.isnan(outcomes)
+    forecasts, outcomes = forecasts[usable], outcomes[usable]
+    if forecasts.shape[0] < 8:
+        raise ValueError(f"only {forecasts.shape[0]} usable RECESS rounds")
+
+    errors = forecasts - outcomes[:, None]
+
+    rho_bar = mean_pairwise_correlation(errors, min_overlap=6)
+    full_n = int(errors.shape[1])
+
+    rng = np.random.default_rng(seed)
+    draws: List[float] = []
+    if full_n >= matched_panel_size:
+        for _ in range(n_subsamples):
+            picks = rng.choice(full_n, size=matched_panel_size, replace=False)
+            sub_rho = mean_pairwise_correlation(errors[:, picks], min_overlap=6)
+            if np.isfinite(sub_rho):
+                draws.append(n_eff(sub_rho, matched_panel_size))
+
+    if draws:
+        matched = float(np.mean(draws))
+        ci = (float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5)))
+    else:
+        matched, ci = float("nan"), (float("nan"), float("nan"))
+
+    return HumanBaseline(
+        variable="RECESS",
+        horizon=horizon,
+        n_rounds=int(forecasts.shape[0]),
+        n_forecasters_median=float(np.median(np.sum(~np.isnan(forecasts), axis=1))),
+        rho_bar=float(rho_bar),
+        n_eff_full_panel=float(n_eff(rho_bar, full_n)),
+        n_eff_matched=matched,
+        matched_panel_size=matched_panel_size,
+        n_eff_matched_ci=ci,
+    )

@@ -82,7 +82,7 @@ paper in this area asks.
 
 ---
 
-## 4. Why these seven models, when no bank calls these APIs
+## 4. Why these nine models, when no bank calls these APIs
 
 **The question:** *"You're paying for four API keys. Banks don't buy from those
 consoles, and they don't use those exact models. So what are you measuring?"*
@@ -115,7 +115,7 @@ And whether those additions rescue independence is not an afterthought; it is
 | Diversification a firm might buy | Our test |
 |---|---|
 | "We use several prompts / personas" | one model, 5 prompt variants |
-| "We use two models from one vendor" | Claude Sonnet vs Claude Haiku (within-family control) |
+| "We use two models from one vendor" | three within-family pairs: Anthropic, OpenAI, Google |
 | "We use different vendors" | six distinct families |
 
 If prompt-level and within-family diversity buy materially less independence than
@@ -161,8 +161,8 @@ labs, which is the component the systemic-risk argument actually rests on.
 
 ### 4.6 The money is not the design constraint
 
-Four keys, **$30 of float, $23 measured cost for the full 15 weeks** — one
-OpenRouter key covers three of the seven models. The panel was designed around
+Four keys, **$30 of float, ~$30 measured cost for the full 15 weeks** — one
+OpenRouter key covers three of the nine models. The panel was designed around
 lineage coverage and then costed, not the reverse. Nothing in §4.1–§4.5 would
 change if the budget were ten times larger; we would add frontier tiers, which is
 the Year-2 extension, not a different study.

@@ -100,7 +100,7 @@ Build the thing as a **deployable instrument**, not just an analysis:
 
 > **A live meter that tells you how many independent minds your AI ensemble actually has.**
 
-Judge walks up. Types a financial scenario. Seven models answer in real time. The N_eff dial reads
+Judge walks up. Types a financial scenario. Nine models answer in real time. The N_eff dial reads
 **6.2**. Then they drag the **ambiguity slider** — the scenario gets vaguer, the evidence weaker —
 and they watch the models converge and the dial collapse toward **1.4** in front of them.
 
@@ -149,7 +149,9 @@ That single comparison does more work than everything else combined:
   redundant than the humans they replace."
 - **It answers the real policy question** the FSB, BoE and IMF are actually asking.
 - **It is instantly legible.** A judge with no statistics background understands *"seven humans
-  behave like four independent minds; seven AIs behave like one and a half"* immediately — and
+  behave like four independent minds; the AI panel behaves like far fewer"* immediately — and
+  **do not quote a specific N_eff until we have measured our own; "1.4" is already
+  published (arXiv 2606.26583) and is not ours to claim** — and
   never forgets it.
 - **It gives us a validated benchmark for the state-dependence claim too:** human forecaster
   correlation also rises in recessions. If AI's rises *faster*, that is the finding.
@@ -210,7 +212,7 @@ Net: ~290 hours, unchanged. Budget unchanged at $200 — three of four elevation
 > "I measured how correlated AI financial decisions are."
 
 **After:**
-> **"Seven AI models from seven different companies — and under market stress they stop being seven.
+> **"Nine AI models from six different companies — and under market stress they stop being nine.
 > I predicted when it would happen before it happened, traced it to how the models represent the
 > situation internally, and built the instrument that measures it."**
 

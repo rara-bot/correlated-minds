@@ -39,6 +39,8 @@ class Panel:
     model_keys: List[str]
     market_implied: np.ndarray     # (n_tasks,), NaN where unavailable
     state: List[Dict]              # per-task market state at ask time
+    question_ids: List[str]        # stable question identity across days
+    asked_on: List[str]            # ISO date the question was put to the panel
 
     @property
     def n_tasks(self) -> int:
@@ -77,6 +79,8 @@ class Panel:
             model_keys=list(self.model_keys),
             market_implied=self.market_implied[idx],
             state=[self.state[i] for i in keep],
+            question_ids=[self.question_ids[i] for i in keep],
+            asked_on=[self.asked_on[i] for i in keep],
         )
 
     def subset_by_models(self, keys: Sequence[str]) -> "Panel":
@@ -91,6 +95,8 @@ class Panel:
             model_keys=[self.model_keys[i] for i in cols],
             market_implied=self.market_implied,
             state=list(self.state),
+            question_ids=list(self.question_ids),
+            asked_on=list(self.asked_on),
         )
 
 
@@ -132,6 +138,8 @@ def load_panel(
                 {
                     "market_implied": record.get("market_implied"),
                     "state": record.get("state") or {},
+                    "source_ref": record.get("source_ref") or "",
+                    "asked_on": (record.get("state") or {}).get("asked_on") or "",
                 },
             )
 
@@ -149,18 +157,40 @@ def load_panel(
         task_id = str(record.get("task_id"))
         grid.setdefault(task_id, {})[str(model_key)] = float(forecast)
 
-    task_ids = sorted(
+    eligible = [
         tid
         for tid, row in grid.items()
         if len(row) >= min_models_per_task
         and (not require_resolved or tid in resolutions)
-    )
+    ]
+
+    # ORDER MATTERS AND IS NOT COSMETIC.
+    #
+    # task_id is a SHA-256 hash, so sorting on it puts rows in an order that is
+    # random with respect to time. The moving-block bootstrap resamples
+    # CONTIGUOUS ROWS to preserve serial dependence -- under hash ordering those
+    # "blocks" are unrelated days, so the block bootstrap silently degrades to an
+    # ordinary i.i.d. bootstrap and reports intervals that are far too narrow.
+    #
+    # Measured on an AR(0.9) simulation, T = 300, M = 7:
+    #     time-ordered rows : rho = 0.8978, CI [0.8599, 0.9237], width 0.0638
+    #     hash-ordered rows : rho = 0.8978, CI [0.8781, 0.9136], width 0.0355
+    # i.e. every interval in the paper would have been 44% too narrow.
+    #
+    # Sorting on (asked_on, question, task) restores true temporal adjacency.
+    def _sort_key(tid: str):
+        meta = task_meta.get(tid, {})
+        return (str(meta.get("asked_on") or ""), str(meta.get("source_ref") or ""), tid)
+
+    task_ids = sorted(eligible, key=_sort_key)
 
     n_tasks, n_models = len(task_ids), len(keys)
     forecasts = np.full((n_tasks, n_models), np.nan, dtype=float)
     outcomes = np.full(n_tasks, np.nan, dtype=float)
     implied = np.full(n_tasks, np.nan, dtype=float)
     state: List[Dict] = []
+    question_ids: List[str] = []
+    asked_on: List[str] = []
 
     for row, task_id in enumerate(task_ids):
         for model_key, value in grid[task_id].items():
@@ -172,6 +202,8 @@ def load_panel(
         if isinstance(market_value, (int, float)):
             implied[row] = float(market_value)
         state.append(dict(meta.get("state") or {}))
+        question_ids.append(str(meta.get("source_ref") or task_id))
+        asked_on.append(str(meta.get("asked_on") or ""))
 
     errors = forecasts - outcomes[:, None]
 
@@ -183,6 +215,54 @@ def load_panel(
         model_keys=keys,
         market_implied=implied,
         state=state,
+        question_ids=question_ids,
+        asked_on=asked_on,
+    )
+
+
+def apply_settled_question_exclusion(
+    panel: Panel, low: float = 0.05, high: float = 0.95
+) -> Panel:
+    """Drop questions the panel had effectively already decided. REGISTERED (§3.3).
+
+    The rule is defined on the FIRST DAY a question is asked, and applies to the
+    whole question, not to individual task-days. That requires a stable question
+    identity across days, which is what `question_ids` provides: `task_id` is
+    date-stamped, so it cannot express "the same question, asked again".
+
+    Excluding these is not cosmetic. A question whose median forecast is 0.02
+    compresses error variance toward zero for a reason that has nothing to do
+    with shared priors, and would inflate measured correlation for free.
+    """
+    first_day: Dict[str, str] = {}
+    for i, qid in enumerate(panel.question_ids):
+        day = panel.asked_on[i]
+        if qid not in first_day or (day and day < first_day[qid]):
+            first_day[qid] = day
+
+    verdict: Dict[str, bool] = {}
+    for i, qid in enumerate(panel.question_ids):
+        if panel.asked_on[i] != first_day.get(qid):
+            continue
+        row = panel.forecasts[i]
+        row = row[~np.isnan(row)]
+        if row.size == 0:
+            continue
+        median = float(np.median(row))
+        verdict[qid] = low <= median <= high
+
+    keep = [i for i, qid in enumerate(panel.question_ids) if verdict.get(qid, True)]
+    idx = np.asarray(keep, dtype=int)
+    return Panel(
+        forecasts=panel.forecasts[idx],
+        outcomes=panel.outcomes[idx],
+        errors=panel.errors[idx],
+        task_ids=[panel.task_ids[i] for i in keep],
+        model_keys=list(panel.model_keys),
+        market_implied=panel.market_implied[idx],
+        state=[panel.state[i] for i in keep],
+        question_ids=[panel.question_ids[i] for i in keep],
+        asked_on=[panel.asked_on[i] for i in keep],
     )
 
 
@@ -201,4 +281,7 @@ def describe(panel: Panel) -> Dict[str, object]:
         "observations_per_model": per_model,
         "models_per_task_median": float(np.median(per_task)) if per_task.size else 0.0,
         "tasks_with_market_benchmark": int(np.sum(~np.isnan(panel.market_implied))),
+        "distinct_questions": len(set(panel.question_ids)),
+        "distinct_days": len({d for d in panel.asked_on if d}),
+        "rows_time_ordered": panel.asked_on == sorted(panel.asked_on),
     }

@@ -183,7 +183,7 @@ Not applicable in the conventional sense. Structurally, outcome data cannot infl
 > Paste §3 of `PREREGISTRATION.md` (Design), which covers the panel, both task
 > types, inclusion criteria and repeated measurement. Then add:
 ```
-Seven models across six vendor families, each pinned to an exact API identifier which is logged on every call so that mid-study vendor model drift is detectable. Sampling temperature fixed at 0 for all models. The daily battery is 60% macro questions (Kalshi event contracts and scheduled statistical releases) and 40% document-grounded filing tasks (SEC EDGAR XBRL). Open questions are re-asked daily until resolution; the unit of observation is the task-day.
+Nine models across six vendor families (three of them represented at two tiers, giving three within-family pairs), each pinned to an exact API identifier which is logged on every call so that mid-study vendor model drift is detectable. Sampling temperature fixed at 0 for all models. The daily battery is 60% macro questions (Kalshi event contracts and scheduled statistical releases) and 40% document-grounded filing tasks (SEC EDGAR XBRL). Open questions are re-asked daily until resolution; the unit of observation is the task-day.
 ```
 
 ### Randomization
@@ -203,7 +203,7 @@ Disclosed in full: one dataset used in this study DOES already exist and HAS alr
 
 ### Data collection procedures
 ```
-An automated job runs daily at 13:10 UTC, selects that day's questions under the fixed inclusion criteria, queries all seven models at temperature 0 with an identical prompt, and appends every response, token count and cost to public JSONL files committed to a public GitHub repository. Resolutions are ingested from official sources (statistical agency releases, SEC EDGAR filings, Kalshi settlements) once the outcome exists. Because collection and commits are automated and public, the claim that each forecast preceded its outcome is externally checkable from the commit history rather than asserted.
+An automated job runs daily at 13:10 UTC, selects that day's questions under the fixed inclusion criteria, queries all nine models at temperature 0 with an identical prompt, and appends every response, token count and cost to public JSONL files committed to a public GitHub repository. Resolutions are ingested from official sources (statistical agency releases, SEC EDGAR filings, Kalshi settlements) once the outcome exists. Because collection and commits are automated and public, the claim that each forecast preceded its outcome is externally checkable from the commit history rather than asserted.
 ```
 
 ### Sample size
@@ -244,8 +244,9 @@ N_eff is the standard effective-ensemble-size index under equicorrelation. Where
 ```
 H1: regression of pairwise error products on standardised state variables with task-clustered standard errors; plus a top-versus-bottom stress tercile comparison of headroom.
 H2: on the 10% extended-reasoning subsample, comparison of cross-model rationale similarity and of evidence-sensitivity across ambiguity terciles.
-H3: headroom compared across three matched-size panels — one model under 5 prompt variants, two models from one family, two models from different families.
-H4: headroom ratio, humans over AI, on matched macro questions with human panels subsampled to M = 7 over 500 random draws.
+H3: headroom compared across matched-size panels — one model under 5 prompt variants, the three within-family pairs, and family-matched cross-family pairs. Inference by exact permutation over family labels.
+H6: pairwise error correlation regressed on a same-family indicator plus the pair's mean Brier skill and skill gap, to separate shared lineage from shared capability.
+H4: difference in variance reduction, humans minus AI, on matched macro questions, with human panels subsampled to M = 9 over 500 random draws. The primary human benchmark is SPF RECESS (individual probability forecasts of a binary event), which is structurally identical to the AI task. Reported only alongside both panels' Brier scores, and at matched accuracy.
 H5: headroom estimated separately for macro and filing task types, with a bootstrap interval on the difference.
 
 Uncertainty throughout: moving-block bootstrap, block size 5 task-days, 2000 resamples, percentile intervals. Blocks rather than i.i.d. resampling because task-days are serially dependent and an ordinary bootstrap would understate uncertainty.

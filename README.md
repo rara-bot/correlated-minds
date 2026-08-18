@@ -49,7 +49,7 @@ Every day, automatically:
 
 1. Pull open event contracts from Kalshi (economics, financials) that resolve
    **before the 6 Dec data freeze**.
-2. Ask all seven models the same questions, at temperature 0, with a fixed JSON
+2. Ask all nine models the same questions, at temperature 0, with a fixed JSON
    schema.
 3. Append every answer to a public, timestamped, append-only record.
 4. Check which past questions have settled and score them.

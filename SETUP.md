@@ -51,7 +51,7 @@ so the record is independently checkable two ways.
 ## Step 1 — Get API keys (~20 min)
 
 You need four accounts. **Put in $10 each; you do not need $200.**
-Measured cost of the full 15-week study is **$23**.
+Measured cost of the full 15-week study is **~$30** (nine models).
 
 | Provider | URL | Add |
 |---|---|---|
@@ -60,7 +60,7 @@ Measured cost of the full 15-week study is **$23**.
 | Google AI Studio | aistudio.google.com/apikey | $0 — free tier likely covers it |
 | OpenRouter | openrouter.ai/keys | $10 |
 
-OpenRouter is one key covering Llama, Qwen and DeepSeek — three of our seven
+OpenRouter is one key covering Llama, Qwen and DeepSeek — three of our nine
 models — so it's the best value of the four.
 
 Then, in the project folder:
@@ -97,7 +97,7 @@ If any row says `ID MISMATCH`, tell me the ID it reports and I'll update
 ./.venv/bin/python -m neff.collect --tasks 8 --arm pilot
 ```
 
-Expect ~56 observations for about 7 cents. Then check the panel is healthy:
+Expect ~72 observations for about 9 cents. Then check the panel is healthy:
 
 ```bash
 ./.venv/bin/python -c "

@@ -178,7 +178,7 @@ more than folding it in late.
 > Regulators in three countries have called this one of the biggest emerging risks to the financial
 > system. Nobody has measured it.
 >
-> I'm measuring it — by asking seven AI systems to forecast real financial events every day for
+> I'm measuring it — by asking nine AI systems to forecast real financial events every day for
 > fifteen weeks, scoring not whether they agree but whether they're **wrong in the same way at the
 > same time**, and testing whether that gets worse under stress. I'll predict it in advance and
 > check the prediction against events that hadn't happened yet, look inside the models to find the

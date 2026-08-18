@@ -42,10 +42,16 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .stats import mean_pairwise_correlation, n_eff
+from .stats import (
+    mean_pairwise_correlation,
+    mean_uncentered_correlation,
+    n_eff,
+    n_eff_mse,
+)
 
 __all__ = [
     "variance_reduction",
+    "mse_reduction",
     "diversification_benefit",
     "headroom",
     "effective_panel",
@@ -65,13 +71,22 @@ class PanelSummary:
     headroom: float                 # N_eff - 1: how much ensembling actually buys
     variance_reduction: float       # empirical Var(mean)/mean(Var), model-free
     diversification_benefit: float  # 1 - variance_reduction
+
+    # --- uncentered / MSE scale: keeps shared bias in (see stats.py) ---------
+    rho_bar_uncentered: float = float("nan")
+    n_eff_mse: float = float("nan")
+    headroom_mse: float = float("nan")
+    mse_reduction: float = float("nan")
+    mse_benefit: float = float("nan")
+
     ci: Optional[Tuple[float, float]] = None
 
     def describe(self) -> str:
         return (
             f"{self.n_forecasters} forecasters, {self.n_tasks} tasks: "
-            f"rho={self.rho_bar:.4f}, N_eff={self.n_eff:.3f}, "
-            f"ensembling removes {100 * self.diversification_benefit:.1f}% of error variance"
+            f"rho={self.rho_bar:.4f} (uncentered {self.rho_bar_uncentered:.4f}), "
+            f"N_eff={self.n_eff:.3f} (MSE scale {self.n_eff_mse:.3f}); "
+            f"ensembling removes {100 * self.mse_benefit:.1f}% of squared error"
         )
 
 
@@ -107,6 +122,20 @@ def variance_reduction(errors: np.ndarray, min_models: int = 2) -> float:
     return float(np.var(panel_mean, ddof=1) / mean_var)
 
 
+def mse_reduction(errors: np.ndarray, min_models: int = 2) -> float:
+    """MSE(panel mean) / mean(MSE of individuals). The uncentered counterpart.
+
+    `variance_reduction` above centres both terms, so a bias shared by the whole
+    panel cancels from numerator and denominator alike and the statistic reports
+    a diversification benefit the panel does not actually have. This version
+    keeps the mean in. Where the two diverge, the gap IS the shared-bias finding.
+    """
+    value = n_eff_mse(errors, min_models=min_models)
+    if not np.isfinite(value) or value <= 0:
+        return float("nan")
+    return float(1.0 / value)
+
+
 def diversification_benefit(errors: np.ndarray) -> float:
     """Fraction of error variance removed by averaging the panel. In [0, 1)."""
     vr = variance_reduction(errors)
@@ -134,8 +163,11 @@ def effective_panel(
     """Full summary of one panel."""
     arr = np.asarray(errors, dtype=float)
     rho = mean_pairwise_correlation(arr, min_overlap=min_overlap)
+    rho_unc = mean_uncentered_correlation(arr, min_overlap=min_overlap)
     m = int(arr.shape[1])
     vr = variance_reduction(arr)
+    nem = n_eff_mse(arr)
+    msr = mse_reduction(arr)
     return PanelSummary(
         n_tasks=int(arr.shape[0]),
         n_forecasters=m,
@@ -144,6 +176,11 @@ def effective_panel(
         headroom=headroom(rho, m),
         variance_reduction=float(vr),
         diversification_benefit=float(diversification_benefit(arr)),
+        rho_bar_uncentered=float(rho_unc),
+        n_eff_mse=float(nem),
+        headroom_mse=float(nem - 1.0) if np.isfinite(nem) else float("nan"),
+        mse_reduction=float(msr),
+        mse_benefit=float(max(0.0, 1.0 - msr)) if np.isfinite(msr) else float("nan"),
         ci=ci,
     )
 
@@ -176,8 +213,20 @@ def headroom_ratio(
         rho = mean_pairwise_correlation(sample, min_overlap=3)
         return headroom(rho, int(sample.shape[1]))
 
+    def _benefit(sample: np.ndarray) -> float:
+        """Fraction of SQUARED error removed by averaging. Bounded in [0, 1)."""
+        value = n_eff_mse(sample)
+        if not np.isfinite(value) or value <= 0:
+            return float("nan")
+        return float(max(0.0, 1.0 - 1.0 / value))
+
     point_ref, point_test = _headroom(ref), _headroom(test)
-    ratio = point_ref / point_test if point_test not in (0.0,) and np.isfinite(point_test) else float("nan")
+    benefit_ref, benefit_test = _benefit(ref), _benefit(test)
+    ratio = (
+        point_ref / point_test
+        if np.isfinite(point_test) and point_test > 0
+        else float("nan")
+    )
 
     rng = np.random.default_rng(seed)
 
@@ -190,21 +239,48 @@ def headroom_ratio(
         return sample[idx]
 
     draws: List[float] = []
+    diffs: List[float] = []
+    benefit_diffs: List[float] = []
     for _ in range(n_boot):
-        a, b = _headroom(_resample(ref)), _headroom(_resample(test))
-        if np.isfinite(a) and np.isfinite(b) and b > 0:
-            draws.append(a / b)
+        ra, rb = _resample(ref), _resample(test)
+        a, b = _headroom(ra), _headroom(rb)
+        if np.isfinite(a) and np.isfinite(b):
+            diffs.append(a - b)
+            if b > 0:
+                draws.append(a / b)
+        ba, bb = _benefit(ra), _benefit(rb)
+        if np.isfinite(ba) and np.isfinite(bb):
+            benefit_diffs.append(ba - bb)
 
-    if draws:
-        lo, hi = float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5))
-    else:
-        lo = hi = float("nan")
+    def _ci(values: List[float]) -> Tuple[float, float]:
+        if not values:
+            return float("nan"), float("nan")
+        return float(np.percentile(values, 2.5)), float(np.percentile(values, 97.5))
+
+    lo, hi = _ci(draws)
+    diff_lo, diff_hi = _ci(diffs)
+    ben_lo, ben_hi = _ci(benefit_diffs)
 
     return {
+        # --- PRIMARY: bounded and interpretable ------------------------------
+        # The ratio is unstable precisely where H4 predicts it lands: as the AI
+        # panel's headroom approaches zero the ratio runs away (simulated: 3.9 at
+        # rho_AI = 0.97 but 1294 at rho_AI = 0.9999), and "AI is 1294x less
+        # diversified" is an arithmetically true, rhetorically worthless number.
+        # The variance-reduction difference is bounded in [-1, 1] and states the
+        # same fact in a form a risk manager can act on.
+        "benefit_reference": float(benefit_ref),
+        "benefit_test": float(benefit_test),
+        "benefit_difference": float(benefit_ref - benefit_test),
+        "benefit_difference_ci": (ben_lo, ben_hi),
         "headroom_reference": float(point_ref),
         "headroom_test": float(point_test),
+        "headroom_difference": float(point_ref - point_test),
+        "headroom_difference_ci": (diff_lo, diff_hi),
+        # --- SECONDARY: the ratio, with its instability made visible ---------
         "ratio": float(ratio),
         "ci_low": lo,
         "ci_high": hi,
         "n_boot_valid": len(draws),
+        "n_boot_ratio_undefined": int(n_boot - len(draws)),
     }
