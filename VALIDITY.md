@@ -82,7 +82,94 @@ paper in this area asks.
 
 ---
 
-## 4. Why the filing task is well-designed
+## 4. Why these seven models, when no bank calls these APIs
+
+**The question:** *"You're paying for four API keys. Banks don't buy from those
+consoles, and they don't use those exact models. So what are you measuring?"*
+
+This is the sharpest version of the validity question, and it has a real answer.
+
+### 4.1 Firms buy the same models through a different door
+
+Enterprise AI in finance is not bought from `platform.openai.com`. It is bought
+through cloud resale: **Azure OpenAI** (GPT), **AWS Bedrock** (Claude, Llama),
+**Google Vertex** (Gemini). Those channels add compliance paperwork, data
+residency, VPC networking and an enterprise invoice. **They serve the same
+weights.** `claude-haiku-4-5` on Bedrock and `claude-haiku-4-5` on the Anthropic
+API are the same object with different billing.
+
+So the gap between our panel and a bank's panel is a *procurement* gap, not a
+*model* gap. We are not testing a proxy for what banks run. We are testing the
+same artefacts, over a cheaper counter.
+
+### 4.2 The hypothesis lives in the lineage, not the endpoint
+
+Our claim is that shared pretraining ancestry produces shared priors, which
+surface as identical errors under ambiguity. That property is in the weights.
+Everything a bank adds on top — retrieval, system prompts, fine-tuning, human
+review — sits *above* the layer we are measuring.
+
+And whether those additions rescue independence is not an afterthought; it is
+**H3**, tested directly:
+
+| Diversification a firm might buy | Our test |
+|---|---|
+| "We use several prompts / personas" | one model, 5 prompt variants |
+| "We use two models from one vendor" | Claude Sonnet vs Claude Haiku (within-family control) |
+| "We use different vendors" | six distinct families |
+
+If prompt-level and within-family diversity buy materially less independence than
+cross-family diversity, then a firm running "a diverse AI committee" from one
+vendor is holding one opinion and paying for several. That is the finding, and it
+is about lineage — which is exactly what our panel varies.
+
+### 4.3 Six families is broader than any single institution's stack
+
+As of 2026 the enterprise supply is essentially OpenAI, Anthropic, Google, Meta's
+open weights, and the open-weight Chinese labs (Alibaba's Qwen, DeepSeek). Our
+panel spans all six. A given bank typically runs **one or two**.
+
+This inverts the objection. We are not testing a narrower slice than industry —
+we are testing a **wider** one. If six families that share nothing but training
+corpora still fail together, a two-vendor shop has no defence. Measuring across
+the whole supply is what makes the result a statement about the market rather
+than about one firm.
+
+### 4.4 Mid-tier is the deployed tier
+
+Frontier models are what firms demo. Mid-tier is what they run at volume, because
+a research desk issuing tens of thousands of document queries a day is priced out
+of frontier inference. Our panel is mid-tier by design, with **Claude Sonnet 5 as
+a frontier anchor** so we can test whether capability tier changes correlation at
+all — a question nobody has answered either way.
+
+### 4.5 What we genuinely cannot do — and why nobody can
+
+We cannot test any bank's actual production stack. Neither can any other external
+researcher: those systems are proprietary, and the firms themselves report only
+**34%** "complete understanding" of the AI they already use (§1). **That is
+precisely why three regulators call this risk unmeasured.**
+
+What we can measure from outside is the **vendor-lineage component** of error
+correlation: the part that comes from the models themselves, shared across every
+firm that buys from the same small set of labs. Deployment wrappers push it in
+both directions — proprietary retrieval data pushes correlation **down**, while
+shared data vendors, copied prompt cookbooks and convergent RLHF push it **up**.
+We do not claim to know the net sign, and we do not report a bound we cannot
+defend. We report the component that is common to every firm buying from these
+labs, which is the component the systemic-risk argument actually rests on.
+
+### 4.6 The money is not the design constraint
+
+Four keys, **$30 of float, $23 measured cost for the full 15 weeks** — one
+OpenRouter key covers three of the seven models. The panel was designed around
+lineage coverage and then costed, not the reverse. Nothing in §4.1–§4.5 would
+change if the budget were ten times larger; we would add frontier tiers, which is
+the Year-2 extension, not a different study.
+
+---
+
+## 5. Why the filing task is well-designed
 
 **Contamination-proof by construction.** The forecast target is a quarter that
 has not been filed. No amount of pretraining can contain it.
@@ -111,7 +198,7 @@ correlation for a trivial reason rather than a scientific one.
 
 ---
 
-## 5. Four bugs this exercise caught
+## 6. Four bugs this exercise caught
 
 Building the filing task surfaced errors that each produced *plausible-looking
 but wrong* numbers — the dangerous kind.
@@ -138,7 +225,7 @@ All four are covered by tests (`tests/test_edgar.py`).
 
 ---
 
-## 6. Remaining limitations — stated, not hidden
+## 7. Remaining limitations — stated, not hidden
 
 1. **We test judgement, not workflow.** Real deployments wrap models in
    retrieval, tooling and human review. We measure the model's judgement in
@@ -158,13 +245,20 @@ All four are covered by tests (`tests/test_edgar.py`).
 
 ---
 
-## 7. The one-sentence answer for a judge
+## 8. The one-sentence answer for a judge
 
 > Banks mainly use language models to read financial documents and make
 > judgement calls, so we test exactly that — the models read companies' real SEC
 > filings and forecast their next reported quarter — alongside macro questions
 > that let us benchmark directly against the Federal Reserve's panel of human
 > professional forecasters.
+
+And if the judge presses on the models rather than the tasks:
+
+> Banks buy these same models through Azure, Bedrock and Vertex — same weights,
+> different invoice. We test six vendor families where a typical bank runs one or
+> two, so if we find that shared training makes them fail together, a two-vendor
+> firm has strictly less protection than our panel, not more.
 
 **Sources:** Bank of England / FCA, *Artificial Intelligence in UK Financial
 Services* (2024) · *2026 Global AI in Financial Services Report* (Cambridge

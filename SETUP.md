@@ -125,7 +125,9 @@ prints the hash. Commit it:
 git add -A && git commit -m "Freeze pre-registration"
 ```
 
-Then on OSF:
+Then on OSF. **The full click-by-click walkthrough, with paste-ready text for
+every field in the OSF form, is in [`OSF.md`](OSF.md) — follow that, not the
+summary below.** In outline:
 
 1. Create a free account at **osf.io**
 2. **Create a Project** — name it *Correlated Minds*
@@ -148,6 +150,11 @@ Anyone can then check the hash themselves:
 ```bash
 ./.venv/bin/python scripts/freeze_prereg.py --check
 ```
+
+---
+
+> **Order note:** do Step 5's GitHub push *before* the OSF registration — the
+> registration asks for your public repo URL. `OSF.md` sequences this correctly.
 
 ---
 

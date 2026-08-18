@@ -92,15 +92,50 @@ discovered later.
 ## 3. Design
 
 ### 3.1 Panel
-Seven model families, pinned by exact API id, logged per call: Anthropic
-(Claude Sonnet 5, Claude Haiku 4.5), OpenAI (mid-tier), Google (Gemini Flash-Lite),
-Meta (Llama), Alibaba (Qwen), DeepSeek. Seven families → 21 pairs. The two
-Anthropic models form a deliberate **within-family control** for H3.
+**Seven models across six vendor families**, pinned by exact API id and logged
+per call: Anthropic (Claude Sonnet 5, Claude Haiku 4.5), OpenAI (mid-tier),
+Google (Gemini Flash-Lite), Meta (Llama), Alibaba (Qwen), DeepSeek. Seven models
+→ **21 pairs**; six families. The two Anthropic models form a deliberate
+**within-family control** for H3.
 
-### 3.2 Questions
-Kalshi event contracts in the Economics, Financials and Companies categories,
-plus scheduled macro releases. All questions are registered **before resolution
-exists**. Sampling is pinned at temperature 0 for every model.
+The panel is chosen to span **pretraining lineage**, which is the level at which
+the shared-prior hypothesis lives, not to replicate any one institution's vendor
+stack. These six families are the near-entirety of the 2026 enterprise supply;
+firms reach them through resale channels (Azure OpenAI, AWS Bedrock, Google
+Vertex) that serve the same weights under a different invoice. Rationale and
+limitations: `VALIDITY.md` §4.
+
+### 3.2 Questions — two registered task types
+
+The daily battery is **60% macro / 40% filing**, fixed in advance. All questions
+of both types are registered **before resolution exists**. Sampling is pinned at
+temperature 0 for every model.
+
+**Type A — macro (60%).** Kalshi event contracts in the Economics, Financials and
+Companies categories, plus scheduled macro releases. Ground truth is the official
+statistical release. This type carries the human benchmark: it is directly
+matchable to the Philadelphia Fed Survey of Professional Forecasters, so **H4 is
+estimated on Type A only.**
+
+**Type B — document-grounded filing tasks (40%).** The model is given a company's
+own historical financials from SEC EDGAR XBRL and asked to judge a threshold
+question about its **next reported quarter**, which has not been filed. Ground
+truth is that company's subsequent XBRL filing. Rationale: document-grounded
+analysis of filings is the dominant real-world deployment of language models in
+finance, whereas macro forecasting is not (`VALIDITY.md` §1–§3). This type has no
+human benchmark; that is the acknowledged trade-off for ecological validity.
+
+Two design constraints on Type B are fixed here because both could manufacture a
+correlation result for trivial reasons:
+
+- **Point-in-time discipline.** History is filtered on **filing date**, never on
+  period end, so a quarter that has ended but has not been reported is invisible
+  to the model. Filtering on period end would leak lookahead bias.
+- **Balanced thresholds.** The threshold rule was backtested on 443 historical
+  questions across 11 companies before registration; pooled YES rate **54%**. A
+  rule yielding, say, 90% YES would drive every model to the same answer and
+  inflate measured correlation for a reason that has nothing to do with shared
+  priors.
 
 ### 3.3 Inclusion criteria (fixed in advance)
 - Resolves between **3 and 120 days** after being asked.
@@ -110,6 +145,14 @@ exists**. Sampling is pinned at temperature 0 for every model.
 - **Excluded:** any question where the panel's median forecast is below 0.05 or
   above 0.95 on the first day asked. These are effectively settled and, per §2,
   compress error variance for uninteresting reasons.
+
+For Type B additionally, fixed in advance:
+- The target quarter must have an expected filing date **on or before 6 Dec 2026**.
+- The company must have at least 8 usable point-in-time quarters of history under
+  a single current XBRL tag.
+- Quarters reconstructed by the identity `annual − (Q1+Q2+Q3)` are **flagged as
+  derived** and carried in the primary analysis; a sensitivity analysis excluding
+  them is reported.
 
 ### 3.4 Repeated measurement
 Open questions are re-asked daily until resolution. Task-days are the unit of
@@ -193,6 +236,25 @@ unemployment and 0.086 for CPI at three quarters ahead.
 - **Reported regardless of direction.** If AI is *less* correlated than humans,
   that is a genuinely reassuring result and will be reported with equal emphasis.
 
+**Estimated on Type A (macro) tasks only**, since the SPF has no filing-task
+analogue.
+
+### H5 — Task-format invariance (registered secondary)
+Error correlation is a property of the models, not of one question format.
+
+    headroom(Type A) ~= headroom(Type B)
+
+Registered now rather than observed later, because the two task types were built
+for different reasons and the contrast is informative in **either** direction: if
+headroom is similar, the result generalises beyond the format we happened to
+choose; if it differs sharply, format is a moderator and that is itself a finding
+worth reporting.
+
+- **Test:** headroom estimated separately by task type, block-bootstrap interval
+  on the difference.
+- **Reported regardless of direction.** No falsification clause: this is a
+  descriptive contrast, not a directional claim.
+
 ---
 
 ## 5. Analysis plan (fixed before data)
@@ -254,8 +316,8 @@ append-only JSONL committed daily by an automated job, which makes the
 
 ## 9. Researcher degrees of freedom we are giving up
 
-Fixed in advance and not revisable after the freeze: the model roster; sampling
-temperature; the six state variables; the primary outcome; the block-bootstrap
+Fixed in advance and not revisable after the freeze: the model roster; the
+60/40 macro/filing task mix; sampling temperature; the six state variables; the primary outcome; the block-bootstrap
 parameters; the inclusion criteria; the multiple-testing correction; the
 prediction date.
 
