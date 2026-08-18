@@ -9,6 +9,35 @@ click. Everything else below I've already prepared; your job is roughly
 
 ---
 
+## OSF or Zenodo? Both — at different times
+
+Asked and settled 18 Aug 2026.
+
+| | OSF (now) | Zenodo (December) |
+|---|---|---|
+| Built for | **preregistration** | archiving research outputs |
+| The object | a **Registration** — immutable, withdrawable only, leaves a tombstone | a versioned archive; new versions supersede old |
+| Structure | forced fields: hypotheses, analysis plan, exclusions | free-form file upload |
+| Indexed as | a preregistration, in OSF Registries | a dataset/software record |
+| DOI | yes | yes |
+| Cost | free | free |
+
+The claim you must defend is *"I specified these hypotheses before any data
+existed."* On OSF a reviewer reads `Registration · 22 Aug 2026` and knows exactly
+what that means. Zenodo would prove the file existed on that date, but nothing
+labels it a preregistration and a skeptic has to walk version history instead of
+trusting immutability by design.
+
+The less obvious reason, and the better one: **the OSF form is the value, not the
+overhead.** Being forced to write your exclusion criteria into a box before you
+have data is the mechanism that stops hypotheses drifting toward whatever the
+data shows. Zenodo has no such box. Uploading a file skips the part that does the
+work.
+
+**Zenodo's turn comes in December** — see "Step 8" at the end of this document.
+
+---
+
 ## Why this is worth 35 minutes
 
 Your entire claim is *"I predicted this before it happened."* A judge's first
@@ -343,3 +372,27 @@ Then tell me the URL and I'll wire it into the README and paper scaffold.
 After you click Register, **do not edit `PREREGISTRATION.md` again.** Every later
 change is a numbered, dated line in §11. That constraint is not bureaucracy — it
 is the entire source of the document's value.
+
+
+---
+
+## Step 8 — Zenodo, in December (not now)
+
+Once collection stops on 6 Dec and the paper is drafted, archive the outputs so
+they are permanently citable. This is what Zenodo is genuinely better at.
+
+1. Go to **zenodo.org** → log in **with GitHub** (top right).
+2. **Settings → GitHub** → find your `correlated-minds` repo → flip the toggle **ON**.
+   Zenodo now watches that repo for releases.
+3. Back on GitHub: **Releases → Create a new release**, tag it `v1.0-data-freeze`,
+   title it *Correlated Minds — data freeze*, publish.
+4. Zenodo mints a DOI for that exact commit automatically, within minutes.
+5. Add a second Zenodo deposit for the **paper PDF** (Upload → New upload →
+   type: Publication → Preprint).
+6. In the paper's metadata, put the **OSF registration URL** in the "Related
+   identifiers" field as *"is supplemented by"*.
+
+You then have three linked, permanent records — the frozen plan (OSF), the exact
+data and code (Zenodo, via GitHub release), and the paper (Zenodo). Each cites
+the others. That is what a complete, checkable research object looks like, and
+almost nobody at a science fair has one.
