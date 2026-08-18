@@ -285,7 +285,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.tasks is not None:
         config.tasks_per_day = args.tasks
 
+    if args.mock:
+        # A mock run reports observation counts and a dollar figure exactly like
+        # a real one. On 17 Aug 2026 that was mistaken for a completed setup, and
+        # 140 fabricated forecasts sat in the study log for a day. Be loud.
+        print("=" * 64)
+        print("  MOCK MODE -- NO API CALLS. Every forecast below is FABRICATED.")
+        print("  Rows are written with provider='mock' and are excluded from")
+        print("  analysis by default. This is NOT a real pilot.")
+        print("=" * 64)
+
     summary = run_day(config=config, use_mock=args.mock)
+
+    if args.mock:
+        print("=" * 64)
+        print("  MOCK RUN COMPLETE -- nothing above was real.")
+        print("  For a real pilot, set your API keys in .env and drop --mock.")
+        print("=" * 64)
     if not args.no_resolve and not args.dry_run:
         summary["resolution"] = resolve_outcomes()
 
