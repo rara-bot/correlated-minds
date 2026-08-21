@@ -408,7 +408,7 @@ A second adversarial pass, run the night before the pre-registration was due to
 be frozen and three days before collection opens. Same rule as the first pass:
 attack the project while every finding is still free to fix.
 
-**Eight defects. All fixed, all covered by tests — 232 tests, up from 113.** Two of them would
+**Eight defects. All fixed, all covered by tests — 236 tests, up from 113.** Two of them would
 have been unfixable the following afternoon, because an OSF registration cannot
 be edited after submission.
 

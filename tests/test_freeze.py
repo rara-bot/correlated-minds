@@ -44,11 +44,37 @@ def _load(doc_path):
     return mod
 
 
+def _thaw(text, frz):
+    """Return `text` with the freeze stamps reset to their placeholders.
+
+    THIS IS WHAT KEEPS THE SUITE GREEN AFTER THE REAL FREEZE, and it is not a
+    convenience. `.github/workflows/daily.yml` runs the whole suite before it
+    spends anything -- deliberately, so that broken statistics can never collect
+    data against themselves. So a test that only passes while the real document
+    is still a draft does not fail politely on the day of the freeze: it fails
+    every scheduled collection run from that day on, and each lost day is
+    unrecoverable because every question is registered before its outcome exists.
+
+    These tests need a document they can freeze. Copying the real one gives them
+    a frozen one the moment the study actually launches, and `_do_freeze` then
+    correctly refuses. So the copy is thawed first, and the tests exercise the
+    real header either way.
+    """
+    text = re.sub(r"\*\*Frozen on:\*\* .*", frz.FROZEN_ON_PLACEHOLDER, text)
+    text = re.sub(r"\*\*SHA-256 of frozen version:\*\* .*", frz.HASH_PLACEHOLDER, text)
+    return text.replace(frz.FROZEN_STATUS, frz.DRAFT_STATUS)
+
+
 @pytest.fixture
 def doc(tmp_path):
-    """A real, unfrozen copy of the actual pre-registration."""
+    """A real, unfrozen copy of the actual pre-registration.
+
+    Unfrozen whether or not the real document has been frozen yet -- see `_thaw`.
+    """
     p = tmp_path / "PREREGISTRATION.md"
     shutil.copyfile(REAL_DOC, p)
+    mod = _load(p)
+    p.write_text(_thaw(p.read_text(encoding="utf-8"), mod), encoding="utf-8")
     return p
 
 
@@ -206,3 +232,47 @@ class TestUnfrozenDocument:
         before = doc.read_text(encoding="utf-8")
         _check(frz)
         assert doc.read_text(encoding="utf-8") == before
+
+
+class TestTheSuiteSurvivesTheRealFreeze:
+    """The daily workflow runs this suite before it spends anything. A test that
+    only passes while the plan is a draft would fail every scheduled collection
+    run from the day of the freeze onwards -- silently, unless someone is
+    watching the Actions tab, and every lost day is unrecoverable."""
+
+    def test_fixture_is_unfrozen_regardless_of_the_real_document(self, doc):
+        assert "_(to be filled" in doc.read_text(encoding="utf-8")
+
+    def test_fixture_is_unfrozen_even_from_a_frozen_source(self, tmp_path):
+        source = tmp_path / "PREREGISTRATION.md"
+        shutil.copyfile(REAL_DOC, source)
+        mod = _load(source)
+        if "_(to be filled" in source.read_text(encoding="utf-8"):
+            mod._do_freeze(source.read_text(encoding="utf-8"))
+        assert "_(to be filled" not in source.read_text(encoding="utf-8")
+
+        thawed = _thaw(source.read_text(encoding="utf-8"), mod)
+        assert thawed.count(mod.FROZEN_ON_PLACEHOLDER) == 1
+        assert thawed.count(mod.HASH_PLACEHOLDER) == 1
+        assert thawed.count(mod.DRAFT_STATUS) == 1
+        assert mod.FROZEN_STATUS not in thawed
+
+    def test_a_thawed_document_can_be_frozen_again(self, tmp_path):
+        """Which is what every test in this file relies on."""
+        source = tmp_path / "PREREGISTRATION.md"
+        shutil.copyfile(REAL_DOC, source)
+        mod = _load(source)
+        if "_(to be filled" in source.read_text(encoding="utf-8"):
+            mod._do_freeze(source.read_text(encoding="utf-8"))
+        source.write_text(_thaw(source.read_text(encoding="utf-8"), mod), encoding="utf-8")
+        assert mod._do_freeze(source.read_text(encoding="utf-8")) == 0
+        assert mod._do_check(source.read_text(encoding="utf-8")) == 0
+
+    def test_content_hash_is_unchanged_by_a_freeze_thaw_cycle(self, doc, frz):
+        """The stamps are excluded from the hash, so thawing must not alter the
+        registered content -- otherwise these tests would be validating a
+        document that is not the one being registered."""
+        before = frz.digest(doc.read_text(encoding="utf-8"))
+        _freeze(frz)
+        doc.write_text(_thaw(doc.read_text(encoding="utf-8"), frz), encoding="utf-8")
+        assert frz.digest(doc.read_text(encoding="utf-8")) == before
