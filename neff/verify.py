@@ -12,12 +12,26 @@ Exit code is non-zero if anything is wrong, so CI can gate on it.
 """
 
 import argparse
+import json
 import sys
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
-from .config import ARM_CAPS_USD, BUDGET_USD, LEDGER_PATH, enabled_panel, families
+from .config import (
+    ARM_CAPS_USD,
+    BUDGET_USD,
+    DATA_DIR,
+    LEDGER_PATH,
+    TEMPERATURE,
+    enabled_panel,
+    families,
+)
 from .ledger import Ledger
 from .providers import PROVIDERS, ask
+from .store import JsonlStore
+
+# Dated proof that each pinned id answered a live API before the freeze.
+VERIFICATION_PATH = DATA_DIR / "verification.jsonl"
 
 TICK, CROSS, WARN = "OK  ", "FAIL", "WARN"
 
@@ -124,18 +138,45 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
 
     This is the check that matters most: it is the only way to learn that a
     pinned model id is wrong, or that a provider is serving something else.
+
+    Every probe is written to `data/verification.jsonl`. Two reasons, and the
+    second is the important one:
+
+    1. Otherwise this check leaves no trace. It printed a wall of green ticks
+       and vanished, so `scripts/preflight.py` -- which asks "has every model
+       answered for real?" -- could never see that it had happened, and told the
+       operator to run the very command they had just run.
+    2. The receipt is EVIDENCE. It is a dated record that every pinned id was
+       confirmed against a live API *before the pre-registration was frozen*,
+       carrying the id each provider actually served. The study's drift claim
+       ("we log the served id every call and report drift") begins at this file
+       rather than on the first collection day.
     """
     out: List[Tuple[str, str, str]] = []
     ledger = Ledger(LEDGER_PATH, cap_usd=BUDGET_USD, arm_caps={"pilot": spend_cap_usd})
+    receipts = JsonlStore(VERIFICATION_PATH)
+    checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     prompt = (
         'Respond with ONLY this JSON: {"probability": 0.5, "direction": "no", '
         '"confidence": 0.5, "rationale": "verification probe"}'
     )
 
+    def _receipt(spec, **kw) -> None:
+        receipts.append({
+            "checked_at": checked_at,
+            "model_key": spec.key,
+            "provider": spec.provider,
+            "model_id_pinned": spec.model_id,
+            "temperature": TEMPERATURE,
+            **kw,
+        })
+
     for spec in enabled_panel():
         if spec.provider not in PROVIDERS:
             out.append((CROSS, spec.key, f"no client for provider {spec.provider!r}"))
+            _receipt(spec, ok=False, model_id_returned="", usd=0.0,
+                     error=f"no client for provider {spec.provider!r}")
             continue
 
         obs = ask(
@@ -150,10 +191,14 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
 
         if obs.error and obs.forecast is None:
             out.append((CROSS, spec.key, obs.error[:110]))
+            _receipt(spec, ok=False, model_id_returned=obs.model_id_returned or "",
+                     usd=obs.usd, error=obs.error)
             continue
 
         served = obs.model_id_returned or "?"
         drift = not served.startswith(spec.model_id.split("/")[-1][:12])
+        _receipt(spec, ok=True, model_id_returned=served, usd=obs.usd,
+                 drift=drift, error=None)
         out.append(
             (WARN if drift else TICK,
              spec.key,
@@ -162,6 +207,28 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
         )
 
     return out
+
+
+def verified_models() -> Dict[str, dict]:
+    """The most recent successful probe per model, read from the receipts.
+
+    Used by `scripts/preflight.py` so that readiness is read off a durable
+    artifact rather than guessed at.
+    """
+    latest: Dict[str, dict] = {}
+    if not VERIFICATION_PATH.exists():
+        return latest
+    for line in VERIFICATION_PATH.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("ok") and row.get("model_key"):
+            latest[row["model_key"]] = row
+    return latest
 
 
 def main(argv=None) -> int:

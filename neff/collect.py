@@ -82,11 +82,22 @@ def run_day(
 
     # Register tasks before any model is asked. Ordering matters: the task file
     # is the record that the question existed before the answers did.
+    #
+    # A DRY RUN MUST NOT WRITE HERE. `--dry-run` is documented as "prices the day,
+    # asks nothing" and the OSF gate lets it through on the grounds that it
+    # "touches nothing real" -- but it used to append to the append-only task
+    # registry all the same. Those rows can never acquire observations, so they
+    # are permanent orphans in the public record; and SETUP.md tells the operator
+    # to smoke-test the workflow with `dry_run` ticked, which would have committed
+    # a batch of them to the public repository dated BEFORE the pre-registration.
     known_tasks = task_store.existing_ids("task_id")
     new_tasks = [t for t in tasks if t.task_id not in known_tasks]
-    if new_tasks:
-        task_store.append_many(new_tasks)
-    _log(f"registered {len(new_tasks)} new tasks ({len(tasks) - len(new_tasks)} already known)")
+    if config.dry_run:
+        _log(f"would register {len(new_tasks)} new tasks -- dry run, nothing written")
+    else:
+        if new_tasks:
+            task_store.append_many(new_tasks)
+        _log(f"registered {len(new_tasks)} new tasks ({len(tasks) - len(new_tasks)} already known)")
 
     # 2. Work out what still needs asking.
     done = obs_store.existing_ids("obs_id")
@@ -271,13 +282,46 @@ PRE_REGISTRATION_ARMS = {"pilot"}
 
 OSF_URL_PATH = ROOT / ".osf_url"
 
+# CI reads the registration URL from the repository, not from the laptop that
+# created it. `.osf_url` must therefore be COMMITTED, not merely written -- an
+# uncommitted file blocks every scheduled run with a message about a missing
+# registration that is, locally, plainly present. `OSF_URL` is accepted as an
+# environment override so the study can still run from a checkout where the file
+# has not landed yet.
+OSF_URL_ENV = "OSF_URL"
+
+
+def _looks_like_a_registration_url(value: str) -> bool:
+    """A placeholder must not satisfy the gate.
+
+    The original check was "non-empty", which `echo pending > .osf_url` passes.
+    The point of this gate is to make premature collection impossible, and a
+    gate that a typo opens is not a gate.
+    """
+    return value.startswith(("http://", "https://")) and len(value) > len("https://") + 3
+
+
+def registered_osf_url() -> str:
+    """The recorded registration URL, from the environment or the repo file."""
+    from os import environ
+
+    for value in (environ.get(OSF_URL_ENV, ""), _read_osf_file()):
+        value = value.strip()
+        if _looks_like_a_registration_url(value):
+            return value
+    return ""
+
+
+def _read_osf_file() -> str:
+    try:
+        return OSF_URL_PATH.read_text()
+    except OSError:
+        return ""
+
 
 def osf_is_registered() -> bool:
     """True only once the operator has recorded a public OSF registration URL."""
-    try:
-        return len(OSF_URL_PATH.read_text().strip()) > 0
-    except OSError:
-        return False
+    return bool(registered_osf_url())
 
 
 def require_osf_before_real_collection(arm: str, dry_run: bool, use_mock: bool) -> None:
@@ -312,6 +356,12 @@ def require_osf_before_real_collection(arm: str, dry_run: bool, use_mock: bool) 
             "",
             "  When -- and only when -- your OSF registration is live:",
             "      echo 'https://osf.io/XXXXX' > .osf_url",
+            "      git add .osf_url && git commit -m 'Record OSF registration' && git push",
+            "",
+            "  The COMMIT is not optional. The scheduled job runs from a fresh",
+            "  checkout, so a file that exists only on your laptop leaves every",
+            "  automated collection day failing on this same message.",
+            "  (CI alternative: set an OSF_URL repository variable.)",
             "",
             "  To work in the meantime, any of these still run:",
             "      --mock              offline, zero spend",

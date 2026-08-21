@@ -58,12 +58,35 @@ jobs:
         # If the statistics are broken, do not collect data against them.
         run: python -m pytest tests/ -q
 
+      - name: Confirm the pre-registration is visible to CI
+        # The gate in neff.collect reads `.osf_url` from the CHECKOUT. A URL that
+        # exists only on the operator's laptop fails every scheduled run with a
+        # message about a missing registration that is, locally, plainly there.
+        # Checked here so the cause is named before any key is loaded.
+        env:
+          OSF_URL: ${{ vars.OSF_URL }}
+        run: |
+          python - <<'PY'
+          import sys
+          from neff.collect import OSF_URL_PATH, registered_osf_url
+          url = registered_osf_url()
+          if url:
+              print(f"registration on record: {url}")
+              sys.exit(0)
+          print("::error::No OSF registration URL visible to CI.")
+          print(f"::error::Commit {OSF_URL_PATH.name} to the repo, or set an OSF_URL")
+          print("::error::repository variable (Settings -> Secrets and variables ->")
+          print("::error::Actions -> Variables). Writing the file locally is not enough.")
+          sys.exit(1)
+          PY
+
       - name: Collect
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OSF_URL: ${{ vars.OSF_URL }}
         run: |
           python -m neff.collect \
             --tasks "${{ github.event.inputs.tasks || 25 }}" \

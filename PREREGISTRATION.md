@@ -205,10 +205,61 @@ discovered later.
 ## 3. Design
 
 ### 3.1 Panel
-**Nine models across six vendor families**, pinned by exact API id and logged per
-call: Anthropic (Claude Sonnet 5, Claude Haiku 4.5), OpenAI (two tiers), Google
-(two tiers), Meta (Llama), Alibaba (Qwen), DeepSeek. Nine models → **36 pairs**,
-of which **three are within-family**.
+
+**Nine models across six vendor families** in the primary panel → **36 pairs**,
+of which **three are within-family**. Every id below is the exact string sent to
+the API, and the id the API *returns* is logged on every single call, so a
+mid-panel vendor swap is detectable rather than merely disclaimed.
+
+| # | key | provider | pinned API id | family | tier | panel |
+|---|---|---|---|---|---|---|
+| 1 | `claude_sonnet` | anthropic | `claude-sonnet-4-6` | anthropic | frontier | primary |
+| 2 | `claude_haiku` | anthropic | `claude-haiku-4-5-20251001` | anthropic | mid | primary |
+| 3 | `gpt_mid` | openai | `gpt-4.1-mini-2025-04-14` | openai | mid | primary |
+| 4 | `gpt_small` | openai | `gpt-4.1-nano-2025-04-14` | openai | small | primary |
+| 5 | `gemini_flash_pro` | google | `gemini-3.5-flash` | google | mid | primary |
+| 6 | `gemini_flash` | google | `gemini-3.5-flash-lite` | google | small | primary |
+| 7 | `llama` | openrouter | `meta-llama/llama-3.3-70b-instruct` | meta | mid | primary |
+| 8 | `qwen` | openrouter | `qwen/qwen-2.5-72b-instruct` | alibaba | mid | primary |
+| 9 | `deepseek` | openrouter | `deepseek/deepseek-v3.2` | deepseek | mid | primary |
+| 10 | `gpt_frontier` | openai | `gpt-4.1-2025-04-14` | openai | frontier | **secondary** |
+
+This table is the registered roster. `tests/test_roster.py` asserts it matches
+`neff/config.py` exactly, so the document and the code cannot drift apart after
+the freeze without a test failing.
+
+**The frontier anchor is Sonnet 4.6, not Sonnet 5, and that is deliberate.**
+`claude-sonnet-5` rejects the `temperature` parameter outright (HTTP 400,
+*"temperature is deprecated for this model"*). §9 registers `TEMPERATURE = 0.0`
+as a frozen commitment, so a panel member that cannot honour it would sample
+adaptively while the other eight sampled at 0 — mixing a model difference with a
+sampling difference on precisely the member H6 leans on for its capability
+contrast. Sonnet 4.6 is the newest Anthropic model that still accepts the
+parameter, at identical $3/$15 pricing, same family, same tier. Verified by live
+call at `temperature=0`. The same constraint disqualified OpenAI's gpt-5 line
+(see §5.4).
+
+**The tenth model is collected but is not in the primary panel.** `gpt_frontier`
+is queried every day alongside the nine and appears in the public logs, and it is
+declared here so that a reader comparing the logs against this registration finds
+ten model ids and an explanation rather than an undeclared extra arm. It is
+**excluded from every primary estimate**, for a stated reason: H4 matches human
+forecasters at M = 9 against SPF RECESS headroom measured at that same panel
+size (0.112–0.171), and folding a tenth member in would make the AI panel M = 10
+and silently unmatch the comparison. The exclusion is enforced in code —
+`config.primary_panel()` returns the nine, and `panel.load_panel()` reads from
+that function, not from the collected roster.
+
+Its purpose is a confound the primary panel cannot address: the primary panel
+holds exactly **one** frontier model, and it is Anthropic, so at the frontier
+tier "capability" is perfectly confounded with "family" and *frontier models
+behave differently* cannot be distinguished from *Anthropic behaves differently*.
+A second frontier model from a different existing family breaks that confound.
+It is registered now rather than added later because §9 freezes the roster and a
+day not collected cannot be recollected, whereas a model collected and not needed
+can simply be ignored. Any analysis using it is **exploratory and labelled as
+such**, reported separately from the confirmatory results, and the primary
+results stand or fall without it.
 
 **Why three within-family pairs and not one.** H3 and H6 rest entirely on the
 within-family contrast. With a single within-family pair (the original

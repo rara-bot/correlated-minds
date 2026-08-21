@@ -109,6 +109,61 @@ def _strike_of(market: Dict[str, Any]) -> Optional[float]:
         return None
 
 
+def assign_ladder_distance(markets: List[Dict[str, Any]]) -> bool:
+    """Populate `ladder_distance` for every market in ONE event's strike ladder.
+
+    LADDER POSITION IS DELIBERATELY VARIED, NOT HELD CONSTANT.
+
+    An earlier version took only the strikes nearest the ladder median. That
+    maximises average uncertainty -- but H1, the PRIMARY hypothesis, predicts
+    that correlation RISES WITH AMBIGUITY, and a sample with no ambiguity
+    variation cannot test it. Holding ambiguity constant suppresses exactly the
+    variance the primary test consumes.
+
+    We instead sample graded positions across the ladder's INTERIOR, so ambiguity
+    varies by construction rather than waiting on the market to supply a stress
+    event. Extremes are still avoided: the registered [0.05, 0.95] first-day
+    median rule (PREREGISTRATION.md §3.3) excludes anything effectively settled,
+    so this widens the ambiguity range without admitting foregone conclusions.
+
+    `ladder_distance` -- normalised |strike - median| / span, in [0, 1] -- is
+    recorded per task and is a registered H1 state variable (§4). Unlike VIX it
+    is available every single day regardless of market calm, which is what §10.5
+    relies on when it claims H1 survives a calm 15 weeks.
+
+    THIS IS A SHARED HELPER ON PURPOSE. It used to be inline in the curated-series
+    branch only, so markets picked up by the broaden-if-short path -- which the
+    comment there says fires "on many days" -- reached `tasks.py` with no
+    `ladder_distance` at all and were persisted as None. Measured on a live
+    25-task day: 5 of 15 event tasks, a third of the sample, carrying nothing for
+    the primary hypothesis's experimental leg. It cannot be backfilled, because it
+    needs the live strike ladder as it stood on the ask date and closed Kalshi
+    ladders are not reliably re-queryable. Every path that produces a market must
+    go through here.
+
+    Returns True if the event had a usable ladder (>= 3 strikes), so the caller
+    can decide whether to grade its selection across the interior.
+    """
+    strikes = [m for m in markets if m.get("strike") is not None]
+    if len(strikes) >= 3:
+        values = sorted(m["strike"] for m in strikes)
+        median_strike = statistics.median(values)
+        span = values[-1] - values[0]
+        for market in markets:
+            if market.get("strike") is None:
+                market["ladder_distance"] = 0.0
+            else:
+                market["ladder_distance"] = (
+                    abs(market["strike"] - median_strike) / span if span > 0 else 0.0
+                )
+        return True
+
+    # No usable ladder: the registered convention is 0.0 rather than missing.
+    for market in markets:
+        market.setdefault("ladder_distance", 0.0)
+    return False
+
+
 def select_tasks(
     max_tasks: int = 15,
     min_days_out: float = 1.0,
@@ -168,36 +223,11 @@ def select_tasks(
 
     selected: List[Dict[str, Any]] = []
     for event_ticker, markets in sorted(by_event.items()):
-        strikes = [m for m in markets if m["strike"] is not None]
-        if len(strikes) >= 3:
-            strikes.sort(key=lambda m: m["strike"])
-            values = [m["strike"] for m in strikes]
-            median_strike = statistics.median(values)
-            span = max(values) - min(values)
-
-            # LADDER POSITION IS DELIBERATELY VARIED, NOT HELD CONSTANT.
-            #
-            # An earlier version took only the strikes nearest the ladder median.
-            # That maximises average uncertainty -- but H1, now the PRIMARY
-            # hypothesis, predicts that correlation RISES WITH AMBIGUITY, and a
-            # sample with no ambiguity variation cannot test it. Holding ambiguity
-            # constant suppresses exactly the variance the primary test consumes.
-            #
-            # We instead sample graded positions across the ladder's INTERIOR, so
-            # ambiguity varies by construction rather than waiting on the market
-            # to supply a stress event. Extremes are still avoided: the registered
-            # [0.05, 0.95] first-day median rule (PREREGISTRATION.md 3.3) excludes
-            # anything effectively settled, so this widens the ambiguity range
-            # without admitting foregone conclusions.
-            #
-            # ladder_distance -- normalised |strike - median| / span, in [0, 1] --
-            # is recorded per task and is a registered H1 state variable. Unlike
-            # VIX, it is available every single day regardless of market calm.
-            for market in strikes:
-                market["ladder_distance"] = (
-                    abs(market["strike"] - median_strike) / span if span > 0 else 0.0
-                )
-            ordered = sorted(strikes, key=lambda m: m["ladder_distance"])
+        if assign_ladder_distance(markets):
+            ordered = sorted(
+                (m for m in markets if m["strike"] is not None),
+                key=lambda m: m["ladder_distance"],
+            )
             interior = ordered[: max(strikes_per_event, len(ordered) - 1)]
             if len(interior) <= strikes_per_event:
                 selected.extend(interior)
@@ -208,8 +238,6 @@ def select_tasks(
                 picks = {int(round(k * step)) for k in range(strikes_per_event)}
                 selected.extend(interior[i] for i in sorted(picks))
         else:
-            for market in markets:
-                market.setdefault("ladder_distance", 0.0)
             selected.extend(markets[:strikes_per_event])
 
     # Prefer questions that resolve sooner: they get scored inside the window,
@@ -233,9 +261,15 @@ def select_tasks(
         for series_ticker in extra_series:
             if len(selected) >= max_tasks:
                 break
+
+            # Build this series' candidates FIRST, then assign ladder positions
+            # per event, then take them. Appending market-by-market -- as this
+            # loop used to -- means no market ever sees the rest of its own strike
+            # ladder, so `ladder_distance` cannot be computed and was simply
+            # absent. H1's experimental leg was silently empty on every broadened
+            # task. See `assign_ladder_distance`.
+            candidates: List[Dict[str, Any]] = []
             for market in fetch_open_markets_for_series(series_ticker, limit=20):
-                if len(selected) >= max_tasks:
-                    break
                 ticker = str(market.get("ticker", ""))
                 if not ticker or ticker in have:
                     continue
@@ -250,8 +284,7 @@ def select_tasks(
                 title = str(market.get("title") or market.get("subtitle") or "")
                 if not title:
                     continue
-                have.add(ticker)
-                selected.append({
+                candidates.append({
                     "ticker": ticker,
                     "event_ticker": str(market.get("event_ticker") or ticker),
                     "series_ticker": series_ticker,
@@ -263,7 +296,33 @@ def select_tasks(
                     "market_implied": None,
                 })
 
-    return selected[:max_tasks]
+            by_extra_event: Dict[str, List[Dict[str, Any]]] = {}
+            for market in candidates:
+                by_extra_event.setdefault(market["event_ticker"], []).append(market)
+            for group in by_extra_event.values():
+                assign_ladder_distance(group)
+
+            for market in candidates:
+                if len(selected) >= max_tasks:
+                    break
+                have.add(market["ticker"])
+                selected.append(market)
+
+    chosen = selected[:max_tasks]
+
+    # A registered state variable that is irrecoverable if missed must never
+    # leave this function unset. Finding 12 of AUDIT.md fixed the propagation of
+    # this value and a second path was still dropping it; the invariant is
+    # cheaper than a third audit.
+    missing = [m["ticker"] for m in chosen if m.get("ladder_distance") is None]
+    if missing:
+        raise FetchError(
+            f"ladder_distance missing for {len(missing)} selected market(s): "
+            f"{missing[:5]}. It is a registered H1 state variable recorded at ask "
+            f"time and cannot be reconstructed later."
+        )
+
+    return chosen
 
 
 def fetch_settlement(ticker: str) -> Optional[float]:

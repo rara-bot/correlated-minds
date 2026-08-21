@@ -49,8 +49,10 @@ Every day, automatically:
 
 1. Pull open event contracts from Kalshi (economics, financials) that resolve
    **before the 6 Dec data freeze**.
-2. Ask all nine models the same questions, at temperature 0, with a fixed JSON
-   schema.
+2. Ask all ten models the same questions, at temperature 0, with a fixed JSON
+   schema. Nine are the registered primary panel; the tenth is a second
+   frontier model, collected daily and excluded from every primary estimate
+   (PREREGISTRATION.md §3.1).
 3. Append every answer to a public, timestamped, append-only record.
 4. Check which past questions have settled and score them.
 
@@ -74,7 +76,7 @@ git commit makes the timestamp externally checkable rather than merely asserted.
 | SPF human baseline | ✅ live |
 | Multi-provider LLM client | ✅ built, mock-tested |
 | Panel assembly → analysis | ✅ end-to-end verified |
-| Pre-registration | ✅ drafted, awaiting freeze |
+| Pre-registration | ✅ drafted and audited, awaiting freeze |
 | Daily automation | ✅ workflow written |
 
 ---
@@ -112,10 +114,17 @@ The entire budget goes to one thing: paying the models to answer.
 
 | | Measured cost |
 |---|---|
-| One day, 25 tasks × 9 models | $0.24 |
-| Full 15-week panel | **$25** |
-| Same, with 5 prompt variants (the full H3 arm) | **$125** |
+| One day, 25 tasks × 10 models | **$0.44** |
+| Full 15-week panel (105 days) | **$47** |
+| 5 prompt variants of one model (the H3 arm) | **$3** |
+| `ws1_prospective` arm cap, enforced in code | $100 |
 | Budget cap, enforced in code | $200 |
+
+Priced on 21 Aug 2026 by `neff.collect --dry-run --tasks 25` against the live
+task battery and the real ten-model roster. The figure this replaces, $0.24/day
+for $25 total, was for a nine-model panel and understated the true cost by about
+half — which mattered, because the arm cap it was set against is a hard stop that
+would have ended collection in November rather than warning about it.
 
 ---
 
@@ -161,7 +170,7 @@ neff/
     fred.py      realized outcomes + market state
     spf.py       the human baseline
     http.py      retries, backoff, body verification
-tests/           49 tests
+tests/           232 tests
 ```
 
 ---
@@ -170,6 +179,7 @@ tests/           49 tests
 
 | File | What it is |
 |---|---|
+| [GO-LIVE.md](GO-LIVE.md) | **The launch checklist — read this first if collection has not started** |
 | [EXPLAINER.md](EXPLAINER.md) | Plain-language version — start here |
 | [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment |
 | [RESEARCH-DOSSIER.md](RESEARCH-DOSSIER.md) | Full program spec |
@@ -177,6 +187,7 @@ tests/           49 tests
 | [ELEVATION.md](ELEVATION.md) | How this becomes a discovery, not a measurement |
 | [STRATEGY.md](STRATEGY.md) | The four-year arc |
 | [BUDGET.md](BUDGET.md) | Cost model |
+| [AUDIT.md](AUDIT.md) | 23 defects found before collection, and how |
 | [SUBMISSION-TARGETS.md](SUBMISSION-TARGETS.md) | Competitions and conferences |
 
 ---

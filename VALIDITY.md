@@ -139,7 +139,7 @@ than about one firm.
 
 Frontier models are what firms demo. Mid-tier is what they run at volume, because
 a research desk issuing tens of thousands of document queries a day is priced out
-of frontier inference. Our panel is mid-tier by design, with **Claude Sonnet 5 as
+of frontier inference. Our panel is mid-tier by design, with **Claude Sonnet 4.6 as
 a frontier anchor** so we can test whether capability tier changes correlation at
 all — a question nobody has answered either way.
 

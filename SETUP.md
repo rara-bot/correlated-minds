@@ -51,7 +51,7 @@ so the record is independently checkable two ways.
 ## Step 1 — Get API keys (~20 min)
 
 You need four accounts. **Put in $10 each; you do not need $200.**
-Measured cost of the full 15-week study is **~$30** (nine models).
+Measured cost of the full 15-week study is **~$47** (ten models collected, re-priced 21 Aug 2026; see BUDGET.md).
 
 | Provider | URL | Add |
 |---|---|---|
@@ -183,7 +183,13 @@ OPENROUTER_API_KEY
 4. **Settings → Actions → General → Workflow permissions** → select
    **Read and write permissions**. Without this the daily job can't commit data.
 5. **Actions** tab → *daily-collection* → **Run workflow**, tick `dry_run`, and
-   confirm it goes green.
+   confirm it goes green. A dry run prices the day and writes nothing — not to
+   the ledger and not to the task registry — so this rehearsal cannot put
+   anything into the public record ahead of the registration.
+6. Once the OSF registration is live, **commit `.osf_url`** (see `OSF.md` step 7).
+   The daily job reads it from a fresh checkout, so a file that exists only on
+   your laptop fails every scheduled run. The workflow's first step checks this
+   explicitly and names the fix rather than failing deep inside collection.
 
 From then on it runs itself at 13:10 UTC (9:10am ET) every day and commits the
 data. Each commit is a timestamped proof that the forecast existed before the
@@ -193,13 +199,17 @@ outcome did.
 
 ## Checklist
 
-- [ ] Four API keys, $30 total, in `.env`
-- [ ] `neff.verify` all green
+- [ ] Four API keys, $50 of credit, in `.env`
+- [ ] `neff.verify` all green (leaves receipts in `data/verification.jsonl`)
 - [ ] Pilot day collected, coverage ~1.0
-- [ ] Pre-registration frozen, hashed, committed
-- [ ] OSF registration public, URL saved
+- [ ] Pre-registration frozen, hashed, committed — `freeze_prereg.py --check` says *intact*
+- [ ] OSF registration public, URL saved **and committed** to `.osf_url`
 - [ ] Repo pushed, four secrets set, write permissions on
 - [ ] Dry-run workflow green
+- [ ] `scripts/preflight.py` shows seven `[done]`
+
+`scripts/preflight.py` is the single source of truth for this list — it reads the
+real state rather than your memory of it.
 
 Then it runs on its own until **6 December**.
 
@@ -213,6 +223,9 @@ Then it runs on its own until **6 December**.
 | One model at 0 coverage | Wrong model ID — run `neff.verify` and send me the output |
 | `BudgetExceeded` | Working as designed. Check `data/ledger.jsonl` |
 | Workflow can't push | Workflow permissions not set to read/write |
+| `No OSF registration URL visible to CI` | `.osf_url` written locally but never committed. Commit it, or set an `OSF_URL` repository variable |
+| `REFUSING TO COLLECT` locally | Same cause, or `.osf_url` holds a placeholder rather than a URL |
+| `ladder_distance missing` | A task source returned markets without a strike ladder position. This is deliberate and blocking: it is a registered H1 variable that cannot be backfilled |
 | `no tasks available today` | Kalshi has nothing resolving before the freeze — tell me |
 
 Send me any error and I'll fix it. Don't work around it — a workaround now

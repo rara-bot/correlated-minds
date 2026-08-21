@@ -399,3 +399,247 @@ good. **H6** now registers the control in advance, and **H1 was promoted to
 primary** precisely because it is a within-panel contrast: capability cannot vary
 between Tuesday and Thursday, so H1 is structurally immune to the confound that
 undermines every between-panel comparison, including our own H4.
+
+---
+
+# Freeze-Eve Audit — 21 Aug 2026
+
+A second adversarial pass, run the night before the pre-registration was due to
+be frozen and three days before collection opens. Same rule as the first pass:
+attack the project while every finding is still free to fix.
+
+**Eight defects. All fixed, all covered by tests — 232 tests, up from 113.** Two of them would
+have been unfixable the following afternoon, because an OSF registration cannot
+be edited after submission.
+
+Nothing here crashed. Every one produced a green tick, a plausible number, or a
+confident log line.
+
+## 16. The freeze tool published a hash that did not match the document
+
+The single worst defect found in this project, because it breaks the one claim
+everything else rests on and it breaks it *permanently*.
+
+`scripts/freeze_prereg.py` is what converts "we planned this in advance" from an
+assertion into something a stranger can check: it stamps the plan, hashes it, and
+the hash goes on OSF. Two independent bugs meant the hash it published was never
+the hash of the document.
+
+**Bug 1 — the hash was taken before the last edit.** The script rewrote
+`**Status:** DRAFT …` to `**Status:** FROZEN …` *after* computing the digest.
+`body_without_stamps` excludes the two stamp lines from the hash, but not the
+status line, so the recorded hash was of a document that had already ceased to
+exist. `--freeze` printed one hash and stored another:
+
+| | Value |
+|---|---|
+| printed to the terminal, and pasted into OSF | `c7e8bcf248d18525…` |
+| written into PREREGISTRATION.md | `b60927b7c0d3a232…` |
+
+**Bug 2 — `--check` could never pass anyway.** The stored hash is wrapped in
+backticks for markdown. The comparison was `recorded != h` against a bare hex
+digest, so `"`b609…`" != "b609…"` was true for every document ever frozen.
+
+Together: run `--freeze`, and the very next `--check` reports
+
+```
+!! HASH MISMATCH -- the document changed after freezing.
+```
+
+on a document nobody had touched. The first skeptic to verify the registration —
+which is the entire point of publishing a hash — would have been told the plan
+had been tampered with, against an immutable OSF record with no correction path.
+
+**Fixed:** every mutation to the hashed body now happens before the digest is
+taken; `recorded_hash()` extracts the hex by pattern rather than by `strip()`;
+and `--freeze` verifies its own output in memory *and* re-reads the file to
+confirm, restoring the original if the round trip disagrees. Anchor
+substitutions raise instead of silently no-opping — the finding-15 lesson turned
+on ourselves: confirm the change took EFFECT, do not settle for "no error".
+19 regression tests (`tests/test_freeze.py`), including one asserting the printed
+hash equals the stored hash, which is the exact thing that was wrong.
+
+## 17. The document about to be frozen registered a model the study does not use
+
+§3.1 named the frontier anchor as **Claude Sonnet 5**. `config.py` pins
+**`claude-sonnet-4-6`**, and has since finding 13 — the repin reached the code
+and never reached the registration.
+
+§9 freezes the model roster. Freezing in that state would have permanently
+registered a panel member the study never queries, and the mismatch is visible to
+anyone who opens the public log.
+
+Separately, and worse: the roster had grown to **ten** models. `gpt_frontier` is
+collected daily and was **named nowhere in the registration at all**. A reviewer
+comparing ten model ids in the public log against a registration that says nine
+finds an undeclared arm — the one accusation a pre-registered study cannot
+answer after the fact.
+
+**Fixed:** §3.1 now carries an explicit roster table of all ten pinned ids with
+provider, family, tier, and primary/secondary status; states why the anchor is
+4.6 and not 5; and declares the tenth model, its exclusion from every primary
+estimate, the reason (H4 matches humans at M = 9 against SPF headroom measured at
+that panel size), and where that exclusion is enforced in code.
+`tests/test_roster.py` holds the table to `config.py` in both directions, so the
+document and the code cannot drift apart again — 21 tests, including one that
+fails if the string "Claude Sonnet 5" reappears anywhere in the plan.
+
+## 18. The paste-ready OSF text disagreed with the plan it was supposed to mirror
+
+`OSF.md` carries field-by-field text to paste into the registration form. It is
+the text that actually becomes immutable, and six fields were stale:
+
+| Field | Said | Should say |
+|---|---|---|
+| Description | "seven language models" | nine |
+| Sample size | 25 × **7** × 105 ≈ 18,375 | 25 × **9** × 105 ≈ 23,625 (§6) |
+| Measured variables | six state variables | **seven** — `ladder_distance` was missing |
+| Inference criteria | "across the **six** registered state variables" | seven |
+| Study design | nine models, no mention of the tenth | discloses the secondary model |
+| Data collection | "queries all nine models" | ten are queried |
+
+The state-variable count is not cosmetic: it is the **Benjamini–Hochberg
+denominator**, so registering six while the analysis corrects across seven sets
+H1's falsification threshold to a value the study does not use. That is finding
+12 all over again, in the one document where it could not be corrected later.
+
+**Fixed:** all six fields rewritten against the plan.
+
+## 19. H1's experimental leg was empty on every broadened task
+
+Finding 12 fixed the *propagation* of `ladder_distance` — computed in
+`kalshi.select_tasks`, dropped by `tasks.py`. The fix was real. It was also only
+half the pipeline.
+
+`select_tasks` computed ladder positions **only in the curated-series branch**.
+When the priority series do not supply enough questions the selector widens to the
+full Economics/Financials universe — "on many days", by its own comment — and
+those markets were appended with no ladder position at all, reaching the task
+record as `None`.
+
+Measured against the live API on a 25-task day:
+
+| | Before | After |
+|---|---|---|
+| event tasks | 15 | 15 |
+| missing `ladder_distance` | **5 (33%)** | **0** |
+| distinct ambiguity values | 5 | **9** |
+| range | 0.00–0.52, clustered at 0.0 and 0.5 | 0.00–0.52, graded 0.1/0.2/0.3/0.4/0.5 |
+
+`ladder_distance` is H1's *experimentally varied* leg — the one state variable
+§10.5 says is populated every day regardless of whether markets supply a stress
+event, and therefore the reason H1 survives a calm 15 weeks. A third of it was
+missing, and it cannot be backfilled: it needs the live strike ladder as it stood
+on the ask date, and closed Kalshi ladders are not reliably re-queryable.
+
+The existing test could not have caught this. `tests/test_state_variables.py`
+stubs out `kalshi.select_tasks` and feeds `tasks.py` a hand-written candidate
+that already carries `ladder_distance` — it verifies the second half of the
+pipeline using a fixture that assumes the first half worked.
+
+**Fixed:** ladder assignment extracted into `assign_ladder_distance()` and called
+from both paths; the broadening path now groups candidates by event before
+selecting, so a market can see the rest of its own ladder; and `select_tasks`
+raises rather than returning any market with an unset value. Fixing it also
+*improved* the primary hypothesis's regressor — nine distinct ambiguity levels
+instead of five. 11 tests (`tests/test_task_selection.py`) that exercise the real
+selector against stubbed HTTP; 8 of them fail against the pre-fix code.
+
+## 20. `--dry-run` wrote to the append-only study record
+
+`--dry-run` is documented as "price the day, ask nothing", and the OSF gate lets
+it through on the explicit grounds that it "touches nothing real". It registered
+that day's 25 questions to `data/tasks.jsonl` before reaching the dry-run branch.
+
+Those rows can never acquire observations, so they are permanent orphans in the
+public record. And `SETUP.md` instructs the operator to smoke-test the workflow
+with `dry_run` ticked — a workflow that ends in `git add -A data/` and a commit.
+The rehearsal would have published a batch of questions to the public repository
+**dated before the pre-registration was frozen**, in a study whose entire claim
+is that the plan came first.
+
+**Fixed:** task persistence is skipped on a dry run and the log says so. The
+pricing arithmetic is untouched. 9 tests (`tests/test_dry_run.py`), including one
+that the real run still registers tasks before observations — the guard has to be
+specific to dry runs, or it breaks the ordering that makes "the question predates
+the answer" checkable.
+
+## 21. The registration gate could not see the registration
+
+`neff.collect` refuses to write primary data until `.osf_url` exists. `.osf_url`
+is untracked, and the scheduled job runs from a **fresh checkout**.
+
+So the intended sequence — register on OSF, `echo <url> > .osf_url`, done — would
+have left every automated collection day from 24 Aug failing with
+
+```
+REFUSING TO COLLECT -- OSF registration not confirmed.
+```
+
+on a registration that was live, public, and sitting in a file on the operator's
+laptop. Silent unless someone watches the Actions tab, and every lost day is
+unrecoverable.
+
+A second, smaller hole in the same gate: the check was `len(text.strip()) > 0`,
+which `echo pending > .osf_url` satisfies. A gate a typo opens is not a gate.
+
+**Fixed:** the URL must parse as a URL; an `OSF_URL` environment variable is
+accepted as a CI alternative; the workflow gained a first step that checks
+visibility *before* loading any key and names the exact remedy; the failure
+message says to commit the file and why; and `preflight.py` reports a `.osf_url`
+that exists but is uncommitted as blocking. 24 tests (`tests/test_osf_gate.py`).
+
+## 22. The cost model was half the real figure, against a cap that is a hard stop
+
+Documented: $0.24/day, $25 for the panel. Re-priced on 21 Aug with a live dry run
+against the real battery and the real roster: **$0.4442/day, $46.64** for the
+105-day window. The published figure was for nine models and predated the tenth,
+and nobody re-measured after the roster changed.
+
+On its own that is a bookkeeping error on a $200 budget. What made it matter is
+`ARM_CAPS_USD["ws1_prospective"] = 70`, set against the $25 projection.
+`Ledger.check` **raises**; it does not warn. An arm cap is a hard stop. At the
+true rate the prospective panel consumes two thirds of its own cap, and any
+upward drift across 15 unattended weeks — longer prompts as filings accumulate,
+more open questions re-asked daily — ends collection in November, at the far end
+of the panel, on days that cannot be recollected.
+
+**Fixed:** `config.MEASURED_DAILY_USD` records the measured figure and
+`projected_ws1_usd()` derives the projection from the registered window, so it
+cannot go stale silently again. The arm cap is now $100 (~2.1x the projection),
+funded by rebalancing the later workstreams — **the global $200 cap and the $15
+reserve are unchanged**, so total exposure did not move. 12 tests
+(`tests/test_budget_headroom.py`), one of which simulates all 105 days at a 50%
+cost overrun and asserts the panel still completes.
+
+## 23. The readiness check reported a push that had never happened
+
+`scripts/preflight.py` exists because a mock run once looked identical to a real
+one and was mistaken for a completed setup. Step 6 then had the same defect: it
+printed `[done] Pushed to a public GitHub repo` as soon as `git remote -v`
+returned anything.
+
+The remote was configured. The GitHub repository existed and returned HTTP 200.
+It contained **no branches** — nothing had ever been pushed. The public,
+timestamped commit history that the entire "registered in advance" claim depends
+on did not exist, and the readiness check said it did.
+
+Step 2 had the mirror-image defect: it asked whether every model had answered for
+real by reading `observations.jsonl`, but `neff.verify` makes live calls and
+writes no observations. The step could never pass, and its own remediation line
+told the operator to run the command they had just run — the fastest way to teach
+someone to ignore a blocking check.
+
+**Fixed:** step 6 asks the remote (`git ls-remote`), distinguishes *no remote* /
+*unreachable* / *empty* / *N commits unpushed* / *up to date*, and reports which.
+`neff.verify` now writes a receipt per probe to `data/verification.jsonl` —
+which is also dated evidence that every pinned id answered a live API before the
+freeze, carrying the id each provider actually served — and step 2 reads that.
+14 tests (`tests/test_preflight.py`) against real git repositories with a local
+bare remote.
+
+---
+
+**Total after both passes: 23 defects found before collection, 0 after.** The
+number that matters is not 23; it is that all of them were found while they were
+still free.

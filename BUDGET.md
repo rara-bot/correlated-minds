@@ -26,6 +26,33 @@
 > on three within-family pairs rather than one — see the rationale in
 > `config.py`. §3 below predates that change and is retained unaltered as a
 > record of the original reasoning, so its per-model counts read seven.
+>
+> ## ⚠️ SUPERSEDED AGAIN — RE-MEASURED 21 Aug 2026
+>
+> The $0.24/day figure above was itself stale, for two reasons, and the direction
+> of the error mattered more than its size.
+>
+> | | Above | **Re-measured 21 Aug** |
+> |---|---|---|
+> | One day, 25 tasks | $0.24 (9 models) | **$0.4442** (10 models) |
+> | Full 15-week panel, 105 days | $25 | **$46.64** |
+> | 5 prompt variants of one model (H3 arm) | $125 | **$2.57** |
+>
+> **Why:** the roster gained a tenth model (the secondary frontier anchor, see
+> PREREGISTRATION.md §3.1) and nobody re-priced a day afterwards; and the $125 H3
+> figure priced five variants across the *whole panel* rather than five variants
+> of *one* model, which is what H3 actually registers.
+>
+> **Why it mattered.** `ws1_prospective` was capped at $70, set against a $25
+> projection. `Ledger.check` raises rather than warns, so an arm cap is a hard
+> stop: at the true rate the panel would have consumed two thirds of its cap, and
+> any drift upward over 15 unattended weeks would have ENDED COLLECTION in
+> November on days that cannot be recollected. The cap is now **$100**, about 2.1x
+> the measured projection, with the global $200 cap and the $15 reserve unchanged —
+> this reallocates headroom between arms, it does not create any.
+> `tests/test_budget_headroom.py` fails if that margin is ever eroded again, and
+> `config.MEASURED_DAILY_USD` carries the measured number so the next person does
+> not have to re-derive it.
 
 **Timeline:** 16 Aug → 31 Dec 2026 (19.5 weeks) · **Effort:** 15 h/week ≈ 290 hours
 
@@ -117,20 +144,30 @@ Original: 3 frontier + 4 cheap. Revised: 7 families at mid-tier, with one fronti
 
 The justification isn't only cost. **Mid-tier models are what institutions actually deploy for
 high-volume tasks** — cost matters to them too. A roster of Haiku/Flash/8–70B-class models is a
-*better* model of real deployment than an all-frontier roster, while Sonnet 5 anchors the top end so
-we can test whether tier affects correlation.
+*better* model of real deployment than an all-frontier roster, while Sonnet 4.6 anchors the top end so
+we can test whether tier affects correlation. (Sonnet **4.6**, not 5: the 5 line
+rejects the registered `temperature=0` parameter outright — see PREREGISTRATION.md §3.1.)
 
-| Family | Model tier | ~Rate (in/out per MTok) |
+**The roster as actually pinned** (prices USD per million tokens, verified
+against each provider's live API on 19 Aug 2026 — the planning table this
+replaces carried three ids that no longer exist and one, `claude-sonnet-5`, that
+rejects the registered `temperature=0`):
+
+| Family | Pinned model id | Rate (in/out per MTok) |
 |---|---|---|
-| Anthropic | Claude Haiku 4.5 | $1 / $5 |
-| Anthropic | Claude Sonnet 5 *(frontier anchor)* | $3 / $15 |
-| Google | Gemini 2.5 Flash-Lite | $0.10 / $0.40 · **free tier available** |
-| OpenAI | mid-tier | verify at purchase |
-| Meta | Llama, hosted | ~$0.20 / $0.60 |
-| Alibaba | Qwen, hosted | ~$0.20 / $0.60 |
-| DeepSeek | hosted | ~$0.30 / $0.90 |
+| Anthropic | `claude-sonnet-4-6` *(frontier anchor)* | $3 / $15 |
+| Anthropic | `claude-haiku-4-5-20251001` | $1 / $5 |
+| OpenAI | `gpt-4.1-mini-2025-04-14` | $0.40 / $1.60 |
+| OpenAI | `gpt-4.1-nano-2025-04-14` | $0.10 / $0.40 |
+| Google | `gemini-3.5-flash` | $1.50 / $9 |
+| Google | `gemini-3.5-flash-lite` | $0.30 / $2.50 |
+| Meta | `meta-llama/llama-3.3-70b-instruct` | $0.10 / $0.32 |
+| Alibaba | `qwen/qwen-2.5-72b-instruct` | $0.36 / $0.40 |
+| DeepSeek | `deepseek/deepseek-v3.2` | $0.269 / $0.40 |
+| OpenAI | `gpt-4.1-2025-04-14` *(secondary; collected, excluded from the primary panel)* | $2 / $8 |
 
-Blended ≈ **$0.75 in / $3.40 out**.
+Blended across the primary nine ≈ **$0.78 in / $3.85 out**. `tests/test_roster.py`
+holds this list to `neff/config.py`, so it cannot drift again.
 
 ### Move 3 — caching and batching, as before
 
@@ -197,7 +234,7 @@ naive per-token estimate suggests.
 
 | Tier | Blended rate | Effective cost/call |
 |---|---|---|
-| Frontier ×3 (Claude Opus 5 $5/$25; Claude Sonnet 5 $3/$15; Gemini 3.1 Pro $2/$12) | ~$3.30 / $17 | **$0.0167** |
+| Frontier ×3 (Claude Opus 5 $5/$25; Claude Sonnet 5 $3/$15; Gemini 3.1 Pro $2/$12) — *a roster we did not adopt; Sonnet 5 cannot honour `temperature=0`* | ~$3.30 / $17 | **$0.0167** |
 | Open-weight ×4, hosted (Llama, Qwen, Mistral, DeepSeek) | ~$0.30 / $0.60 | **$0.0016** |
 
 | Workstream | Cost |

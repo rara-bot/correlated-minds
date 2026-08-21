@@ -187,7 +187,7 @@ Correlated Minds: State-Dependent Error Correlation Across Large Language Models
 
 ### Description / Summary
 ```
-Financial institutions are delegating analytical judgement to large language models from a small number of vendors. Because those models share overlapping pretraining data, their apparent diversity may not deliver genuine independence of judgement. This study measures, prospectively and daily for 15 weeks, whether seven language models across six vendor families make CORRELATED ERRORS on financial forecasting questions whose answers do not yet exist, and whether that correlation worsens under market stress and question ambiguity. The same estimator is applied to individual human forecasters from the Federal Reserve Bank of Philadelphia's Survey of Professional Forecasters, giving a direct human-versus-machine comparison of diversification headroom.
+Financial institutions are delegating analytical judgement to large language models from a small number of vendors. Because those models share overlapping pretraining data, their apparent diversity may not deliver genuine independence of judgement. This study measures, prospectively and daily for 15 weeks, whether nine language models across six vendor families make CORRELATED ERRORS on financial forecasting questions whose answers do not yet exist, and whether that correlation worsens under market stress and question ambiguity. The same estimator is applied to individual human forecasters from the Federal Reserve Bank of Philadelphia's Survey of Professional Forecasters, giving a direct human-versus-machine comparison of diversification headroom.
 
 The Financial Stability Board (Oct 2025), the Bank of England (Jul 2026) and the IMF (Jul 2026) have each named correlated AI-driven behaviour as a systemic risk. None of them measures it. This study supplies the measurement.
 ```
@@ -212,7 +212,7 @@ Not applicable in the conventional sense. Structurally, outcome data cannot infl
 > Paste §3 of `PREREGISTRATION.md` (Design), which covers the panel, both task
 > types, inclusion criteria and repeated measurement. Then add:
 ```
-Nine models across six vendor families (three of them represented at two tiers, giving three within-family pairs), each pinned to an exact API identifier which is logged on every call so that mid-study vendor model drift is detectable. Sampling temperature fixed at 0 for all models. The daily battery is 60% macro questions (Kalshi event contracts and scheduled statistical releases) and 40% document-grounded filing tasks (SEC EDGAR XBRL). Open questions are re-asked daily until resolution; the unit of observation is the task-day.
+Nine models across six vendor families (three of them represented at two tiers, giving three within-family pairs and 36 pairs in total), each pinned to an exact API identifier which is logged on every call so that mid-study vendor model drift is detectable. A tenth model (a second frontier-tier OpenAI model) is collected daily alongside the nine and is disclosed in section 3.1 of the attached plan, but is EXCLUDED from every primary estimate: the human comparison in H4 is matched at M = 9 against SPF headroom measured at that panel size, so folding in a tenth member would unmatch it. Any analysis using the tenth model is exploratory and labelled as such. Sampling temperature fixed at 0 for all models. The daily battery is 60% macro questions (Kalshi event contracts and scheduled statistical releases) and 40% document-grounded filing tasks (SEC EDGAR XBRL). Open questions are re-asked daily until resolution; the unit of observation is the task-day.
 ```
 
 ### Randomization
@@ -232,12 +232,12 @@ Disclosed in full: one dataset used in this study DOES already exist and HAS alr
 
 ### Data collection procedures
 ```
-An automated job runs daily at 13:10 UTC, selects that day's questions under the fixed inclusion criteria, queries all nine models at temperature 0 with an identical prompt, and appends every response, token count and cost to public JSONL files committed to a public GitHub repository. Resolutions are ingested from official sources (statistical agency releases, SEC EDGAR filings, Kalshi settlements) once the outcome exists. Because collection and commits are automated and public, the claim that each forecast preceded its outcome is externally checkable from the commit history rather than asserted.
+An automated job runs daily at 13:10 UTC, selects that day's questions under the fixed inclusion criteria, queries all ten models (the registered nine plus the secondary frontier model) at temperature 0 with an identical prompt, and appends every response, token count and cost to public JSONL files committed to a public GitHub repository. Resolutions are ingested from official sources (statistical agency releases, SEC EDGAR filings, Kalshi settlements) once the outcome exists. Because collection and commits are automated and public, the claim that each forecast preceded its outcome is externally checkable from the commit history rather than asserted.
 ```
 
 ### Sample size
 ```
-Target approximately 25 task-days x 7 models x 105 collection days ~ 18,375 observations, across roughly 400 distinct resolved questions.
+Target approximately 25 task-days x 9 models x 105 collection days ~ 23,625 observations in the primary panel, across roughly 400 distinct resolved questions.
 ```
 
 ### Sample size rationale
@@ -261,7 +261,9 @@ Primary outcome: diversification headroom, headroom = N_eff - 1, where N_eff = M
 
 Always reported alongside it: (a) variance_reduction, the model-free ratio Var(panel mean error) / mean(Var of individual errors), which assumes no correlation structure; and (b) rho_bar itself to four decimal places.
 
-State variables for the H1 conditional test, fixed with no additions permitted: VIX level, 20-day realised volatility, cross-model forecast dispersion, absolute macro surprise, days to resolution, novelty score.
+State variables for the H1 conditional test, SEVEN, fixed with no additions permitted: ladder distance (normalised distance from the strike ladder median, an experimentally varied ambiguity measure recorded at ask time), VIX level, 20-day realised volatility, cross-model forecast dispersion, absolute macro surprise, days to resolution, novelty score.
+
+Four of the seven are recorded at ask time and cannot be reconstructed afterwards (ladder distance, VIX level, 20-day realised volatility, days to resolution); three are derived at analysis time from retained data.
 ```
 
 ### Indices
@@ -288,7 +290,7 @@ None beyond those stated. State variables are standardised before entering the H
 
 ### Inference criteria
 ```
-Benjamini-Hochberg control of the false discovery rate at 0.05 across the six registered state variables for H1. Intervals are 95% block-bootstrap percentile intervals. Falsification conditions for each hypothesis are stated in §4 of the attached plan and are binding.
+Benjamini-Hochberg control of the false discovery rate at 0.05 across the seven registered state variables for H1. Intervals are 95% block-bootstrap percentile intervals. Falsification conditions for each hypothesis are stated in §4 of the attached plan and are binding.
 
 Additionally: on 27 Sep 2026 (end of Week 5) we fit H1 on weeks 1-5 and publish a hashed, timestamped numerical out-of-sample prediction. Weeks 6-15 are a genuine holdout. The prediction is never revised, and a miss is reported as a miss.
 ```
@@ -343,7 +345,29 @@ The daily data commits provide an independent second timestamp: each forecast is
 You'll get a permanent URL like `osf.io/ab12c` and a DOI like
 `10.17605/OSF.IO/AB12C`.
 
-Put it in all five places:
+**First, unlock collection.** The daily job refuses to write primary study data
+until the registration is on record, and it reads that record from the
+repository, not from your laptop:
+
+```bash
+echo 'https://osf.io/XXXXX' > .osf_url && git add .osf_url && git commit -m "Record OSF registration" && git push
+```
+
+The commit is not optional. `.osf_url` is read by `neff.collect` from a fresh
+checkout every morning; a file that exists only here leaves every scheduled run
+failing on a registration that is, locally, plainly present. (If you would rather
+not commit it, set an `OSF_URL` repository variable under **Settings → Secrets
+and variables → Actions → Variables** instead — the workflow reads either.)
+
+Confirm it took:
+
+```bash
+./.venv/bin/python scripts/preflight.py
+```
+
+All seven checks should read `[done]`.
+
+Then put the URL in all five places:
 - The project README
 - Your paper's methods section, first paragraph
 - Your poster, bottom-right, as a QR code

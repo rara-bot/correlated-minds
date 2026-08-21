@@ -24,15 +24,44 @@ RESOLUTIONS_PATH = DATA_DIR / "resolutions.jsonl"
 # Hard cap. Enforced in code by neff.ledger.Ledger, not by discipline.
 BUDGET_USD = 200.0
 
+# Measured, not assumed. `neff.collect --dry-run --tasks 25` on 21 Aug 2026,
+# pricing the real task battery against the real roster of ten collected models.
+# The planning documents had carried $0.24/day for a NINE-model panel, which was
+# both stale and roughly half the true figure.
+MEASURED_DAILY_USD = 0.4442
+
+
+def collection_days() -> int:
+    """Calendar days of collection, inclusive of both endpoints."""
+    from datetime import date as _date
+
+    return (_date.fromisoformat(DATA_FREEZE) - _date.fromisoformat(COLLECTION_START)).days + 1
+
+
+def projected_ws1_usd() -> float:
+    """What the 15-week prospective panel is actually expected to cost."""
+    return MEASURED_DAILY_USD * collection_days()
+
+
 # Sub-caps per workstream, so one arm cannot quietly consume the whole budget.
 # These sum to less than the cap on purpose -- the remainder is reserve, released
 # only against the Week-5 interim read.
+#
+# ws1_prospective was $70 against a projected spend of ~$47, and the projection
+# it was set from said $25. An arm cap is not a warning: `Ledger.check` raises
+# BudgetExceeded, so reaching it STOPS COLLECTION. A 15-week unattended run whose
+# per-day cost drifts up -- longer prompts as filings accumulate, more re-asked
+# open questions -- would have halted in November, at the far end of the panel,
+# with no way to recover the lost days. The cap now carries roughly 2x the
+# measured projection, and `tests/test_budget_headroom.py` fails if that margin
+# is ever eroded. The GLOBAL $200 cap is unchanged: this reallocates headroom
+# between arms, it does not create any.
 ARM_CAPS_USD = {
     "pilot": 10.0,
-    "ws1_prospective": 70.0,
-    "ws2_retrospective": 40.0,
-    "ws5_mitigation": 25.0,
-    "h2_reasoning": 40.0,
+    "ws1_prospective": 100.0,   # ~2.1x the measured projection
+    "ws2_retrospective": 25.0,
+    "ws5_mitigation": 15.0,
+    "h2_reasoning": 35.0,
 }
 
 
