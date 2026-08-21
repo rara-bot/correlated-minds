@@ -172,6 +172,211 @@ confirmatory claim.
 
 ---
 
+## 11. The block bootstrap still was not a block bootstrap
+
+Finding 4 fixed the row *ordering*. It did not fix the block *unit*, and the
+second error survived the first fix.
+
+§5.2 registers "block size 5 task-days". The code passed `block_size=5` to a
+resampler that counts **rows**. The panel carries ~25 tasks per day, so five rows
+is a fifth of one day: a block could not span two days, and — because `tasks.py`
+re-asks every open question daily, placing that question's successive
+observations ~25 rows apart — it could never span two observations of the same
+question. The dominant dependence in the entire design was invisible to the
+bootstrap.
+
+Simulated at the real panel shape (9 models, 25 tasks/day, 105 days, AR(.95)
+per-question persistence):
+
+| blocking | 95% CI | width |
+|---|---|---|
+| `block_size=5` rows (as coded) | [0.9578, 0.9616] | 0.0038 |
+| `block_size=5` task-days (as registered) | [0.9558, 0.9647] | 0.0089 |
+
+**Every interval would have been 57% too narrow** — worse than finding 4, and it
+reached `metrics.headroom_ratio`, which §5.5 names as the headline comparison.
+The point estimate was never affected; only the uncertainty around it.
+
+Two things made this survive an audit that had already looked at this exact
+function. The parameter name `block_size` is unit-free, so the code read as
+correct against a registration that says "task-days". And the existing test
+asserted only that `block_size=25` beat `block_size=1` — true under both the
+broken and the fixed implementation, because it never varied the *unit*.
+
+**Fixed:** `stats._moving_block_indices` takes explicit day labels (`groups=`);
+`block_size` then counts task-days, a sampled day is indivisible, and passing a
+mismatched label array raises rather than silently mis-blocking. Same treatment in
+`metrics.headroom_ratio` for both panels. §5.2 now states the unit explicitly, so
+the registration cannot be read the wrong way. Six regression tests, one of which
+asserts the point estimate is unchanged — a fix that moved the measurement itself
+would be a different bug.
+
+## 12. H1's primary state variable was computed and then thrown away
+
+`kalshi.select_tasks` computes `ladder_distance` for every market and uses it to
+choose graded positions across each strike ladder. `tasks.py` then assembled the
+task's `state` dict with `days_out`, `series`, `strike` and `asked_on` — and not
+`ladder_distance`. It was calculated, carried on the candidate, and dropped one
+line before it would have been persisted.
+
+Nothing failed. Tasks built, the panel would have filled, and H1 would have
+arrived at analysis in December missing the leg the design depends on most:
+
+> §10.5: "The experimentally varied `ladder_distance` ambiguity leg is populated
+> every day and does not depend on markets cooperating, so H1 remains testable in
+> a calm regime."
+
+It was populated on no days at all. Had the 15 weeks been calm — the scenario
+§10.5 exists to survive — the primary hypothesis would have had no variation to
+consume and the study would have had no headline result. It is also the one state
+variable that **cannot be backfilled**: it needs the live strike ladder as it
+stood on the ask date, and closed Kalshi ladders are not reliably re-queryable.
+
+Auditing the rest of the list found the registration and the code disagreeing
+three separate ways:
+
+| | §4 registers | `config.py` had | Status |
+|---|---|---|---|
+| ladder distance | ✓ | ✓ | computed, **dropped before persistence** |
+| VIX level | ✓ | ✓ | collected |
+| 20-day realised vol | ✓ | ✓ | collected |
+| cross-model dispersion | ✓ | ✓ | derived at analysis |
+| \|macro surprise\| | ✓ | ✓ | derived at analysis |
+| **days-to-resolution** | ✓ | **absent** | collected as `days_out`, unregistered in code |
+| novelty score | ✓ | ✓ | derived at analysis |
+| **news_volume** | **never registered** | ✓ | unregistered variable in the frozen set |
+
+Both documents also said "**six** state variables" while the list held seven.
+That count is the Benjamini–Hochberg denominator, so it sets H1's falsification
+threshold directly — §4 states the correction is applied "across the six state
+variables" and §9 freezes "the six state variables."
+
+**Fixed:** `ladder_distance` is propagated into task state; `news_volume` removed
+as unregistered under "no additions permitted"; `days_out` registered;
+both documents corrected to seven; and `config.STATE_COLLECTED_AT_ASK` now names
+the four that are irrecoverable if missed, separating them from the three that
+are merely derived later. Six regression tests, including one asserting
+`ladder_distance` carries its real value rather than a `setdefault(0.0)`, which
+would zero the experimental leg just as effectively as dropping it.
+
+## 13. The frontier anchor could not honour a registered parameter
+
+`TEMPERATURE = 0.0` is registered in §9 as a frozen commitment, and `config.py`
+states why: *"we want each model's modal judgement"*, so that cross-model
+differences reflect the models rather than our sampling noise.
+
+The pinned frontier anchor, `claude-sonnet-5`, **rejects the parameter outright**:
+
+```
+HTTP 400  `temperature` is deprecated for this model.
+```
+
+Newer reasoning models across the industry are removing sampling controls
+entirely. On Anthropic's current line, `temperature`/`top_p`/`top_k` return 400 on
+Sonnet 5, Opus 5, Opus 4.8, Opus 4.7 and Fable 5; they are still accepted on
+Sonnet 4.6, Opus 4.6 and Haiku 4.5.
+
+This is worse than a dead ID. A dead ID fails loudly and visibly. Here the
+tempting fix -- drop `temperature` for the one model that refuses it -- would have
+produced a panel where **eight members sample at temperature 0 and one samples
+adaptively**. Every cross-model correlation involving the frontier anchor would
+then mix a model difference with a sampling difference, and the anchor is
+precisely the member H6 leans on for its capability contrast.
+
+**Fixed:** `claude_sonnet` repinned to `claude-sonnet-4-6` -- the newest Anthropic
+model that still accepts `temperature`, at identical $3/$15 pricing, same family,
+same tier. Verified by live call at `temperature=0`. A roster constraint is now
+recorded beside the `TEMPERATURE` constant, because this will recur: the industry
+is moving away from sampling parameters, and a future roster edit that adds a
+Claude 5 / Opus 5-class model would silently reintroduce the same defect.
+`neff.verify` makes one real call per model and fails loudly on it.
+
+## 14. A registered sensitivity analysis rested on a capability three models lack
+
+§5.4(a) handles the shared-mass-point threat -- models converging on identical
+round probabilities, which inflates correlation for reasons of verbal habit rather
+than shared priors. One of its three pre-committed handlings was to *"re-estimate
+on logprob-derived probabilities"* for **"the four models exposing logprobs."**
+
+Three separate numbers, none of which agreed:
+
+| | Count |
+|---|---|
+| PREREGISTRATION.md §5.4(a) claimed | 4 |
+| `config.py` `supports_logprobs=True` | 5 |
+| **Actually return logprobs** | **2** |
+
+Measured by live call: `llama` and `deepseek` return them. `gpt_mid` and
+`gpt_small` cannot -- OpenAI answers `logprobs are not supported with reasoning
+models` -- and `qwen` returns none in practice.
+
+Two models yield exactly one pairwise correlation, which is not a re-estimate of
+panel-level `rho_bar` in any useful sense. The handling was not merely
+over-counted; as a panel-wide sensitivity it does not exist.
+
+This would have surfaced in December, while writing the sensitivity section
+against data that could never have supported it.
+
+**Fixed:** `supports_logprobs` corrected to the two models that actually have it;
+§5.4(a) demotes the logprob leg to a stated two-model spot check. The threat is
+still addressed -- the emitted-value distribution and the exact-tie exclusion are
+full-panel checks needing no logprobs -- but by two routes rather than three, and
+that reduction is now registered rather than discovered later.
+
+## 15. A router silently discarded a registered parameter
+
+The worst failure found in this project, because it produced no error at all.
+
+`TEMPERATURE = 0.0` is registered in §9. Testing the OpenAI models revealed a
+three-layer problem:
+
+**Layer 1 -- the direct API refuses the parameter.** `gpt-5-mini` and `gpt-5-nano`
+return HTTP 400: *"'temperature' does not support 0.0 with this model. Only the
+default (1) value is supported."* Loud, visible, unmissable. Fine.
+
+**Layer 2 -- the router accepts it and throws it away.** The same models via
+OpenRouter return HTTP 200. The call succeeds. The parameter is silently dropped
+and the model samples at temperature 1. Five calls at `temperature=0` with an
+identical prompt:
+
+| Route | Result |
+|---|---|
+| `openai/gpt-5-mini` via OpenRouter | Teal, Turquoise, teal, cerulean, Teal |
+| `openai/gpt-5.1` via OpenRouter | Cyan, Cerulean, Teal, Cerulean, Cyan |
+| `deepseek/deepseek-v3.2` via OpenRouter | Crimson x5 |
+
+Two panel members would have sampled randomly for fifteen weeks while every log,
+every stored record and the pre-registration itself said temperature 0. The
+resulting correlations would have mixed genuine model differences with sampling
+noise on exactly two members -- undetectable after the fact, because nothing was
+ever recorded as wrong.
+
+**Layer 3 -- the escape route had the same defect.** The frontier model added
+hours earlier, `openai/gpt-5.1` via OpenRouter, was affected identically. So was
+the fallback plan for routing the GPT pair through OpenRouter when direct billing
+failed. Both were adopted for sound reasons and both silently broke a registered
+parameter.
+
+`llama`, `qwen` and `deepseek` route through OpenRouter and are all deterministic,
+so this is specific to OpenAI's reasoning line, not to routing in general.
+
+**Fixed:** the whole OpenAI family repinned to `gpt-4.1-mini-2025-04-14`,
+`gpt-4.1-nano-2025-04-14` and `gpt-4.1-2025-04-14`, on the direct API. Verified
+deterministic across five identical responses. Three side benefits fell out:
+logprob support returned (restoring §5.4(a)'s four-model coverage, see finding
+14), the provider mix rebalanced to 3/3/2/2 rather than concentrating six models
+behind one router, and the dated snapshots removed three floating aliases -- the
+undated ids resolved to `-2025-04-14` snapshots that OpenAI could repoint mid-panel.
+
+Two further defects surfaced on the way: `max_tokens` is rejected by OpenAI's newer
+line in favour of `max_completion_tokens` (a per-provider difference, since
+OpenRouter still normalises the old name), and the drift check caught the alias
+resolution. Both are now handled in `providers.py` and `config.py`.
+
+**The generalisable lesson:** a proxy that accepts an unsupported parameter and
+discards it is more dangerous than one that rejects it. Where a registered
+parameter is involved, verify it took EFFECT -- do not settle for HTTP 200.
+
 ## Also corrected: the novelty claim
 
 An earlier draft asserted that nobody has measured LLM error correlation. **That

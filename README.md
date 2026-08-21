@@ -3,7 +3,7 @@
 **How many genuinely independent judgements is an AI-mediated market actually
 getting — and does that number collapse precisely when markets are under stress?**
 
-A prospective, pre-registered study measuring error correlation across seven
+A prospective, pre-registered study measuring error correlation across nine
 large language models on real financial forecasting questions, benchmarked
 against human professional forecasters.
 
@@ -112,9 +112,9 @@ The entire budget goes to one thing: paying the models to answer.
 
 | | Measured cost |
 |---|---|
-| One day, 25 tasks × 7 models | $0.22 |
-| Full 15-week panel | **$23** |
-| Same, with 5 prompt variants (the full H3 arm) | **$113** |
+| One day, 25 tasks × 9 models | $0.24 |
+| Full 15-week panel | **$25** |
+| Same, with 5 prompt variants (the full H3 arm) | **$125** |
 | Budget cap, enforced in code | $200 |
 
 ---

@@ -12,7 +12,9 @@ import pytest
 
 from neff.metrics import effective_panel, headroom_ratio, mse_reduction, variance_reduction
 from neff.panel import Panel, apply_settled_question_exclusion
+from neff.metrics import headroom_ratio
 from neff.stats import (
+    _moving_block_indices,
     block_bootstrap_ci,
     mean_pairwise_correlation,
     mean_uncentered_correlation,
@@ -190,3 +192,104 @@ class TestMockDataCannotEnterAPanel:
         kept = load_panel(obs_path=obs, resolutions_path=res, tasks_path=tasks,
                           model_keys=["a", "b"], require_resolved=False, include_mock=True)
         assert kept.n_tasks == 4
+
+
+class TestBlockSizeCountsTaskDaysNotRows:
+    """`block_size=5` blocked 5 ROWS, but §5.2 registers 5 TASK-DAYS.
+
+    The panel carries ~25 tasks per day and tasks.py re-asks each open question
+    daily, so a question's successive observations sit ~25 rows apart. A 5-row
+    block lies strictly inside one day and cannot span two observations of the
+    same question -- so the dominant dependence in the design was invisible to
+    the bootstrap and every interval came out far too narrow.
+
+    Same failure mode as the row-ordering bug above, and it reached the headline
+    statistic in metrics.headroom_ratio.
+    """
+
+    TASKS_PER_DAY = 25
+    DAYS = 60
+    MODELS = 9
+
+    def _panel(self, seed=7):
+        """Errors whose common component persists per question across days."""
+        rng = np.random.default_rng(seed)
+        common = np.zeros((self.DAYS, self.TASKS_PER_DAY))
+        for slot in range(self.TASKS_PER_DAY):
+            z = 0.0
+            for day in range(self.DAYS):
+                z = 0.95 * z + rng.normal(0, 1)
+                common[day, slot] = z
+        flat = common.reshape(-1)
+        errors = 0.9 * flat[:, None] + 0.6 * rng.normal(
+            0, 1, size=(flat.size, self.MODELS)
+        )
+        days = [f"d{i // self.TASKS_PER_DAY:03d}" for i in range(flat.size)]
+        return errors, days
+
+    def test_row_blocking_understates_uncertainty(self):
+        errors, days = self._panel()
+        _, lo_rows, hi_rows = block_bootstrap_ci(
+            errors, statistic="rho_bar", block_size=5, n_boot=400, seed=1
+        )
+        _, lo_days, hi_days = block_bootstrap_ci(
+            errors, statistic="rho_bar", block_size=5, n_boot=400, seed=1, groups=days
+        )
+        width_rows, width_days = hi_rows - lo_rows, hi_days - lo_days
+        assert width_days > 1.5 * width_rows, (
+            f"day-blocked width {width_days:.5f} should be materially wider than "
+            f"row-blocked {width_rows:.5f}; if not, blocking is not binding"
+        )
+
+    def test_point_estimate_is_unchanged(self):
+        """Only the interval was wrong. A shifted point estimate would mean the
+        fix altered the measurement itself, which it must not."""
+        errors, days = self._panel()
+        pt_rows, _, _ = block_bootstrap_ci(
+            errors, statistic="rho_bar", block_size=5, n_boot=100, seed=1
+        )
+        pt_days, _, _ = block_bootstrap_ci(
+            errors, statistic="rho_bar", block_size=5, n_boot=100, seed=1, groups=days
+        )
+        assert pt_rows == pytest.approx(pt_days, abs=1e-12)
+
+    def test_sampled_days_travel_whole(self):
+        """A day is indivisible: if a day is drawn, all of its rows come with it."""
+        groups = ["a", "a", "a", "b", "b", "c"]
+        rng = np.random.default_rng(0)
+        for _ in range(50):
+            idx = _moving_block_indices(len(groups), 2, rng, groups)
+            drawn = [groups[i] for i in idx]
+            for day, size in (("a", 3), ("b", 2), ("c", 1)):
+                assert drawn.count(day) % size == 0, (
+                    f"day {day!r} appeared {drawn.count(day)} times, not a multiple "
+                    f"of its {size} rows -- a day was split across the resample"
+                )
+
+    def test_mismatched_groups_fail_loudly(self):
+        errors, days = self._panel()
+        with pytest.raises(ValueError, match="groups has length"):
+            block_bootstrap_ci(errors, block_size=5, n_boot=10, groups=days[:-1])
+
+    def test_headline_statistic_accepts_task_day_blocking(self):
+        """metrics.headroom_ratio carries the same defect; §5.5 calls it the
+        headline comparison, so it is the worst place to understate uncertainty."""
+        errors, days = self._panel()
+        human = errors[:, :4]
+        out_rows = headroom_ratio(human, errors, n_boot=150, seed=0, block_size=5)
+        out_days = headroom_ratio(
+            human, errors, n_boot=150, seed=0, block_size=5,
+            groups_reference=days, groups_test=days,
+        )
+        lo_r, hi_r = out_rows["benefit_difference_ci"]
+        lo_d, hi_d = out_days["benefit_difference_ci"]
+        w_rows, w_days = hi_r - lo_r, hi_d - lo_d
+        assert w_days > w_rows, (
+            f"day-blocked headline width {w_days:.5f} not wider than "
+            f"row-blocked {w_rows:.5f}"
+        )
+
+    def test_headroom_ratio_rejects_mismatched_groups(self):
+        errors, days = self._panel()
+        with pytest.raises(ValueError, match="groups_test has length"):
+            headroom_ratio(errors, errors, n_boot=10, groups_test=days[:-1])

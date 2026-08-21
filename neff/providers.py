@@ -200,6 +200,13 @@ class OpenAICompatProvider(Provider):
     URL = "https://api.openai.com/v1/chat/completions"
     KEY_NAMES = ("OPENAI_API_KEY",)
 
+    # OpenAI renamed this for the gpt-5 line: `max_tokens` now returns HTTP 400
+    # "Unsupported parameter ... Use 'max_completion_tokens' instead". OpenRouter
+    # still accepts the old name and normalises it, so this differs by PROVIDER,
+    # not by model -- which is why it is a class attribute rather than a branch on
+    # spec.model_id.
+    MAX_TOKENS_PARAM = "max_completion_tokens"
+
     def complete(self, spec, prompt, max_tokens, timeout):
         key = self._key(*self.KEY_NAMES)
         if not key:
@@ -210,7 +217,7 @@ class OpenAICompatProvider(Provider):
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={
                 "model": spec.model_id,
-                "max_tokens": max_tokens,
+                self.MAX_TOKENS_PARAM: max_tokens,
                 "temperature": TEMPERATURE,
                 "messages": [{"role": "user", "content": prompt}],
             },
@@ -235,6 +242,9 @@ class OpenRouterProvider(OpenAICompatProvider):
     name = "openrouter"
     URL = "https://openrouter.ai/api/v1/chat/completions"
     KEY_NAMES = ("OPENROUTER_API_KEY",)
+    # Verified 19 Aug 2026: OpenRouter accepts the original name across all four
+    # models we route through it, including the OpenAI ones.
+    MAX_TOKENS_PARAM = "max_tokens"
 
 
 class GoogleProvider(Provider):

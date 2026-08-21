@@ -194,6 +194,16 @@ def build_daily_tasks(
                 market_implied=candidate.get("market_implied"),
                 state=dict(
                     state,
+                    # ladder_distance is computed in kalshi.select_tasks and MUST
+                    # be carried here. It is the experimental leg of H1 -- the one
+                    # state variable populated every day regardless of whether
+                    # markets supply a stress event (PREREGISTRATION.md 4, 10.5).
+                    # It also cannot be backfilled: it needs the live strike
+                    # ladder as it stood on the day the question was asked, and
+                    # closed Kalshi ladders are not reliably re-queryable. Dropping
+                    # it here silently made H1 untestable in a calm regime, which
+                    # is precisely the scenario 10.5 claims it protects against.
+                    ladder_distance=candidate.get("ladder_distance"),
                     days_out=candidate.get("days_out"),
                     series=candidate.get("series_ticker"),
                     strike=candidate.get("strike"),

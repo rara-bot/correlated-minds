@@ -32,6 +32,7 @@ __all__ = [
     "n_eff",
     "n_eff_from_errors",
     "block_bootstrap_ci",
+    "_moving_block_indices",
     "benjamini_hochberg",
     "signal_error_decomposition",
 ]
@@ -126,6 +127,68 @@ def n_eff_from_errors(errors: np.ndarray, min_overlap: int = 3) -> float:
     return n_eff(rho_bar, arr.shape[1])
 
 
+def _moving_block_indices(
+    n_rows: int,
+    block_size: int,
+    rng: np.random.Generator,
+    groups: Optional[Sequence] = None,
+) -> np.ndarray:
+    """Row indices for one moving-block resample.
+
+    `groups is None` -- blocks are contiguous ROWS. Correct only when one row is
+    one time step.
+
+    `groups` supplied -- blocks are contiguous GROUPS (task-days), and every row
+    belonging to a sampled day travels with it. This is what the pre-registration
+    means by "block size 5 task-days", and it is NOT the same thing as five rows.
+
+    Why the distinction is not pedantic: the panel carries ~25 tasks per day and
+    `tasks.py` re-asks each open question every day until it resolves, so the
+    same question's rows sit ~25 apart in day-major order. A five-ROW block
+    therefore lies strictly inside one day and can never span two observations of
+    the same question -- the dominant dependence in the design is invisible to it,
+    and the interval collapses. Measured on a simulation matching the real panel
+    shape (9 models, 25 tasks/day, 105 days, AR(.95) per-question persistence):
+
+        block_size=5 rows      CI width 0.0038   <- 57% too narrow
+        block_size=5 task-days CI width 0.0089
+
+    This is the same failure as the row-ordering bug recorded in panel.py, and it
+    reaches the headline statistic, so it is enforced here rather than left to the
+    caller to remember.
+    """
+    if groups is None:
+        bs = max(1, min(block_size, n_rows))
+        n_blocks = int(np.ceil(n_rows / bs))
+        starts = rng.integers(0, n_rows - bs + 1, size=n_blocks)
+        return np.concatenate([np.arange(s, s + bs) for s in starts])[:n_rows]
+
+    # First-appearance order. Panel rows are already sorted day-major, so this
+    # preserves true temporal adjacency between consecutive days.
+    order: List[List[int]] = []
+    seen: Dict[object, int] = {}
+    for i, g in enumerate(groups):
+        if g not in seen:
+            seen[g] = len(order)
+            order.append([])
+        order[seen[g]].append(i)
+
+    day_rows = [np.asarray(rows, dtype=int) for rows in order]
+    n_days = len(day_rows)
+    if n_days == 0:
+        return np.arange(0, dtype=int)
+
+    bs = max(1, min(block_size, n_days))
+    n_blocks = int(np.ceil(n_days / bs))
+    starts = rng.integers(0, n_days - bs + 1, size=n_blocks)
+
+    picked = [day_rows[d] for s in starts for d in range(s, s + bs)]
+    # Deliberately NOT truncated to n_rows: days hold unequal numbers of tasks,
+    # and clipping mid-block would systematically drop the later days of every
+    # block and bias the resample toward block-leading days.
+    return np.concatenate(picked)
+
+
 def block_bootstrap_ci(
     errors: np.ndarray,
     statistic: str = "n_eff",
@@ -134,8 +197,14 @@ def block_bootstrap_ci(
     alpha: float = 0.05,
     seed: Optional[int] = 0,
     min_overlap: int = 3,
+    groups: Optional[Sequence] = None,
 ) -> Tuple[float, float, float]:
     """Moving-block bootstrap confidence interval.
+
+    Pass `groups=panel.asked_on` for study analysis. Then `block_size` counts
+    TASK-DAYS, which is what the pre-registration registers. Without it,
+    `block_size` counts rows and the interval will be far too narrow -- see
+    `_moving_block_indices`.
 
     Why *block* bootstrap and not the ordinary kind: our tasks arrive as a daily
     time series, and both market state and model behaviour are autocorrelated
@@ -164,14 +233,16 @@ def block_bootstrap_ci(
 
     point = _stat(arr)
 
+    if groups is not None and len(groups) != n_tasks:
+        raise ValueError(
+            f"groups has length {len(groups)} but errors has {n_tasks} rows"
+        )
+
     rng = np.random.default_rng(seed)
-    n_blocks = int(np.ceil(n_tasks / block_size))
-    max_start = n_tasks - block_size
 
     draws = np.empty(n_boot, dtype=float)
     for b in range(n_boot):
-        starts = rng.integers(0, max_start + 1, size=n_blocks)
-        idx = np.concatenate([np.arange(s, s + block_size) for s in starts])[:n_tasks]
+        idx = _moving_block_indices(n_tasks, block_size, rng, groups)
         draws[b] = _stat(arr[idx])
 
     finite = draws[np.isfinite(draws)]
@@ -186,9 +257,14 @@ def block_bootstrap_ci(
 def benjamini_hochberg(p_values: Sequence[float], alpha: float = 0.05) -> np.ndarray:
     """Benjamini-Hochberg FDR control. Returns a boolean 'reject' mask.
 
-    We test state-dependence across several state variables (VIX, realised vol,
-    dispersion, |surprise|, news volume, novelty). Testing six hypotheses at
-    alpha=0.05 each gives roughly a 26% chance of at least one false positive.
+    We test state-dependence across the SEVEN registered state variables
+    (ladder distance, VIX, realised vol, dispersion, |surprise|, days-to-
+    resolution, novelty -- `config.STATE_VARIABLES`). Testing seven hypotheses at
+    alpha=0.05 each gives roughly a 30% chance of at least one false positive.
+
+    The denominator is the length of that list, so adding or dropping a variable
+    moves H1's falsification threshold. It listed `news_volume` -- never
+    registered -- and omitted days-to-resolution until the 18 Aug audit.
     BH controls the expected *proportion* of false discoveries instead, which is
     the right correction when the tests are related and we care about which
     findings survive as a set.

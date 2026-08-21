@@ -6,3 +6,8 @@ __pycache__/
 data/spf_raw/*.xlsx
 data/spf_raw/*.part
 run-summary.json
+
+# Unrelated competitive-programming practice. Kept locally, never published:
+# it is not part of the study and 32MB of build artifacts would bury the research.
+usaco/
+.DS_Store

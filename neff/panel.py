@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from .config import OBS_PATH, RESOLUTIONS_PATH, TASKS_PATH, enabled_panel
+from .config import OBS_PATH, RESOLUTIONS_PATH, TASKS_PATH, primary_panel
 from .store import JsonlStore
 
 
@@ -142,7 +142,11 @@ def load_panel(
             codebase could have, so the filter is on by default and has to be
             switched off deliberately.
     """
-    keys = model_keys or [m.key for m in enabled_panel()]
+    # PRIMARY panel, not everything collected. Secondary arms (e.g. the frontier
+    # model) are collected daily but must not enter the primary analysis: H4
+    # matches humans at M = 9 against SPF headroom measured at that panel size.
+    # Pass model_keys explicitly to analyse a secondary arm.
+    keys = model_keys or [m.key for m in primary_panel()]
     key_index = {k: i for i, k in enumerate(keys)}
 
     resolutions: Dict[str, float] = {}

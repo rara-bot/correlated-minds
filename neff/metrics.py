@@ -38,11 +38,12 @@ differences of 20x in what ensembling actually buys.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 from .stats import (
+    _moving_block_indices,
     mean_pairwise_correlation,
     mean_uncentered_correlation,
     n_eff,
@@ -191,6 +192,8 @@ def headroom_ratio(
     n_boot: int = 2000,
     seed: int = 0,
     block_size: int = 5,
+    groups_reference: Optional[Sequence] = None,
+    groups_test: Optional[Sequence] = None,
 ) -> Dict[str, float]:
     """How much more (or less) does the reference panel diversify than the test panel?
 
@@ -205,6 +208,13 @@ def headroom_ratio(
 
     Reported with a block-bootstrap interval, resampling contiguous blocks
     because task-days are serially dependent.
+
+    Pass `groups_reference` / `groups_test` (each panel's `asked_on`) so that
+    `block_size` counts TASK-DAYS, as registered. Without them it counts rows,
+    which for a ~25-task day is a fifth of a day and produces intervals roughly
+    57% too narrow -- see `stats._moving_block_indices`. This is the study's
+    headline comparison, so it is the worst place in the codebase to understate
+    uncertainty.
     """
     ref = np.asarray(errors_reference, dtype=float)
     test = np.asarray(errors_test, dtype=float)
@@ -230,19 +240,25 @@ def headroom_ratio(
 
     rng = np.random.default_rng(seed)
 
-    def _resample(sample: np.ndarray) -> np.ndarray:
-        n = sample.shape[0]
-        bs = min(block_size, n)
-        n_blocks = int(np.ceil(n / bs))
-        starts = rng.integers(0, max(1, n - bs + 1), size=n_blocks)
-        idx = np.concatenate([np.arange(s, s + bs) for s in starts])[:n]
+    for name, grp, sample in (
+        ("groups_reference", groups_reference, ref),
+        ("groups_test", groups_test, test),
+    ):
+        if grp is not None and len(grp) != sample.shape[0]:
+            raise ValueError(
+                f"{name} has length {len(grp)} but its panel has "
+                f"{sample.shape[0]} rows"
+            )
+
+    def _resample(sample: np.ndarray, groups: Optional[Sequence]) -> np.ndarray:
+        idx = _moving_block_indices(sample.shape[0], block_size, rng, groups)
         return sample[idx]
 
     draws: List[float] = []
     diffs: List[float] = []
     benefit_diffs: List[float] = []
     for _ in range(n_boot):
-        ra, rb = _resample(ref), _resample(test)
+        ra, rb = _resample(ref, groups_reference), _resample(test, groups_test)
         a, b = _headroom(ra), _headroom(rb)
         if np.isfinite(a) and np.isfinite(b):
             diffs.append(a - b)

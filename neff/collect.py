@@ -33,6 +33,7 @@ from .config import (
     ARM_CAPS_USD,
     BUDGET_USD,
     LEDGER_PATH,
+    ROOT,
     OBS_PATH,
     RESOLUTIONS_PATH,
     TASKS_PATH,
@@ -263,6 +264,64 @@ def resolve_outcomes() -> Dict[str, object]:
     return {"checked": len(by_ref), "resolved": len(new)}
 
 
+# Arms that may legitimately run before the OSF registration is public. The pilot
+# is a separately registered arm, excluded from the primary analysis, and exists
+# precisely so the instrument can be exercised before the plan is locked.
+PRE_REGISTRATION_ARMS = {"pilot"}
+
+OSF_URL_PATH = ROOT / ".osf_url"
+
+
+def osf_is_registered() -> bool:
+    """True only once the operator has recorded a public OSF registration URL."""
+    try:
+        return len(OSF_URL_PATH.read_text().strip()) > 0
+    except OSError:
+        return False
+
+
+def require_osf_before_real_collection(arm: str, dry_run: bool, use_mock: bool) -> None:
+    """Refuse to collect primary study data before the registration is public.
+
+    The study's entire claim is "this was registered before the outcome existed".
+    Data collected before the OSF registration goes public cannot support that
+    claim -- it has to be discarded or reported separately, and either way the
+    strongest evidence in the project is weakened for no gain.
+
+    This is enforced here, in code, for the same reason the budget cap is: the
+    failure is silent. Nothing about a pre-registration run looks wrong at the
+    time. It only becomes a problem months later, in front of a judge asking how
+    they know the plan came first.
+
+    Mock and dry-run touch nothing real. The pilot arm is explicitly permitted.
+    """
+    if use_mock or dry_run or arm in PRE_REGISTRATION_ARMS:
+        return
+    if osf_is_registered():
+        return
+    raise SystemExit(
+        "\n".join([
+            "=" * 68,
+            "  REFUSING TO COLLECT -- OSF registration not confirmed.",
+            "=" * 68,
+            f"  arm={arm!r} writes primary study data, but {OSF_URL_PATH.name} is",
+            "  missing or empty, so the pre-registration is not yet public.",
+            "",
+            "  Collecting now would produce data you cannot defend as",
+            "  'registered in advance'. That is the study's core evidence.",
+            "",
+            "  When -- and only when -- your OSF registration is live:",
+            "      echo 'https://osf.io/XXXXX' > .osf_url",
+            "",
+            "  To work in the meantime, any of these still run:",
+            "      --mock              offline, zero spend",
+            "      --dry-run           prices the day, asks nothing",
+            "      --arm pilot         real calls, separately registered arm",
+            "=" * 68,
+        ])
+    )
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="neff daily collection")
     parser.add_argument("--dry-run", action="store_true", help="price the day, ask nothing")
@@ -284,6 +343,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     if args.tasks is not None:
         config.tasks_per_day = args.tasks
+
+    require_osf_before_real_collection(
+        arm=args.arm, dry_run=args.dry_run, use_mock=args.mock
+    )
 
     if args.mock:
         # A mock run reports observation counts and a dollar figure exactly like

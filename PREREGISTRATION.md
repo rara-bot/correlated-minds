@@ -365,7 +365,14 @@ between Tuesday and Thursday. It is also the question the closest prior work
 
 - **State variables (fixed, no additions permitted):** ladder distance, VIX level,
   20-day realised volatility, cross-model forecast dispersion, |macro surprise|,
-  days-to-resolution, novelty score.
+  days-to-resolution, novelty score. **Seven**, and that count is the
+  Benjamini–Hochberg denominator below. Four are recorded at ask time
+  (`ladder_distance`, `vix_level`, `realized_vol_20d`, `days_out`) because they
+  describe the world as it stood when the question was put and cannot be
+  reconstructed afterwards; three are derived at analysis time from data already
+  retained (cross-model dispersion from the panel's own forecasts, |macro
+  surprise| from FRED vintages, novelty against the accumulated task corpus).
+  The split is enforced in `config.STATE_COLLECTED_AT_ASK`.
 
 - **Ambiguity is varied by design, not merely observed.** The single largest risk
   to H1 is that 15 weeks contain no genuine market stress event, leaving the
@@ -383,7 +390,7 @@ between Tuesday and Thursday. It is also the question the closest prior work
   variables with task-clustered standard errors; and comparison of `headroom`
   between top and bottom stress terciles with a block-bootstrap interval, on the
   `headroom` scale.
-- **Correction:** Benjamini–Hochberg at FDR 0.05 across the six state variables.
+- **Correction:** Benjamini–Hochberg at FDR 0.05 across the seven state variables.
 - **FALSIFIED IF:** no state variable shows a positive, BH-surviving coefficient,
   and the tercile difference interval contains zero.
 
@@ -494,9 +501,19 @@ Missing observations handled pairwise; tasks are never dropped listwise, because
 model failures cluster on busy market days.
 
 ### 5.2 Uncertainty
-Moving-block bootstrap, block size 5 task-days, 2000 resamples, percentile
+Moving-block bootstrap, **block size 5 task-days**, 2000 resamples, percentile
 intervals. Blocks rather than i.i.d. resampling because task-days are serially
 dependent; an ordinary bootstrap would understate uncertainty.
+
+**"Task-day" is the resampling unit, and it is not a row.** The panel carries ~25
+tasks per day, and open questions are re-asked daily until they resolve, so one
+question's successive observations sit ~25 rows apart. A block is therefore five
+consecutive **days**, and every task belonging to a sampled day is resampled with
+it; a block never splits a day. Blocking five *rows* instead would lie strictly
+inside a single day, could never span two observations of the same question, and
+would understate every interval by roughly half (measured: 0.0038 vs 0.0089 at the
+real panel shape). Enforced by `stats._moving_block_indices`, which takes the day
+labels explicitly rather than inferring them from row position.
 
 ### 5.3 The out-of-sample prediction
 On **27 Sep 2026** (end of Week 5) we fit H1 on weeks 1–5, then publish a hashed,
@@ -522,7 +539,17 @@ grid), so the threat is specifically **shared mass points**, not rounding as suc
 Pre-committed: report the full distribution of emitted values and the **exact-tie
 rate** (fraction of task-days where all responding models return an identical
 value); re-estimate excluding exact ties as a registered sensitivity; and for the
-four models exposing logprobs, re-estimate on logprob-derived probabilities.
+models exposing logprobs, re-estimate on logprob-derived probabilities.
+
+**Logprob coverage, measured 19 Aug 2026: four models** -- `gpt_mid`, `gpt_small`,
+`llama` and `deepseek`. Confirmed by live call, not assumed. `qwen` returns none in
+practice and is excluded from this leg.
+
+This number was briefly in doubt. The roster originally pinned OpenAI's gpt-5 line,
+which refuses logprobs outright (*"logprobs are not supported with reasoning
+models"*), leaving only two. Repinning to the gpt-4.1 family -- forced independently
+by the temperature requirement in §9 -- restored logprob support and with it the
+four-model coverage this paragraph assumes.
 
 **(b) Horizon drift toward the freeze.** Eligible questions must resolve on or
 before 6 Dec 2026, so the maximum available horizon shrinks by one day per day
@@ -599,7 +626,7 @@ append-only JSONL committed daily by an automated job, which makes the
 ## 9. Researcher degrees of freedom we are giving up
 
 Fixed in advance and not revisable after the freeze: the model roster; the
-60/40 macro/filing task mix; sampling temperature; the six state variables; the primary outcome (both scales); the capability
+60/40 macro/filing task mix; sampling temperature; the seven state variables; the primary outcome (both scales); the capability
 control in H6; the block-bootstrap parameters; the inclusion criteria; the multiple-testing correction; the
 prediction date.
 

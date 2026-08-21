@@ -8,9 +8,9 @@
 >
 > | | Estimated here | **Measured** |
 > |---|---|---|
-> | One day, 25 tasks × 7 models | ~$2 | **$0.22** |
-> | Full 15-week panel | $178 | **$23** |
-> | Plus 5 prompt variants (full H3 arm) | "~$2,000, maximal tier" | **$113** |
+> | One day, 25 tasks × 9 models | ~$2 | **$0.24** |
+> | Full 15-week panel | $178 | **$25** |
+> | Plus 5 prompt variants (full H3 arm) | "~$2,000, maximal tier" | **$125** |
 >
 > **Why the error:** these estimates assumed ~6,000 input and ~1,500 output tokens
 > per call, with extended reasoning on. The structured-output design that survived
@@ -21,6 +21,12 @@
 > affordable now. Year 1 can ship the *maximal* version of the study inside the $200
 > cap, not a compromised one. Tiering by budget is no longer necessary; §3 below is
 > retained only as a record of the original reasoning.
+> **Panel size note (18 Aug 2026):** the measured figures above are for the
+> **nine**-model panel. The panel grew from seven to nine so that H3 and H6 rest
+> on three within-family pairs rather than one — see the rationale in
+> `config.py`. §3 below predates that change and is retained unaltered as a
+> record of the original reasoning, so its per-model counts read seven.
+
 **Timeline:** 16 Aug → 31 Dec 2026 (19.5 weeks) · **Effort:** 15 h/week ≈ 290 hours
 
 ---

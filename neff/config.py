@@ -57,6 +57,7 @@ class ModelSpec:
     tier: str = "mid"
     supports_logprobs: bool = False
     enabled: bool = True
+    primary: bool = True
     notes: str = ""
 
 
@@ -85,6 +86,10 @@ class ModelSpec:
 # Each added model is the SAME vendor at a DIFFERENT tier, mirroring the
 # Anthropic pair, so the three within-family pairs are structurally comparable.
 #
+# !! Undated ids like `gpt-4.1-mini` are ALIASES: the live call returned
+#    `gpt-4.1-mini-2025-04-14`. The drift check caught it. Dated snapshots are
+#    pinned instead, so OpenAI repointing an alias mid-panel cannot swap a model
+#    underneath a 15-week longitudinal study.
 # !! model_id values MUST be verified against each provider's live model list
 #    before collection starts. `python -m neff.verify` does this and fails loudly.
 #    Prices are USD per million tokens and must be re-checked at purchase time.
@@ -93,11 +98,21 @@ PANEL: List[ModelSpec] = [
     ModelSpec(
         key="claude_sonnet",
         provider="anthropic",
-        model_id="claude-sonnet-5",
+        model_id="claude-sonnet-4-6",
         family="anthropic",
         price=Price(input_per_mtok=3.00, output_per_mtok=15.00),
         tier="frontier",
-        notes="Frontier anchor: lets us test whether capability tier affects correlation.",
+        notes=(
+            "Frontier anchor: lets us test whether capability tier affects "
+            "correlation. VERIFIED 19 Aug 2026 by live call at temperature=0. "
+            "NOT claude-sonnet-5: that model REMOVED the sampling parameters and "
+            "returns HTTP 400 `temperature is deprecated for this model`. "
+            "TEMPERATURE=0.0 is a REGISTERED parameter (PREREGISTRATION.md 9), so a "
+            "panel member that cannot honour it would sample differently from the "
+            "other eight and confound model differences with sampling differences. "
+            "Sonnet 4.6 is the newest Anthropic model that still accepts "
+            "temperature, at identical $3/$15 pricing."
+        ),
     ),
     ModelSpec(
         key="claude_haiku",
@@ -111,76 +126,157 @@ PANEL: List[ModelSpec] = [
     ModelSpec(
         key="gpt_mid",
         provider="openai",
-        model_id="gpt-5-mini",
+        model_id="gpt-4.1-mini-2025-04-14",
         family="openai",
-        price=Price(input_per_mtok=0.25, output_per_mtok=2.00),
+        price=Price(input_per_mtok=0.4, output_per_mtok=1.6),
         tier="mid",
         supports_logprobs=True,
-        notes="VERIFY id and price before launch.",
+        notes=(
+            "Within-family pair with gpt_small. VERIFIED 19 Aug 2026 by live call: temperature=0 honoured (5 identical responses to a high-entropy prompt) and logprobs returned. NOT the gpt-5 line: those are reasoning models that reject temperature=0 outright ('Only the default (1) value is supported') and refuse logprobs. Worse, routing them via OpenRouter SILENTLY DROPS temperature -- HTTP 200, sampling at 1, every log reading 0."
+        ),
     ),
     ModelSpec(
         key="gemini_flash",
         provider="google",
-        model_id="gemini-2.5-flash-lite",
+        model_id="gemini-3.5-flash-lite",
         family="google",
-        price=Price(input_per_mtok=0.10, output_per_mtok=0.40),
-        tier="mid",
-        notes="Free tier may cover much of the pilot. VERIFY id and price.",
+        price=Price(input_per_mtok=0.30, output_per_mtok=2.50),
+        tier="small",
+        notes=(
+            "VERIFIED 19 Aug 2026 by live call. The pinned gemini-2.5-flash-lite "
+            "returned HTTP 404 'no longer available to new users'. Price is from "
+            "Google's official pricing page, not the roster's original estimate, "
+            "which was 3x low on input and 6x low on output."
+        ),
     ),
     ModelSpec(
         key="gpt_small",
         provider="openai",
-        model_id="gpt-5-nano",
+        model_id="gpt-4.1-nano-2025-04-14",
         family="openai",
-        price=Price(input_per_mtok=0.05, output_per_mtok=0.40),
+        price=Price(input_per_mtok=0.1, output_per_mtok=0.4),
         tier="small",
         supports_logprobs=True,
-        notes="Second within-family pair (with gpt_mid). VERIFY id and price.",
+        notes=(
+            "Second within-family pair (with gpt_mid). VERIFIED 19 Aug 2026 by live call: temperature=0 honoured (5 identical responses to a high-entropy prompt) and logprobs returned. NOT the gpt-5 line: those are reasoning models that reject temperature=0 outright ('Only the default (1) value is supported') and refuse logprobs. Worse, routing them via OpenRouter SILENTLY DROPS temperature -- HTTP 200, sampling at 1, every log reading 0."
+        ),
     ),
     ModelSpec(
         key="gemini_flash_pro",
         provider="google",
-        model_id="gemini-2.5-flash",
+        model_id="gemini-3.5-flash",
         family="google",
-        price=Price(input_per_mtok=0.30, output_per_mtok=2.50),
+        price=Price(input_per_mtok=1.50, output_per_mtok=9.00),
         tier="mid",
-        notes="Third within-family pair (with gemini_flash). VERIFY id and price.",
+        notes=(
+            "Third within-family pair (with gemini_flash). VERIFIED 19 Aug 2026 "
+            "by live call. Deliberately SAME generation (3.5) as its pair partner "
+            "so the pair isolates TIER while holding generation fixed -- Google's "
+            "own 404 message suggested gemini-3.6-flash, which would have "
+            "confounded tier with generation in H6's capability regression."
+        ),
     ),
     ModelSpec(
         key="llama",
         provider="openrouter",
         model_id="meta-llama/llama-3.3-70b-instruct",
         family="meta",
-        price=Price(input_per_mtok=0.20, output_per_mtok=0.60),
+        price=Price(input_per_mtok=0.10, output_per_mtok=0.32),
         tier="mid",
         supports_logprobs=True,
-        notes="Open-weight, hosted. VERIFY id and price.",
+        notes=(
+            "Open-weight, hosted. VERIFIED 19 Aug 2026 by live call; price read "
+            "from OpenRouter's own /models endpoint, not documentation."
+        ),
     ),
     ModelSpec(
         key="qwen",
         provider="openrouter",
         model_id="qwen/qwen-2.5-72b-instruct",
         family="alibaba",
-        price=Price(input_per_mtok=0.20, output_per_mtok=0.60),
+        price=Price(input_per_mtok=0.36, output_per_mtok=0.40),
         tier="mid",
-        supports_logprobs=True,
-        notes="Open-weight, hosted. VERIFY id and price.",
+        supports_logprobs=False,
+        notes=(
+            "Open-weight, hosted. VERIFIED 19 Aug 2026 by live call; price read "
+            "from OpenRouter's own /models endpoint, not documentation."
+        ),
     ),
     ModelSpec(
         key="deepseek",
         provider="openrouter",
-        model_id="deepseek/deepseek-chat",
+        model_id="deepseek/deepseek-v3.2",
         family="deepseek",
-        price=Price(input_per_mtok=0.30, output_per_mtok=0.90),
+        price=Price(input_per_mtok=0.269, output_per_mtok=0.40),
         tier="mid",
         supports_logprobs=True,
-        notes="Open-weight, hosted. VERIFY id and price.",
+        notes=(
+            "Open-weight, hosted. VERIFIED 19 Aug 2026 by live call. Repinned from "
+            "`deepseek/deepseek-chat`, which is a FLOATING ALIAS with no version -- "
+            "exactly the silent mid-panel model swap this module's header warns "
+            "against. OpenRouter retains old versions (v3-0324 is still served), so "
+            "a dated pin carries little retirement risk over 15 weeks."
+        ),
+    ),
+    # --- SECONDARY frontier panel (primary=False) --------------------------
+    # Collected daily alongside the primary nine, but EXCLUDED from the primary
+    # panel, because H4 matches human forecasters at M = 9 against measured SPF
+    # headroom of 0.112-0.171 AT THAT PANEL SIZE. Folding this in would make the
+    # panel M = 10 and invalidate that baseline.
+    #
+    # Why it exists: the primary panel has exactly ONE frontier model, and it is
+    # Anthropic -- so at the frontier, tier is perfectly confounded with family and
+    # "frontier models behave differently" cannot be told apart from "Anthropic
+    # behaves differently". This is the same structural defect that took the panel
+    # from seven models to nine for H3.
+    #
+    # Why now rather than after the Week-5 read: §9 freezes the roster, but a model
+    # not collected cannot be collected retroactively. A model that turns out to be
+    # unnecessary can simply be ignored in analysis; the reverse is impossible.
+    ModelSpec(
+        key="gpt_frontier",
+        provider="openai",
+        model_id="gpt-4.1-2025-04-14",
+        family="openai",
+        price=Price(input_per_mtok=2.00, output_per_mtok=8.00),
+        tier="frontier",
+        supports_logprobs=True,
+        primary=False,
+        notes=(
+            "Secondary frontier panel. " + "VERIFIED 19 Aug 2026: temperature=0 honoured, logprobs returned. "
+            "Originally pinned to openai/gpt-5.1 via OpenRouter; that combination "
+            "SILENTLY DROPPED temperature (HTTP 200, sampling at 1), which would "
+            "have violated a registered parameter invisibly for 15 weeks. Direct "
+            "OpenAI at least fails loudly. Google frontier rejected: 2.5-pro 404s "
+            "for new accounts, 3.1-pro is a PREVIEW id."
+        ),
     ),
 ]
 
 
 def enabled_panel() -> List[ModelSpec]:
+    """Everything we COLLECT -- primary panel plus secondary arms.
+
+    Collection is deliberately wider than analysis: an uncollected day cannot be
+    recovered, whereas a collected model can always be excluded later.
+    """
     return [m for m in PANEL if m.enabled]
+
+
+def primary_panel() -> List[ModelSpec]:
+    """The registered M = 9 panel that the PRIMARY analysis runs on.
+
+    H4 matches human forecasters at M = 9 against SPF headroom measured at that
+    exact panel size (PREREGISTRATION.md §4, H4). Anything that silently grew this
+    list would invalidate that baseline, so analysis defaults here rather than to
+    `enabled_panel()`.
+    """
+    return [m for m in PANEL if m.enabled and m.primary]
+
+
+def secondary_panel() -> List[ModelSpec]:
+    """Models collected but held out of the primary panel."""
+    return [m for m in PANEL if m.enabled and not m.primary]
 
 
 def panel_by_key() -> Dict[str, ModelSpec]:
@@ -188,8 +284,15 @@ def panel_by_key() -> Dict[str, ModelSpec]:
 
 
 def families() -> Dict[str, List[str]]:
+    """Family -> model keys, over the PRIMARY panel only.
+
+    H3 and H6 are defined on the primary panel's within-family pairs, which are
+    deliberately symmetric: exactly one pair per vendor, each the same vendor at
+    two tiers. Counting secondary-arm models here would give one vendor three
+    models and C(3,2) = 3 within-family pairs, silently destroying that symmetry.
+    """
     out: Dict[str, List[str]] = {}
-    for m in enabled_panel():
+    for m in primary_panel():
         out.setdefault(m.family, []).append(m.key)
     return out
 
@@ -202,6 +305,15 @@ def families() -> Dict[str, List[str]]:
 # the prompt level, never accidentally through sampling randomness.
 TEMPERATURE = 0.0
 MAX_OUTPUT_TOKENS = 400
+
+# !! ROSTER CONSTRAINT, discovered 19 Aug 2026.
+# Newer reasoning models are REMOVING the sampling parameters: temperature,
+# top_p and top_k all return HTTP 400 on Claude Sonnet 5 / Opus 5 / Opus 4.8 /
+# 4.7 / Fable 5. Any model added to PANEL must accept TEMPERATURE above, because
+# a member that samples differently from the rest confounds model differences
+# with sampling differences -- and temperature is registered in
+# PREREGISTRATION.md 9, so this is a frozen commitment, not a preference.
+# `python -m neff.verify` makes one real call per model and fails loudly on this.
 
 # Structured output keeps cost down AND removes measurement noise: free-text
 # rationale length varies wildly across families, and we correlate decisions,
@@ -217,16 +329,47 @@ COLLECTION_START = "2026-08-24"
 CALIBRATION_END = "2026-09-27"   # end of Week 5: prediction is frozen after this
 DATA_FREEZE = "2026-12-06"
 
-# Market-state variables used for the H1 conditional test. Registered here so the
-# analysis cannot quietly grow new ones after seeing results.
+# Market-state variables for the H1 conditional test. This list must match
+# PREREGISTRATION.md 4 EXACTLY -- "fixed, no additions permitted" -- because its
+# length also sets the Benjamini-Hochberg denominator and therefore the
+# falsification threshold. It previously did not match in three ways at once:
+# `news_volume` appeared here but was never registered, the registered
+# days-to-resolution was absent, and both documents said "six" while the list
+# held seven.
+#
+# COLLECTED AT ASK TIME (irrecoverable if missed -- they describe the world as it
+# stood when the question was put):
+#   ladder_distance   experimentally varied ambiguity; available EVERY day, and
+#                     the only H1 leg that does not depend on markets supplying a
+#                     stress event. Needs the live strike ladder, so it cannot be
+#                     reconstructed later.
+#   vix_level         from the FRED snapshot
+#   realized_vol_20d  from the FRED snapshot
+#   days_out          days to resolution; also the registered handling for the
+#                     horizon-drift threat in 5.4(b)
+#
+# DERIVED AT ANALYSIS TIME (safe to compute later; no collection dependency):
+#   expectation_dispersion  cross-model dispersion of the panel's own forecasts
+#   abs_surprise            |macro surprise| from FRED vintages vs consensus
+#   novelty_score           question novelty against the accumulated task corpus
 STATE_VARIABLES = [
-    "ladder_distance",     # experimentally varied ambiguity; available EVERY day
+    "ladder_distance",
     "vix_level",
     "realized_vol_20d",
     "expectation_dispersion",
     "abs_surprise",
-    "news_volume",
+    "days_out",
     "novelty_score",
+]
+
+# The subset that must be present on the task record at collection time. Checked
+# by tests and by neff.verify, because a missing one is unrecoverable after the
+# fact whereas a derived one is merely unfinished.
+STATE_COLLECTED_AT_ASK = [
+    "ladder_distance",
+    "vix_level",
+    "realized_vol_20d",
+    "days_out",
 ]
 
 USER_AGENT = "neff-research (educational research; contact: rajankhiani@gmail.com)"
