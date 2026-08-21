@@ -408,7 +408,7 @@ A second adversarial pass, run the night before the pre-registration was due to
 be frozen and three days before collection opens. Same rule as the first pass:
 attack the project while every finding is still free to fix.
 
-**Eight defects. All fixed, all covered by tests — 236 tests, up from 113.** Two of them would
+**Eight defects. All fixed, all covered by tests — 255 tests, up from 113.** Two of them would
 have been unfixable the following afternoon, because an OSF registration cannot
 be edited after submission.
 
@@ -640,6 +640,124 @@ bare remote.
 
 ---
 
-**Total after both passes: 23 defects found before collection, 0 after.** The
-number that matters is not 23; it is that all of them were found while they were
-still free.
+# Live-Fire Findings — 21 Aug 2026
+
+The eight above were found by reading. These four were found by **spending $0.05
+and actually calling the APIs**, which is the only way any of them could have
+been found. Every one was invisible to every offline check in the project.
+
+## 24. The pre-flight check tested a configuration collection never uses
+
+`neff.verify` called each model with `max_tokens=100`. Collection uses
+`MAX_OUTPUT_TOKENS = 400`.
+
+`gemini-3.5-flash` is a reasoning model, and on Gemini `maxOutputTokens` is a
+budget **shared between internal thinking and the visible answer**. At 100 the
+thinking consumed it and verify reported the model **dead**.
+
+A false failure here is not harmless. `gemini_flash_pro` is half of the Google
+within-family pair, so "that model is broken" invites a roster change the night
+before the freeze — to fix a model that was never broken. The mirror case is
+worse: a model that passes at 100 tokens and truncates at 400 would have been
+certified healthy the day before collection.
+
+**Fixed:** verify uses the collection budget.
+
+## 25. The drift detector reported every OpenRouter model as drifted
+
+The check was
+
+```python
+drift = not served.startswith(spec.model_id.split("/")[-1][:12])
+```
+
+which strips the vendor prefix from the **pinned** id and compares against the
+served id with its prefix still attached. So:
+
+```
+[WARN] qwen  served 'qwen/qwen-2.5-72b-instruct'
+              (pinned 'qwen/qwen-2.5-72b-instruct')  <- ID MISMATCH
+```
+
+Identical strings, reported as a mismatch. Two of ten models crying wolf on every
+run for fifteen weeks is how a detector becomes something you scroll past — and a
+real mid-panel swap would have arrived wearing the same yellow flag as the two
+already being ignored. This check underwrites a claim the study makes in public:
+*"we log the served id every call and report drift."*
+
+**Fixed:** `classify_served_id` normalises both sides, and an alias resolving to a
+dated snapshot is reported as that rather than as a mismatch.
+
+## 26. Gemini's thinking tokens were billed but not counted
+
+The Google provider recorded `candidatesTokenCount` as output tokens. Google
+**bills thinking tokens as output**, reported separately as
+`thoughtsTokenCount`. Measured on a real task prompt:
+
+| maxOutputTokens | thoughts | visible | recorded | actually billed |
+|---|---|---|---|---|
+| 400 | 383 | 13 | 13 | 396 |
+| 1200 | 867 | 65 | 65 | 932 |
+
+A **14x undercount**, on the panel's most expensive output rate ($9/Mtok). The
+$200 cap is enforced against *recorded* spend, so this is not a bookkeeping nit:
+it is the cap quietly ceasing to protect the account it exists to protect — the
+exact failure `config.py`'s own header warns about, *"a wrong PRICE fails
+silently and quietly drains the budget while every log looks healthy."*
+
+**Fixed:** thinking tokens count toward output. Separately, a response that stops
+on `finishReason=MAX_TOKENS` now raises with the token split rather than
+returning truncated JSON for the parser to reject as a generic "unparseable
+response" — naming our own cause instead of the model's symptom.
+
+## 27. The panel's Google tier could not have survived first contact
+
+The 21 Aug pilot scored `gemini_flash_pro` at **0 of 8 usable observations**. Two
+causes, and the second is the one that matters.
+
+**Truncation.** At the collection budget of 400, thinking took 383 tokens and the
+answer arrived as `{"probability": 0.92,` — cut off mid-object. Fixed by
+disabling extended thinking for that model (`thinking_budget=0`): 71 visible
+tokens, parses cleanly, and 7x cheaper. The argument is finding 13's, reused:
+eight panel members answer directly, and a ninth doing extended reasoning is not
+a model difference but a **mode** difference, loading onto exactly the
+cross-model correlations H6 uses for its capability contrast.
+
+That fix then broke the *other* Google model — `gemini-3.5-flash-lite` answers
+HTTP 400 to any request containing `thinkingConfig`. So the field is per-model,
+for the same reason findings 13 and 15 record: within one vendor, one model
+accepts a parameter and its sibling rejects it.
+
+**The quota, which is not a code problem at all.** Read from the QuotaFailure
+detail in Google's own 429:
+
+```
+quotaId    : GenerateRequestsPerDayPerProjectPerModel-FreeTier
+quotaValue : 20
+model      : gemini-3.5-flash
+```
+
+**20 requests per day. The panel asks 25.** On a perfect day that model tops out
+at exactly 80% coverage — the floor at which §3.3 drops a model from the primary
+panel — and any retry puts it under. It is half of the Google within-family pair,
+so losing it takes H3 from three within-family pairs to two, undoing the fix that
+took the panel from seven models to nine (finding 6).
+
+No amount of code review finds this. It required one real day of collection.
+
+**Not fixed in code, because it cannot be:** the remedy is to enable billing on
+the Google Cloud project (~$3 for the entire study) or to change the roster
+before the freeze. What *is* fixed is that the failure now names itself — a 429
+carrying a daily quota is reported with the number, the shortfall against
+`TASKS_PER_DAY`, the §3.3 consequence, and the deadline — instead of reading as a
+transient rate limit. It is recorded as the first blocking decision in
+`GO-LIVE.md`.
+
+---
+
+**Total: 27 defects found before collection, 0 after.** Twenty-three were found
+by reading; four required spending five cents on live calls, and one of those
+four — the quota — could not have been found any other way.
+
+The number that matters is not 27. It is that every one of them was found while
+it was still free to fix.

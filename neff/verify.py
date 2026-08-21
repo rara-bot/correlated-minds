@@ -22,6 +22,7 @@ from .config import (
     BUDGET_USD,
     DATA_DIR,
     LEDGER_PATH,
+    MAX_OUTPUT_TOKENS,
     TEMPERATURE,
     enabled_panel,
     families,
@@ -133,6 +134,55 @@ def check_budget() -> List[Tuple[str, str, str]]:
     return out
 
 
+def classify_served_id(pinned: str, served: str) -> Tuple[bool, str]:
+    """Compare the id a provider served against the id we pinned.
+
+    Returns (is_drift, note).
+
+    This check underwrites a claim the study makes in public: "we log the served
+    id every call and report drift". That claim is only worth something if the
+    check is quiet when nothing is wrong.
+
+    It was not. The test was
+
+        drift = not served.startswith(spec.model_id.split("/")[-1][:12])
+
+    which strips the vendor prefix from the PINNED id and then compares against
+    the served id with its prefix still attached. OpenRouter returns the full
+    path, so `qwen/qwen-2.5-72b-instruct` was tested for whether it starts with
+    `qwen-2.5-72b` -- it does not, because it starts with `qwen/`. Every
+    OpenRouter model in the panel reported ID MISMATCH against its own id, on
+    every run:
+
+        [WARN] qwen      served 'qwen/qwen-2.5-72b-instruct'
+                         (pinned 'qwen/qwen-2.5-72b-instruct')  <- ID MISMATCH
+
+    Two of ten models crying wolf on every check for fifteen weeks is how a
+    detector becomes something you scroll past -- and then a real mid-panel swap
+    arrives wearing the same yellow flag as the two you already learned to
+    ignore.
+
+    Both sides are now normalised before comparison, and an alias resolving to a
+    dated snapshot is reported as what it is rather than as a mismatch.
+    """
+    if not served or served == "?":
+        return True, "NO ID RETURNED, cannot verify what was served"
+
+    pinned_tail = pinned.split("/")[-1].strip().lower()
+    served_tail = served.split("/")[-1].strip().lower()
+
+    if served_tail == pinned_tail:
+        return False, ""
+
+    # A pinned alias resolving to a dated snapshot is the same model, but it is
+    # worth seeing: it is how `gpt-4.1-mini` was found to resolve to
+    # `gpt-4.1-mini-2025-04-14`, which is why the roster pins dated ids.
+    if served_tail.startswith(pinned_tail):
+        return False, f"alias resolved to {served!r} -- pin this exact id"
+
+    return True, "ID MISMATCH, update config.py"
+
+
 def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]:
     """One real call per model. Confirms the id resolves and records what was served.
 
@@ -185,7 +235,24 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
             prompt=prompt,
             ledger=ledger,
             arm="pilot",
-            max_tokens=100,
+            # THE SAME OUTPUT BUDGET COLLECTION USES. This was 100, and a
+            # pre-flight check that runs under different parameters than
+            # production tests something other than production.
+            #
+            # It cost an hour on freeze eve. `gemini-3.5-flash` is a reasoning
+            # model: at 100 tokens the internal reasoning consumed the budget and
+            # the visible answer came back truncated mid-object --
+            # `{"probability": ` -- so verify reported the model DEAD. At
+            # MAX_OUTPUT_TOKENS it answers correctly in 30 output tokens.
+            #
+            # A false failure here is not harmless. `gemini_flash_pro` is half of
+            # the Google within-family pair, so "that model is broken" invites a
+            # roster change the night before the freeze that would have cost H3
+            # one of its three within-family pairs -- to fix a model that was
+            # never broken. The mirror case is worse: a model that passes at 100
+            # tokens and truncates at the real budget would have been certified
+            # healthy the day before collection.
+            max_tokens=MAX_OUTPUT_TOKENS,
             timeout=45.0,
         )
 
@@ -196,14 +263,14 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
             continue
 
         served = obs.model_id_returned or "?"
-        drift = not served.startswith(spec.model_id.split("/")[-1][:12])
+        drift, note = classify_served_id(spec.model_id, served)
         _receipt(spec, ok=True, model_id_returned=served, usd=obs.usd,
                  drift=drift, error=None)
         out.append(
             (WARN if drift else TICK,
              spec.key,
              f"served {served!r} (pinned {spec.model_id!r}), ${obs.usd:.5f}"
-             + ("  <- ID MISMATCH, update config.py" if drift else ""))
+             + (f"  <- {note}" if note else ""))
         )
 
     return out

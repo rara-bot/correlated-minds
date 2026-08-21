@@ -87,6 +87,16 @@ class ModelSpec:
     supports_logprobs: bool = False
     enabled: bool = True
     primary: bool = True
+    # thinking_budget: Google only. None means "send no thinkingConfig at all",
+    # which is REQUIRED for models that reject the field -- `gemini-3.5-flash-lite`
+    # answers HTTP 400 `Request contains an invalid argument` if it is present.
+    # 0 disables extended thinking on models that support the field.
+    #
+    # Per-model rather than per-provider for exactly the reason AUDIT.md findings
+    # 13 and 15 record: within one vendor, one model accepts a parameter and its
+    # sibling rejects it, and a provider-wide setting silently breaks whichever
+    # one disagrees.
+    thinking_budget: Optional[int] = None
     notes: str = ""
 
 
@@ -197,12 +207,24 @@ PANEL: List[ModelSpec] = [
         family="google",
         price=Price(input_per_mtok=1.50, output_per_mtok=9.00),
         tier="mid",
+        thinking_budget=0,
         notes=(
             "Third within-family pair (with gemini_flash). VERIFIED 19 Aug 2026 "
             "by live call. Deliberately SAME generation (3.5) as its pair partner "
             "so the pair isolates TIER while holding generation fixed -- Google's "
             "own 404 message suggested gemini-3.6-flash, which would have "
-            "confounded tier with generation in H6's capability regression."
+            "confounded tier with generation in H6's capability regression. "
+            "THINKING DISABLED (thinking_budget=0): this is a reasoning model and "
+            "`maxOutputTokens` is a budget SHARED between thinking and the visible "
+            "answer. At the collection budget of 400 it spent 383 tokens thinking "
+            "and 13 answering, returning `{\"probability\": 0.92,` -- truncated and "
+            "unparseable. The 21 Aug pilot scored it 0/8 usable, which over 15 "
+            "weeks is below the 80% coverage floor of PREREGISTRATION.md 3.3 and "
+            "would have dropped it from the primary panel, taking one of H3's "
+            "three within-family pairs with it. Thinking off: 71 visible tokens, "
+            "parses cleanly, 7x cheaper. Its pair partner gemini-3.5-flash-lite "
+            "REJECTS thinkingConfig with HTTP 400, which is why this is a "
+            "per-model field and not a provider default."
         ),
     ),
     ModelSpec(

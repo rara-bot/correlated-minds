@@ -35,7 +35,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
-from .config import MAX_OUTPUT_TOKENS, TEMPERATURE, ModelSpec
+from .config import MAX_OUTPUT_TOKENS, TASKS_PER_DAY, TEMPERATURE, ModelSpec
 from .ledger import BudgetExceeded, Ledger
 from .store import Observation, observation_id
 
@@ -247,6 +247,68 @@ class OpenRouterProvider(OpenAICompatProvider):
     MAX_TOKENS_PARAM = "max_tokens"
 
 
+def google_daily_quota(response_json: Dict[str, Any]) -> Optional[int]:
+    """The per-day request quota named in a Google 429, if it names one.
+
+    Google's 429 body carries a QuotaFailure detail with the exact limit. Reading
+    it turns "rate limited, try later" into "this key can make 20 requests a day
+    against this model", which is a completely different piece of information --
+    the first is transient, the second means the study as designed cannot run.
+    """
+    for detail in (response_json.get("error", {}) or {}).get("details", []) or []:
+        if "QuotaFailure" not in str(detail.get("@type", "")):
+            continue
+        for violation in detail.get("violations", []) or []:
+            if "PerDay" not in str(violation.get("quotaId", "")):
+                continue
+            try:
+                return int(violation.get("quotaValue"))
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _google_quota_message(response, spec: ModelSpec) -> str:
+    """Turn a Google 429 into a message that names the actual problem.
+
+    MEASURED 21 Aug 2026: `gemini-3.5-flash` on the free tier allows **20
+    requests per day per model**. The study asks each model TASKS_PER_DAY = 25
+    questions every day. 25 > 20, so this model could never exceed 80% coverage
+    even on a perfect day, and PREREGISTRATION.md 3.3 excludes any model below
+    that floor from the primary panel.
+
+    It is half of the Google within-family pair, so losing it costs H3 one of its
+    three within-family pairs -- the exact structural weakness that took the
+    panel from seven models to nine in the first place (AUDIT.md finding 6).
+
+    The fix is not in this codebase: enable billing on the Google Cloud project.
+    Priced with thinking off, the model costs about $3 for the entire 15-week
+    study. But it has to be done BEFORE the roster is frozen, because if it
+    cannot be done the roster is what has to change.
+    """
+    try:
+        payload = response.json()
+    except Exception:                                          # noqa: BLE001
+        return f"google HTTP 429: {response.text[:300]}"
+
+    quota = google_daily_quota(payload)
+    if quota is None:
+        return f"google HTTP 429 (rate limited): {response.text[:250]}"
+
+    verdict = (
+        f"FREE-TIER DAILY QUOTA: {quota} requests/day for {spec.model_id}. "
+        f"The panel asks {TASKS_PER_DAY} questions/day, so this model can reach at "
+        f"most {min(quota, TASKS_PER_DAY) / TASKS_PER_DAY:.0%} coverage"
+    )
+    if quota < TASKS_PER_DAY:
+        verdict += (
+            " -- below the 80% floor in PREREGISTRATION.md 3.3, which would drop it "
+            "from the primary panel. Enable billing on the Google Cloud project "
+            "(about $3 for the whole study) or change the roster BEFORE the freeze."
+        )
+    return f"google HTTP 429: {verdict}"
+
+
 class GoogleProvider(Provider):
     name = "google"
     URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -256,33 +318,96 @@ class GoogleProvider(Provider):
         if not key:
             raise ProviderError("GOOGLE_API_KEY not set")
 
+        # EXTENDED THINKING IS OFF FOR THE REASONING MODEL IN THIS FAMILY, AND
+        # THE FIELD IS OMITTED ENTIRELY FOR THE ONE THAT REJECTS IT.
+        #
+        # 1. Correctness. On Gemini, `maxOutputTokens` is a budget SHARED between
+        #    internal thinking and the visible answer, and the model expands its
+        #    thinking to fill whatever it is given. Measured on a real task prompt
+        #    at the collection budget of 400: thoughts=383, visible=13,
+        #    finishReason=MAX_TOKENS, and the answer arrived cut off mid-object as
+        #    `{"probability": 0.92,`. The 21 Aug pilot scored `gemini_flash_pro`
+        #    at 0/8 usable -- over 15 weeks, below the 80% coverage floor of
+        #    PREREGISTRATION.md 3.3, dropped from the primary panel, taking one of
+        #    H3's three within-family pairs with it.
+        #
+        # 2. Comparability -- the same argument that repinned the Anthropic anchor
+        #    in AUDIT.md finding 13. Eight panel members answer directly. A ninth
+        #    doing extended reasoning is not a model difference, it is a MODE
+        #    difference, and it would load onto exactly the cross-model
+        #    correlations H6 uses for its capability contrast. TEMPERATURE=0 is
+        #    registered so differences reflect the models rather than our
+        #    sampling; running one member in a different inference mode defeats
+        #    that by another route.
+        #
+        # Measured with thinking off: thoughts=0, visible=71, parses cleanly, and
+        # $0.00116/call against $0.00840 -- 7x cheaper on the panel's most
+        # expensive output rate.
+        #
+        # The field is per-model because `gemini-3.5-flash-lite` -- the other half
+        # of the same within-family pair -- answers HTTP 400 `Request contains an
+        # invalid argument` when `thinkingConfig` is present at all. Sending it
+        # provider-wide fixed one Google model by breaking the other.
+        generation_config = {
+            "temperature": TEMPERATURE,
+            "maxOutputTokens": max_tokens,
+        }
+        if spec.thinking_budget is not None:
+            generation_config["thinkingConfig"] = {"thinkingBudget": spec.thinking_budget}
+
         response = httpx.post(
             self.URL.format(model=spec.model_id),
             headers={"Content-Type": "application/json", "x-goog-api-key": key},
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": TEMPERATURE,
-                    "maxOutputTokens": max_tokens,
-                },
+                "generationConfig": generation_config,
             },
             timeout=timeout,
         )
+        if response.status_code == 429:
+            raise ProviderError(_google_quota_message(response, spec))
         if response.status_code != 200:
             raise ProviderError(f"google HTTP {response.status_code}: {response.text[:300]}")
 
         payload = response.json()
         candidates = payload.get("candidates") or []
         text = ""
+        finish = ""
         if candidates:
             parts = candidates[0].get("content", {}).get("parts", [])
             text = "".join(part.get("text", "") for part in parts)
+            finish = str(candidates[0].get("finishReason") or "")
         usage = payload.get("usageMetadata", {})
+
+        # Thinking tokens are BILLED AS OUTPUT and were not being counted. The
+        # ledger read `candidatesTokenCount` alone, so a call that burned 867
+        # thinking tokens and emitted 65 visible ones was recorded as 65 -- a 14x
+        # undercount on the panel's most expensive output rate ($9/Mtok). The
+        # $200 cap is enforced against RECORDED spend, so an undercount here is
+        # not a bookkeeping nit: it is the cap silently ceasing to protect the
+        # account it exists to protect. This is the failure mode config.py's own
+        # header warns about -- "a wrong PRICE fails silently and quietly drains
+        # the budget while every log looks healthy."
+        output_tokens = int(usage.get("candidatesTokenCount", 0)) + int(
+            usage.get("thoughtsTokenCount", 0)
+        )
+
+        # A truncated response is a silent data-quality failure: the JSON parser
+        # simply returns None and the observation is dropped, with nothing in the
+        # log saying why. Name it.
+        if finish == "MAX_TOKENS":
+            raise ProviderError(
+                f"google response truncated at maxOutputTokens={max_tokens} "
+                f"(finishReason=MAX_TOKENS, visible={usage.get('candidatesTokenCount', 0)} "
+                f"tokens, thinking={usage.get('thoughtsTokenCount', 0)}). Raise the "
+                f"budget or reduce thinkingBudget."
+            )
+
         return (
             text,
             payload.get("modelVersion", spec.model_id),
             int(usage.get("promptTokenCount", 0)),
-            int(usage.get("candidatesTokenCount", 0)),
+            output_tokens,
         )
 
 

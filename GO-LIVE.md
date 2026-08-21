@@ -10,6 +10,44 @@ There is no rush. You have three days of slack for a 50-minute job. Do it awake.
 
 ---
 
+## ⚠️ READ THIS FIRST — one decision has to be made before you freeze
+
+**Google's free tier allows 20 requests per day for `gemini-3.5-flash`. The panel
+asks 25 questions per day.**
+
+Measured last night, from the quota detail in Google's own 429 response:
+
+```
+quotaId    : GenerateRequestsPerDayPerProjectPerModel-FreeTier
+quotaValue : 20
+model      : gemini-3.5-flash
+```
+
+25 > 20, so on a *perfect* day that model tops out at 80% coverage — exactly the
+floor at which §3.3 drops a model from the primary panel. Any retry or hiccup
+puts it under. The 21 Aug pilot scored it **0 of 8 usable**.
+
+`gemini_flash_pro` is half of the Google within-family pair. Losing it takes H3
+from **three** within-family pairs to **two** — and three is the entire reason
+the panel went from seven models to nine (AUDIT.md finding 6). It also costs H6
+its Google tier contrast.
+
+**Two ways forward. Pick one before step 4, because step 4 freezes the roster.**
+
+| | What to do | Cost | Consequence |
+|---|---|---|---|
+| **A — recommended** | Enable billing on the Google Cloud project at [console.cloud.google.com/billing](https://console.cloud.google.com/billing), then re-run steps 1–2 | **~$3** for the whole 15-week study | Roster stands exactly as registered. Nothing else changes |
+| **B** | Tell me, and I swap `gemini_flash_pro` for a model that can serve 25/day | $0 | Roster changes tonight, before the freeze — not after |
+
+**Do not freeze without resolving this.** After step 4 the roster is a §9 frozen
+commitment, and a model that cannot answer 25 questions a day becomes a §11
+deviation you write in November instead of a decision you make now.
+
+Everything else below is unaffected — the other nine models verified green at
+100% coverage.
+
+---
+
 ## Where you are right now
 
 ```bash
@@ -46,7 +84,9 @@ committing to.
 ./.venv/bin/python -m neff.verify
 ```
 
-One real call to each of the ten models, at `temperature=0`.
+One real call to each of the ten models, at `temperature=0`. **If you chose
+option A above, enable billing first** — otherwise `gemini_flash_pro` will fail
+here with the quota message, which is the check working, not a new problem.
 
 **Expect:** every line `[OK  ]`, each showing the model id the provider actually
 served next to the one you pinned.
@@ -279,6 +319,7 @@ each day's forecasts to a public history before their outcomes exist.
 | `BudgetExceeded` | Working as designed. Check `data/ledger.jsonl` before raising anything |
 | One model at 0 coverage | Wrong id or bad key. `neff.verify` and send me the output |
 | Workflow cannot push | Workflow permissions are not set to read/write |
+| `FREE-TIER DAILY QUOTA: 20 requests/day` | The decision at the top of this document. Enable billing, or tell me to swap the model |
 | Out of time before 24 Aug | `AsPredicted.org` — 8 questions, 10 minutes, still timestamped and public. Weaker than OSF, enormously better than nothing. Add the full OSF registration afterwards |
 
 ---
