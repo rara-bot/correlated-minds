@@ -63,6 +63,15 @@ class ProviderError(RuntimeError):
     """Non-retryable provider failure."""
 
 
+# `"direction": "yes, confidence": 0.7`  ->  `"direction": "yes", "confidence": 0.7`
+# The value capture forbids both quotes and commas, so it can only ever match a
+# single unquoted word run into the next key -- not a legitimate string that
+# happens to contain a comma.
+_UNTERMINATED_STRING = re.compile(
+    r':\s*"([^",]*),\s*([A-Za-z_][A-Za-z0-9_]*)"\s*:'
+)
+
+
 def _extract_json(text: str) -> Optional[Dict[str, Any]]:
     """Pull the first JSON object out of a response.
 
@@ -102,6 +111,31 @@ def _extract_json(text: str) -> Optional[Dict[str, Any]]:
                     except json.JSONDecodeError:
                         break
         start = candidate.find("{", start + 1)
+
+    # LAST RESORT: repair a specific, observed malformation.
+    #
+    # Llama intermittently omits the closing quote on a string value, which
+    # swallows the following key into it:
+    #
+    #   {"probability": 0.83, "direction": "yes, confidence": 0.7, ...}
+    #                                           ^ closing quote missing
+    #
+    # Measured across the 21-22 Aug pilots: 2 of 16 llama calls, ~12%, both with
+    # exactly this shape. The model's answer is unambiguous -- 0.83, yes, 0.7 --
+    # and only the punctuation is wrong, so discarding it throws away a perfectly
+    # good observation.
+    #
+    # That matters more for this model than most: `llama` is the panel's ONLY
+    # Meta model, so a sustained 12% loss walks it toward the 80% coverage floor
+    # in PREREGISTRATION.md 3.3, and dropping it would take the panel from six
+    # vendor families to five.
+    #
+    # Applied ONLY after strict parsing has already failed, so it can never
+    # reinterpret JSON that was valid to begin with.
+    repaired = _UNTERMINATED_STRING.sub(r': "\1", "\2":', candidate)
+    if repaired != candidate:
+        return _extract_json(repaired)
+
     return None
 
 

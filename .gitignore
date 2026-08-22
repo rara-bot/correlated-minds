@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
+.env.*
+!.env.example
 data/spf_raw/*.xlsx
 data/spf_raw/*.part
 run-summary.json
