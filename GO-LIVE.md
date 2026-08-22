@@ -10,41 +10,27 @@ There is no rush. You have three days of slack for a 50-minute job. Do it awake.
 
 ---
 
-## ⚠️ READ THIS FIRST — one decision has to be made before you freeze
+## ✅ RESOLVED — the Google blocker is closed
 
-**Google's free tier allows 20 requests per day for `gemini-3.5-flash`. The panel
-asks 25 questions per day.**
+`gemini-3.5-flash` was capped at 20 requests/day on the free tier against a panel
+that asks 25, and scored **0/8** in the 21 Aug pilot.
 
-Measured last night, from the quota detail in Google's own 429 response:
+Root cause was never the model. The API key sat in an **unbilled project**. Gemini
+bills through **AI Studio prepay**, not Google Cloud pay-as-you-go, and the Cloud
+trial's $300 does not apply to it. A key created in a billed project fixed it:
 
-```
-quotaId    : GenerateRequestsPerDayPerProjectPerModel-FreeTier
-quotaValue : 20
-model      : gemini-3.5-flash
-```
+| | 21 Aug | 22 Aug |
+|---|---|---|
+| `gemini_flash_pro` coverage | 0/8 | **8/8** |
+| rapid-call test (free tier caps at 5/min) | fails at #6 | **8/8 pass** |
+| whole-panel pilot | 71/80 usable | **79/80 usable** |
 
-25 > 20, so on a *perfect* day that model tops out at 80% coverage — exactly the
-floor at which §3.3 drops a model from the primary panel. Any retry or hiccup
-puts it under. The 21 Aug pilot scored it **0 of 8 usable**.
+**The roster is unchanged** — no model swap, H6 keeps its same-generation Google
+tier contrast, M = 9 stands. `.env` and the `GOOGLE_API_KEY` GitHub secret both
+carry the billed key.
 
-`gemini_flash_pro` is half of the Google within-family pair. Losing it takes H3
-from **three** within-family pairs to **two** — and three is the entire reason
-the panel went from seven models to nine (AUDIT.md finding 6). It also costs H6
-its Google tier contrast.
-
-**Two ways forward. Pick one before step 4, because step 4 freezes the roster.**
-
-| | What to do | Cost | Consequence |
-|---|---|---|---|
-| **A — recommended** | Enable billing on the Google Cloud project at [console.cloud.google.com/billing](https://console.cloud.google.com/billing), then re-run steps 1–2 | **~$3** for the whole 15-week study | Roster stands exactly as registered. Nothing else changes |
-| **B** | Tell me, and I swap `gemini_flash_pro` for a model that can serve 25/day | $0 | Roster changes tonight, before the freeze — not after |
-
-**Do not freeze without resolving this.** After step 4 the roster is a §9 frozen
-commitment, and a model that cannot answer 25 questions a day becomes a §11
-deviation you write in November instead of a decision you make now.
-
-Everything else below is unaffected — the other nine models verified green at
-100% coverage.
+**Steps 1, 2, 5 and the GitHub setup are all done.** What remains is step 3
+(read the plan), step 4 (freeze), and steps 6-8 (OSF).
 
 ---
 
