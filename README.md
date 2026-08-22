@@ -170,7 +170,7 @@ neff/
     fred.py      realized outcomes + market state
     spf.py       the human baseline
     http.py      retries, backoff, body verification
-tests/           255 tests
+tests/           288 tests
 ```
 
 ---
