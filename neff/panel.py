@@ -19,7 +19,9 @@ rather than incidental:
   misreporting their true belief.
 """
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -323,3 +325,63 @@ def count_mock_observations(obs_path=OBS_PATH) -> int:
     """How many synthetic rows are sitting in the observation log. Should be 0
     once real collection starts; reported by the daily health check."""
     return sum(1 for record in JsonlStore(obs_path).read() if _is_mock(record))
+
+
+def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[str, Dict[str, List[float]]]:
+    """Pair each model's two answers to the same question, asked identically.
+
+    Returns {model_key: {"first": [...], "second": [...]}}, aligned by task.
+
+    These come from `config.REPLICATE_VARIANT`, a reserved prompt_variant that
+    `load_panel` filters out, so replicates never enter the primary panel or
+    H3's variant arm. They exist only to measure each model's own sampling
+    noise -- see stats.test_retest_reliability and PREREGISTRATION.md 5.4(d).
+    """
+    from .config import REPLICATE_VARIANT
+
+    first: Dict[tuple, float] = {}
+    second: Dict[tuple, float] = {}
+    if not Path(obs_path).exists():
+        return {}
+
+    for line in Path(obs_path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not include_mock and _is_mock(rec):
+            continue
+        value = rec.get("forecast")
+        if value is None:
+            continue
+        key = (rec.get("model_key"), rec.get("task_id"))
+        variant = int(rec.get("prompt_variant", 0))
+        if variant == 0:
+            first[key] = float(value)
+        elif variant == REPLICATE_VARIANT:
+            second[key] = float(value)
+
+    out: Dict[str, Dict[str, List[float]]] = {}
+    for key in sorted(set(first) & set(second)):
+        model = key[0]
+        bucket = out.setdefault(model, {"first": [], "second": []})
+        bucket["first"].append(first[key])
+        bucket["second"].append(second[key])
+    return out
+
+
+def reliability_report(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[str, Dict[str, float]]:
+    """Per-model noise floor and reliability, ready for the paper's 5.4(d) table."""
+    from .stats import noise_floor, test_retest_reliability
+
+    out = {}
+    for model, pair in load_replicate_pairs(obs_path, include_mock=include_mock).items():
+        out[model] = {
+            "n_replicates": len(pair["first"]),
+            "reliability": test_retest_reliability(pair["first"], pair["second"]),
+            "noise_sd": noise_floor(pair["first"], pair["second"]),
+        }
+    return out

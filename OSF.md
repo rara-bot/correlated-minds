@@ -237,7 +237,7 @@ An automated job runs daily at 13:10 UTC, selects that day's questions under the
 
 ### Sample size
 ```
-Target approximately 25 task-days x 9 models x 105 collection days ~ 23,625 observations in the primary panel, across roughly 400 distinct resolved questions.
+Target approximately 25 task-days x 9 models x 105 collection days ~ 23,625 observations in the primary panel, across roughly 400 distinct resolved questions. A further 2 task-days per day are collected in duplicate from every model as test-retest replicates (~2,100 additional observations), which are excluded from the primary panel and used only to estimate measurement noise.
 ```
 
 ### Sample size rationale
@@ -281,6 +281,8 @@ H4: difference in variance reduction, humans minus AI, on matched macro question
 H5: headroom estimated separately for macro and filing task types, with a bootstrap interval on the difference.
 
 Uncertainty throughout: moving-block bootstrap, block size 5 task-days, 2000 resamples, percentile intervals. Blocks rather than i.i.d. resampling because task-days are serially dependent and an ordinary bootstrap would understate uncertainty.
+
+Measurement noise: sampling at temperature 0 is not fully deterministic on production APIs. Measured before collection (22 Aug 2026, 3 prompts x 4 repetitions), five of the ten models collected are exactly repeatable and five move their emitted probability by 0.033 to 0.093 on average against an identical prompt. This noise is idiosyncratic, so it dilutes measured correlations and INFLATES apparent independence -- biasing against our own hypothesis. To quantify rather than merely note it, 2 questions per day are put to every model twice, identically, at a reserved prompt variant excluded from the primary panel. From these replicates we report each model's noise floor and test-retest reliability, and report rho_bar BOTH raw and disattenuated for measurement noise (Spearman's correction). The raw value remains primary, because the correction moves the result toward our own hypothesis.
 ```
 
 ### Transformations

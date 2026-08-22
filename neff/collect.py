@@ -24,6 +24,7 @@ Guarantees:
 
 import argparse
 import json
+import random
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
@@ -38,6 +39,7 @@ from .config import (
     RESOLUTIONS_PATH,
     TASKS_PATH,
     RunConfig,
+    REPLICATE_VARIANT,
 )
 from .ledger import Ledger
 from .providers import ask
@@ -108,6 +110,44 @@ def run_day(
                 obs_id = observation_id(task.task_id, spec.key, variant)
                 if obs_id not in done:
                     pending.append((task, spec, variant))
+
+    # 2b. TEST-RETEST REPLICATES.
+    #
+    # `TEMPERATURE = 0.0` is registered in §9 so that cross-model differences
+    # reflect the models rather than our sampling. Measured on 22 Aug 2026,
+    # 3 prompts x 4 repetitions, that holds for only half the panel:
+    #
+    #   deterministic  claude_haiku, gpt_mid, qwen, deepseek, gpt_frontier
+    #   varies         claude_sonnet .033, gpt_small .033, gemini_flash_pro .033,
+    #                  llama .040, gemini_flash .093   (mean spread in probability)
+    #
+    # Which models vary shifts between runs, so it is infrastructure -- batched
+    # inference and, on OpenRouter, backend routing -- not a model property, and
+    # no setting removes it.
+    #
+    # This matters because the noise is IDIOSYNCRATIC: uncorrelated across
+    # models, it inflates apparent independence, pushing rho_bar down and N_eff
+    # up. That is the conservative direction -- it biases AGAINST the study's own
+    # hypothesis -- but its SIZE was unknown, and "unknown but probably small" is
+    # not something to hand a reviewer.
+    #
+    # So a few questions each day are asked to every model TWICE, identically.
+    # The spread between the two answers estimates each model's noise floor,
+    # which turns an unquantified threat into a measured reliability coefficient
+    # and lets §5.4(d) report rho_bar both raw and disattenuated.
+    #
+    # Stored at a reserved prompt_variant so they cannot leak into anything else:
+    # `panel.load_panel` filters to variant 0, and H3's variants are 0..4.
+    if config.replicates_per_day > 0 and not config.dry_run:
+        rng = random.Random(f"{config.seed}|replicate|{today.isoformat()}")
+        pool = sorted(tasks, key=lambda t: t.task_id)
+        chosen = rng.sample(pool, min(config.replicates_per_day, len(pool)))
+        for task in chosen:
+            for spec in models:
+                obs_id = observation_id(task.task_id, spec.key, REPLICATE_VARIANT)
+                if obs_id not in done:
+                    pending.append((task, spec, REPLICATE_VARIANT))
+        _log(f"test-retest: {len(chosen)} task(s) re-asked to all {len(models)} models")
 
     if not pending:
         _log("every observation for today already collected -- nothing to do")

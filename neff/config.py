@@ -39,8 +39,15 @@ def collection_days() -> int:
 
 
 def projected_ws1_usd() -> float:
-    """What the 15-week prospective panel is actually expected to cost."""
-    return MEASURED_DAILY_USD * collection_days()
+    """What the 15-week prospective panel is actually expected to cost.
+
+    Includes the test-retest replicates of PREREGISTRATION.md 5.4(d). They are
+    real calls on the same arm, so excluding them would understate the projection
+    the arm cap is set against -- the exact way the previous $25 figure went
+    stale and left a hard stop sitting two thirds of the way up the real spend.
+    """
+    per_day = MEASURED_DAILY_USD * (1.0 + REPLICATES_PER_DAY / TASKS_PER_DAY)
+    return per_day * collection_days()
 
 
 # Sub-caps per workstream, so one arm cannot quietly consume the whole budget.
@@ -58,9 +65,9 @@ def projected_ws1_usd() -> float:
 # between arms, it does not create any.
 ARM_CAPS_USD = {
     "pilot": 10.0,
-    "ws1_prospective": 100.0,   # ~2.1x the measured projection
-    "ws2_retrospective": 25.0,
-    "ws5_mitigation": 15.0,
+    "ws1_prospective": 110.0,   # ~2.2x the measured projection incl. replicates
+    "ws2_retrospective": 20.0,
+    "ws5_mitigation": 10.0,
     "h2_reasoning": 35.0,
 }
 
@@ -376,6 +383,25 @@ RESPONSE_SCHEMA_VERSION = "v1"
 REASONING_SUBSAMPLE_RATE = 0.10
 
 TASKS_PER_DAY = 25
+
+# --- test-retest replicates -------------------------------------------------
+# TEMPERATURE = 0.0 is registered in section 9 so that cross-model differences
+# reflect the models rather than our sampling. Measured 22 Aug 2026 (3 prompts x
+# 4 repetitions) it holds for only five of ten models; the other five move their
+# probability by 0.033-0.093 on average against an IDENTICAL prompt. Which models
+# vary shifts between runs, so it is infrastructure -- batched inference, and
+# backend routing on OpenRouter -- not a model property.
+#
+# The noise is idiosyncratic, so it inflates apparent independence: rho_bar down,
+# N_eff up. Conservative for our hypothesis, but unmeasured. These replicates
+# measure it: REPLICATES_PER_DAY tasks are asked to every model twice, and the
+# spread gives each model's noise floor (PREREGISTRATION.md 5.4d).
+#
+# Stored at a RESERVED prompt_variant so they cannot contaminate anything:
+# panel.load_panel filters to variant 0, and H3's registered variants are 0-4.
+REPLICATE_VARIANT = 99
+REPLICATES_PER_DAY = 2
+
 COLLECTION_START = "2026-08-24"
 CALIBRATION_END = "2026-09-27"   # end of Week 5: prediction is frozen after this
 DATA_FREEZE = "2026-12-06"
@@ -437,6 +463,7 @@ class RunConfig:
     tasks_per_day: int = TASKS_PER_DAY
     seed: int = 0
     prompt_variants: int = 1
+    replicates_per_day: int = REPLICATES_PER_DAY
     model_keys: Optional[List[str]] = field(default=None)
 
     def models(self) -> List[ModelSpec]:

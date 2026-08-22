@@ -619,6 +619,56 @@ revisions add a common error component and therefore *inflate* human `rho`. This
 biases H4 **against** our own hypothesis (it shrinks human headroom, the
 numerator), so we report it rather than correct it, and note the direction.
 
+**(d) Sampling noise that `temperature = 0` does not remove.** §9 registers
+`TEMPERATURE = 0.0` so that cross-model differences reflect the models rather
+than our sampling. Measured on 22 Aug 2026, before collection — 3 task prompts ×
+4 repetitions of an identical prompt — that holds for only **five of the ten
+models collected**:
+
+| | mean spread | max spread | stable prompts |
+|---|---|---|---|
+| `claude_haiku`, `gpt_mid`, `qwen`, `deepseek`, `gpt_frontier` | 0.000 | 0.000 | 3/3 |
+| `claude_sonnet` | 0.033 | 0.100 | 2/3 |
+| `gpt_small` | 0.033 | 0.100 | 2/3 |
+| `gemini_flash_pro` | 0.033 | 0.100 | 2/3 |
+| `llama` | 0.040 | 0.120 | 2/3 |
+| `gemini_flash` | 0.093 | 0.170 | 0/3 |
+
+*(spread = max − min of the emitted probability across repetitions)*
+
+Which models vary shifts between runs, so this is infrastructure — batched
+inference, and backend routing on OpenRouter — not a property of any model, and
+no available parameter removes it. We do not claim determinism we cannot deliver.
+
+**Direction of the bias.** This noise is *idiosyncratic*: uncorrelated across
+models by construction. It therefore dilutes every measured pairwise correlation
+and **inflates apparent independence** — `rho_bar` too low, `N_eff` and
+`headroom` too high. That runs **against** this study's own hypothesis, in the
+same way as (c). But unlike (c), its magnitude is measurable, so we measure it
+rather than merely noting the sign.
+
+**Pre-committed handling.** `REPLICATES_PER_DAY = 2` questions each day are put
+to every model **twice, identically**, selected by a seeded draw recorded in the
+public code. Replicates are stored at a reserved `prompt_variant`
+(`config.REPLICATE_VARIANT = 99`), outside H3's registered range of 0–4, and are
+excluded from the primary panel by construction — `panel.load_panel` filters to
+variant 0. From them we report, for every model:
+
+- the **noise floor**, the standard deviation of a model's own disagreement with
+  itself, in probability units; and
+- **test-retest reliability**, `1 − Var(difference) / (2·Var(all))`.
+
+`rho_bar` is then reported **both raw and disattenuated** for measurement noise
+(`stats.disattenuate`, Spearman's correction). The raw value remains primary.
+The correction moves `rho` **up** and `N_eff` **down** — toward our own
+hypothesis — so reporting only the corrected figure would be arguing our case
+with a statistical adjustment. Both are reported, always, with the per-model
+reliabilities stated alongside.
+
+If measured reliability is high for all models, this section costs roughly $4 and
+closes a question a reviewer would otherwise be right to ask. If it is low for
+some model, that is a finding about the instrument and is reported as one.
+
 ### 5.5 The reported comparison statistic
 
 The headline human-versus-AI number is the **difference in variance reduction**
@@ -679,7 +729,8 @@ append-only JSONL committed daily by an automated job, which makes the
 Fixed in advance and not revisable after the freeze: the model roster; the
 60/40 macro/filing task mix; sampling temperature; the seven state variables; the primary outcome (both scales); the capability
 control in H6; the block-bootstrap parameters; the inclusion criteria; the multiple-testing correction; the
-prediction date.
+prediction date; and the test-retest replicate design of §5.4(d) — its count per day, its
+reserved variant, and the commitment to report `rho_bar` both raw and disattenuated.
 
 ---
 

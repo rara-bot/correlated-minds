@@ -116,6 +116,7 @@ The entire budget goes to one thing: paying the models to answer.
 |---|---|
 | One day, 25 tasks × 10 models | **$0.44** |
 | Full 15-week panel (105 days) | **$47** |
+| + test-retest replicates (§5.4d) | **$4** |
 | 5 prompt variants of one model (the H3 arm) | **$3** |
 | `ws1_prospective` arm cap, enforced in code | $100 |
 | Budget cap, enforced in code | $200 |
@@ -170,7 +171,7 @@ neff/
     fred.py      realized outcomes + market state
     spf.py       the human baseline
     http.py      retries, backoff, body verification
-tests/           288 tests
+tests/           312 tests
 ```
 
 ---

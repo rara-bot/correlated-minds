@@ -421,3 +421,81 @@ __all__ += [
     "mean_uncentered_correlation",
     "n_eff_mse",
 ]
+
+
+# --- test-retest reliability -------------------------------------------------
+#
+# `TEMPERATURE = 0.0` is registered so that cross-model differences reflect the
+# models rather than our sampling. Measured 22 Aug 2026 (3 prompts x 4 reps) it
+# holds for only five of ten models; the rest move their probability by
+# 0.033-0.093 on average against an IDENTICAL prompt, and which models move
+# shifts between runs -- so it is infrastructure, not a model property.
+#
+# The consequence is specific and it runs one way. Sampling noise is
+# IDIOSYNCRATIC: it is uncorrelated across models by construction, so it dilutes
+# every measured pairwise correlation and INFLATES apparent independence --
+# rho_bar too low, N_eff too high. That biases against this study's own
+# hypothesis, which is the safe direction, but the SIZE of the bias was unknown.
+#
+# These functions measure it from the daily replicates and undo it, so §5.4(d)
+# can report rho_bar raw AND corrected rather than merely arguing about sign.
+
+
+def test_retest_reliability(first: Sequence[float], second: Sequence[float]) -> float:
+    """Reliability of one model: how much of its variance is signal, not noise.
+
+    `first` and `second` are the model's two answers to the SAME prompts, asked
+    identically on the same day.
+
+    Returns 1 - Var(difference) / (2 * Var(all answers)), the standard
+    test-retest form. 1.0 means perfectly repeatable; 0.0 means the answer is
+    indistinguishable from noise. Clipped to [0, 1] because sampling error can
+    push the raw quantity slightly outside it on small samples.
+    """
+    a = np.asarray(first, dtype=float)
+    b = np.asarray(second, dtype=float)
+    ok = np.isfinite(a) & np.isfinite(b)
+    a, b = a[ok], b[ok]
+    if a.size < 2:
+        return float("nan")
+
+    total = np.var(np.concatenate([a, b]), ddof=1)
+    if total <= 0:
+        # Every answer identical: no variance to explain, and no noise either.
+        return 1.0
+    noise = np.var(a - b, ddof=1) / 2.0
+    return float(np.clip(1.0 - noise / total, 0.0, 1.0))
+
+
+def disattenuate(rho: float, reliability_i: float, reliability_j: float) -> float:
+    """Correct an observed correlation for measurement noise in both members.
+
+    Spearman's classic correction: an observed correlation between two noisy
+    measurements understates the true one by sqrt(rel_i * rel_j).
+
+    This is reported ALONGSIDE the raw value, never instead of it. The correction
+    moves rho UP, which moves N_eff DOWN -- toward this study's own hypothesis --
+    so presenting only the corrected number would be arguing our own case with a
+    statistical adjustment. Both, always, with the reliabilities stated.
+    """
+    if not np.isfinite(rho):
+        return float("nan")
+    denom = np.sqrt(max(reliability_i, 0.0) * max(reliability_j, 0.0))
+    if denom <= 0:
+        return float("nan")
+    return float(np.clip(rho / denom, -1.0, 1.0))
+
+
+def noise_floor(first: Sequence[float], second: Sequence[float]) -> float:
+    """Standard deviation of a model's own sampling noise, in probability units.
+
+    The directly interpretable companion to `test_retest_reliability`: "this
+    model's answer wobbles by about +/- X on an identical question."
+    """
+    a = np.asarray(first, dtype=float)
+    b = np.asarray(second, dtype=float)
+    ok = np.isfinite(a) & np.isfinite(b)
+    a, b = a[ok], b[ok]
+    if a.size < 2:
+        return float("nan")
+    return float(np.sqrt(np.var(a - b, ddof=1) / 2.0))

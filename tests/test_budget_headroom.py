@@ -29,10 +29,15 @@ class TestProjection:
         assert config.DATA_FREEZE == "2026-12-06"
         assert config.collection_days() == 105
 
-    def test_projection_is_daily_cost_times_days(self):
-        assert config.projected_ws1_usd() == pytest.approx(
-            config.MEASURED_DAILY_USD * config.collection_days()
-        )
+    def test_projection_includes_the_replicate_arm(self):
+        """The test-retest replicates of PREREGISTRATION.md 5.4(d) are real calls
+        on this arm. Excluding them from the projection is how the previous
+        figure went stale and left a hard stop two thirds of the way up the real
+        spend."""
+        bare = config.MEASURED_DAILY_USD * config.collection_days()
+        assert config.projected_ws1_usd() > bare
+        expected = bare * (1 + config.REPLICATES_PER_DAY / config.TASKS_PER_DAY)
+        assert config.projected_ws1_usd() == pytest.approx(expected)
 
     def test_daily_cost_is_a_measured_figure_not_a_placeholder(self):
         """A round number here would mean nobody priced a real day. The value
@@ -92,11 +97,12 @@ class TestTheCapReallyStops:
             cap_usd=config.BUDGET_USD,
             arm_caps=dict(config.ARM_CAPS_USD),
         )
+        per_day = config.projected_ws1_usd() / config.collection_days()
         for day in range(config.collection_days()):
             led.record(model="panel", arm=WS1, input_tokens=0, output_tokens=0,
-                       usd=config.MEASURED_DAILY_USD)
+                       usd=per_day)
         assert led.spent == pytest.approx(config.projected_ws1_usd())
-        led.check(usd=config.MEASURED_DAILY_USD, arm=WS1)  # must not raise
+        led.check(usd=per_day, arm=WS1)  # must not raise
 
     def test_a_fifty_percent_cost_overrun_still_completes(self, tmp_path):
         """The margin exists for this case, so it is worth asserting directly."""
@@ -107,5 +113,5 @@ class TestTheCapReallyStops:
         )
         for day in range(config.collection_days()):
             led.record(model="panel", arm=WS1, input_tokens=0, output_tokens=0,
-                       usd=config.MEASURED_DAILY_USD * 1.5)
+                       usd=(config.projected_ws1_usd() / config.collection_days()) * 1.5)
         assert led.spent < config.ARM_CAPS_USD[WS1]
