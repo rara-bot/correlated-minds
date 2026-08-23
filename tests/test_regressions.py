@@ -182,7 +182,8 @@ class TestMockDataCannotEnterAPanel:
         for i in range(4):
             for key, provider in (("a", "mock"), ("b", "mock")):
                 rows.append({"task_id": f"t{i}", "model_key": key, "provider": provider,
-                             "forecast": 0.5, "prompt_variant": 0})
+                             "forecast": 0.5, "prompt_variant": 0,
+                             "arm": "ws1_prospective"})
         obs.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
         tasks.write_text("")
         res.write_text("")

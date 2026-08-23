@@ -184,7 +184,7 @@ class TestReplicatesNeverReachThePrimaryPanel:
         obs = tmp_path / "obs.jsonl"
         rows = [
             {"obs_id": "a", "task_id": "t1", "model_key": "llama", "provider": "openrouter",
-             "model_id_returned": "meta-llama/llama-3.3-70b-instruct", "prompt_variant": 0,
+             "model_id_returned": "meta-llama/llama-3.3-70b-instruct", "prompt_variant": 0, "arm": "ws1_prospective",
              "forecast": 0.20, "direction": "no", "confidence": 0.5,
              "created_at": "2026-08-24T13:10:00+00:00"},
             {"obs_id": "b", "task_id": "t1", "model_key": "llama", "provider": "openrouter",
@@ -193,7 +193,7 @@ class TestReplicatesNeverReachThePrimaryPanel:
              "forecast": 0.80, "direction": "yes", "confidence": 0.5,
              "created_at": "2026-08-24T13:11:00+00:00"},
             {"obs_id": "c", "task_id": "t1", "model_key": "qwen", "provider": "openrouter",
-             "model_id_returned": "qwen/qwen-2.5-72b-instruct", "prompt_variant": 0,
+             "model_id_returned": "qwen/qwen-2.5-72b-instruct", "prompt_variant": 0, "arm": "ws1_prospective",
              "forecast": 0.30, "direction": "no", "confidence": 0.5,
              "created_at": "2026-08-24T13:10:00+00:00"},
         ]

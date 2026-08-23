@@ -3,10 +3,9 @@
 **Study:** State-dependent error correlation across large language models in
 financial forecasting, benchmarked against human professional forecasters.
 
-**Status:** DRAFT — to be frozen, hashed, and registered on OSF before the first
-observation is collected.
-**Frozen on:** _(to be filled at registration)_
-**SHA-256 of frozen version:** _(to be filled at registration)_
+**Status:** FROZEN. No edits permitted; changes go in section 11 as dated deviations.
+**Frozen on:** 2026-08-23 03:33 UTC
+**SHA-256 of frozen version:** `2189f8c63af6f0d143ebb0152d7beedf3dc440d7341b77d07aac3d76c84fefce`
 **Collection begins:** 24 Aug 2026 · **Calibration ends:** 27 Sep 2026 · **Data freeze:** 6 Dec 2026
 
 > Nothing in this document may be edited after the freeze. Any change after that
@@ -339,6 +338,55 @@ Open questions are re-asked daily until resolution. Task-days are the unit of
 observation; the repeated-measures structure is handled by the block bootstrap
 (§5.2), not ignored.
 
+### 3.5 Data collected before this registration — the pilot arm
+
+**Real forecasts were collected on 21 and 22 Aug 2026, before this document was
+frozen, and they are public.** They are declared here for the same reason §3.1
+declares the tenth model: a reader comparing the public log against this
+registration will find observations timestamped *before* it, and should find an
+accounting rather than an undeclared arm.
+
+Its exact extent, as at the moment of freezing — no further pilot day was
+collected after this document was hashed:
+
+| | |
+|---|---|
+| Tasks | 16 (10 macro event, 6 filing), 8 asked on each day |
+| Observations | 180 — 160 at prompt variant 0, 20 at the reserved replicate variant 99 |
+| Models | all ten collected, i.e. the registered nine plus `gpt_frontier` |
+| Billed API calls | 208, all ledgered under `arm = "pilot"` |
+| Recorded cost | $0.1224 |
+
+The ledger reconciles against that table exactly, and a reader can check it from
+the public files: **208 billed calls = 180 stored observations + 30 verification
+calls (`neff.verify`, run three times) − 2 provider failures that were never
+billed.** Synthetic `--mock` rows are archived under `data/pilot_mock/` and are
+not in the ledger; the reconciliation above is how we found that a mock run had
+booked $0.0102 of spend that never happened, and `tests/test_mock_never_bills.py`
+now makes that impossible.
+
+Its purpose was to establish that the instrument runs end to end against live
+APIs before anything was committed to: that every pinned model id answers, that a
+full day completes, and that measured cost matches the projection the arm cap is
+set against. It did its job — defects it exposed are recorded in `AUDIT.md`,
+including a Google billing tier that would have failed on day one.
+
+**The pilot is excluded from every primary estimate**, and from every hypothesis
+in §4. It is not a preliminary result and no claim rests on it; it is an
+instrument check.
+
+The exclusion is enforced in code rather than by intention, and the mechanism is
+worth stating precisely because the pilot rows are *not* self-describing. Tasks
+and observations now carry an `arm` field, and `panel.load_panel` is fail-closed:
+it admits a row only if that row carries the registered arm. The pilot rows
+predate the field and therefore carry no label at all — the store is append-only,
+so they are excluded on read rather than rewritten to add one. An unlabelled row
+is read as pilot, which is what it is: every one of the 228 pre-registration
+ledger entries is `arm = "pilot"`. The property that matters holds in both
+directions — nothing unlabelled can satisfy the primary arm, and asking for the
+pilot explicitly still reaches it. Should we ever report anything from it, it is
+**exploratory and labelled as such**, exactly as for the tenth model.
+
 ---
 
 ## 4. Hypotheses
@@ -437,24 +485,84 @@ between Tuesday and Thursday. It is also the question the closest prior work
   [0.05, 0.95] rule in §3.3, so widening the range does not admit foregone
   conclusions. The VIX and realised-volatility legs remain observational and may
   simply fail to vary; that is disclosed here rather than discovered in December.
-- **Test:** regression of pairwise error products on standardised state
-  variables with task-clustered standard errors; and comparison of `headroom`
-  between top and bottom stress terciles with a block-bootstrap interval, on the
-  `headroom` scale.
+- **`ambiguity` is defined once, here, and used wherever this document says
+  "ambiguity":** `ambiguity = 1 - ladder_distance`, so that a higher value means
+  a question sat closer to the ladder median and was therefore *more* ambiguous.
+  The definition is stated because `ladder_distance` runs the other way, and a
+  tercile contrast built on the raw variable would invert the predicted sign of
+  every ambiguity test in this document.
+- **Test.** Two parts, both reported, and the variable forming each contrast is
+  named here rather than chosen later:
+  1. Regression of pairwise error products on the seven standardised state
+     variables, with task-clustered standard errors.
+  2. Comparison of `headroom` between the top and bottom terciles of **`vix_level`**
+     (the stress leg) and, separately, of **`ambiguity`** (the ambiguity leg),
+     each with a block-bootstrap interval on the `headroom` scale. H1 predicts
+     **lower** `headroom` in the top tercile of each.
+
+  Naming the two variables in advance matters more than it looks. Seven
+  registered state variables could each form a tercile contrast, and two of them
+  run in the opposite direction; leaving "stress terciles" undefined would have
+  left the choice of contrast — and its sign — to be made after seeing the data,
+  which is the specific freedom this document exists to give up. The stress leg
+  may fail to vary in a calm 15 weeks (§10, limitation 5); the ambiguity leg is populated
+  every day, which is why both are registered rather than one.
+- **Registered direction, per state variable.** The seven do not all point the
+  same way: two of them *fall* as ambiguity rises. A clause worded on the raw
+  sign of the coefficient would therefore credit a contradiction of H1 and
+  discard a confirmation of it, so the predicted direction is fixed here, before
+  any data exists. Signs are for the regression of pairwise error products on the
+  standardised variable.
+
+  | State variable | A higher value means | H1 predicts |
+  |---|---|---|
+  | `ladder_distance` | strike sits further from the ladder median — **less** ambiguous | **negative** |
+  | `vix_level` | more market stress | positive |
+  | `realized_vol_20d` | more market stress | positive |
+  | `expectation_dispersion` | the panel disagrees more | **negative** |
+  | `abs_surprise` | the release surprised consensus by more | positive |
+  | `days_out` | longer horizon, less resolved information | positive |
+  | `novelty_score` | the question resembles nothing in the accumulated corpus | positive |
+
+  **`days_out` is the one direction our own Week-0 data argues with, so it is
+  registered with that argument on the record.** The corrected point-forecast
+  baselines in §2.1 show human `rho_bar` *falling* as the horizon lengthens
+  (unemployment 0.996 at nowcast against 0.876 at three quarters out) — the
+  opposite sign. The structurally matched panel disagrees with them: SPF RECESS
+  (§2.3), which is individual *probability* forecasts of a *binary* event and so
+  is the same object our models produce, has `rho_bar` *rising* from 0.8417 at
+  h=1 to 0.8949 at h=3. We register **positive** because RECESS is the matched
+  object and the point forecasts are not, but the contrary evidence is named here
+  so that a negative coefficient is a result we anticipated rather than one we
+  explain afterwards.
+
+  `expectation_dispersion` is retained because §9 fixes the seven and the count
+  sets the BH denominator, but it is reported as **descriptive, not evidential**:
+  `rho ~ sigma_c^2 / (sigma_c^2 + tau^2)` and cross-model dispersion *is* `tau^2`,
+  so it is close to a transform of the dependent variable and would move in the
+  registered direction almost mechanically. It cannot support H1 on its own.
 - **Correction:** Benjamini–Hochberg at FDR 0.05 across the seven state variables.
-- **FALSIFIED IF:** no state variable shows a positive, BH-surviving coefficient,
-  and the tercile difference interval contains zero.
+- **FALSIFIED IF:** no state variable shows a BH-surviving coefficient **in the
+  direction registered above**, *and* neither tercile contrast shows lower
+  `headroom` in its top tercile with an interval excluding zero. A coefficient
+  surviving correction in the *opposite* direction to the one registered counts
+  against H1, not for it. If the stress leg has no usable variation, it is
+  reported as untested rather than as a null, and the ambiguity leg carries the
+  test (§10, limitation 5).
 
 ### H2 — Shared-prior mechanism
 The collapse is driven by convergence on shared priors when evidence is weak.
 
 - **Confirmatory test — base-rate convergence.** The panel median forecast moves
   closer to the category base rate as ambiguity rises: mean |panel median − base
-  rate| is compared across ambiguity terciles with a block-bootstrap interval on
-  the top-minus-bottom difference. Measurable from forecasts alone — no text
-  analysis, no judgement calls from us.
-- **FALSIFIED IF:** the top-minus-bottom tercile difference is not negative with
-  an interval excluding zero.
+  rate| is compared across terciles of **`ambiguity`** — as defined in H1, i.e.
+  `1 - ladder_distance`, higher meaning more ambiguous — with a block-bootstrap
+  interval on the top-minus-bottom difference. Measurable from forecasts alone —
+  no text analysis, no judgement calls from us.
+- **FALSIFIED IF:** the top-minus-bottom tercile difference in mean |panel
+  median − base rate| is not negative with an interval excluding zero. Negative
+  is the direction that confirms H2: the *most* ambiguous tercile sits *closer*
+  to the base rate.
 - **DEMOTED TO EXPLORATORY — rationale similarity.** The original plan also
   registered "cross-model rationale similarity rises" as confirmatory. Doing that
   honestly requires sentence embeddings plus a validation study of its own, and
@@ -566,6 +674,17 @@ would understate every interval by roughly half (measured: 0.0038 vs 0.0089 at t
 real panel shape). Enforced by `stats._moving_block_indices`, which takes the day
 labels explicitly rather than inferring them from row position.
 
+**A day-block does not capture every dependence in this design, and the second
+interval is registered now rather than added later.** Many questions share one
+underlying resolution event — every strike on a CPI ladder settles against a
+single print and therefore shares a single surprise — and a question open for
+weeks spans many blocks. Neither dependence is grouped by a five-day block, so
+the day-blocked interval is the *optimistic* one. Alongside it we therefore
+report a **cluster bootstrap resampling whole resolution events** (all task-days
+of all questions sharing a `source_ref`), which is the conservative bound. Both
+intervals are reported for every primary estimate, always together. Where they
+disagree materially, the event-clustered interval governs the claim.
+
 ### 5.3 The out-of-sample prediction
 On **27 Sep 2026** (end of Week 5) we fit H1 on weeks 1–5, then publish a hashed,
 timestamped numerical prediction of the form:
@@ -612,6 +731,15 @@ after ~mid-October none can be enrolled at all; days-to-resolution is already a
 registered H1 state variable; and all primary estimates are reported **stratified
 by horizon band** (3–14, 15–45, 46–90, 91+ days) so a composition shift cannot
 masquerade as a state effect.
+
+**Horizon banding and `days_out` are Type A only.** A filing task's target is the
+next quarter a company reports, and the date it will actually file is not knowable
+when the question is asked, so no honest days-to-resolution exists for Type B.
+Horizon-stratified estimates and the `days_out` leg of H1 are therefore computed
+on macro tasks; Type B is reported as a single unbanded stratum, and the Type B
+eligibility rule in §3.3 is applied to the *expected* filing quarter rather than
+to a specific date. This is a limit of the task type, stated in advance, not a
+result-dependent choice.
 
 **(c) Final-vintage outcomes for the human panel.** SPF errors are scored against
 current FRED vintages, not the real-time data forecasters were judged on. Data
@@ -727,8 +855,10 @@ append-only JSONL committed daily by an automated job, which makes the
 ## 9. Researcher degrees of freedom we are giving up
 
 Fixed in advance and not revisable after the freeze: the model roster; the
-60/40 macro/filing task mix; sampling temperature; the seven state variables; the primary outcome (both scales); the capability
-control in H6; the block-bootstrap parameters; the inclusion criteria; the multiple-testing correction; the
+60/40 macro/filing task mix; sampling temperature; the seven state variables **and
+the direction H1 predicts for each of them (§4)**; the primary outcome (both scales); the capability
+control in H6; the block-bootstrap parameters, **including the event-clustered
+interval reported alongside the day-blocked one (§5.2)**; the inclusion criteria; the multiple-testing correction; the
 prediction date; and the test-retest replicate design of §5.4(d) — its count per day, its
 reserved variant, and the commitment to report `rho_bar` both raw and disattenuated.
 

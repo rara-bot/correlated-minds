@@ -94,6 +94,8 @@ def run_day(
     # a batch of them to the public repository dated BEFORE the pre-registration.
     known_tasks = task_store.existing_ids("task_id")
     new_tasks = [t for t in tasks if t.task_id not in known_tasks]
+    for task in new_tasks:
+        task.arm = config.arm
     if config.dry_run:
         _log(f"would register {len(new_tasks)} new tasks -- dry run, nothing written")
     else:
@@ -204,6 +206,7 @@ def run_day(
                     direction=None,
                     confidence=None,
                     error=f"runner exception: {type(exc).__name__}: {exc}",
+                    arm=config.arm,
                 )
 
             obs_store.append(obs)          # fsynced immediately

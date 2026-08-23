@@ -71,6 +71,18 @@ ARM_CAPS_USD = {
     "h2_reasoning": 35.0,
 }
 
+# The arm whose data constitutes the registered study. PREREGISTRATION.md 3.5
+# declares the pre-registration pilot as a separate arm excluded from every
+# primary estimate; `panel.load_panel` enforces that by admitting only rows
+# carrying this label, so anything collected under another arm -- or before the
+# label existed -- cannot reach a primary estimate.
+PRIMARY_ARM = "ws1_prospective"
+
+# The arm everything collected before the registration belongs to. Observations
+# written before the `arm` field existed carry no label; they are all pilot, and
+# `panel.load_panel` reads them as such.
+PRE_REGISTRATION_ARM = "pilot"
+
 
 @dataclass(frozen=True)
 class ModelSpec:

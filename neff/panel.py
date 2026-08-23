@@ -20,13 +20,21 @@ rather than incidental:
 """
 
 import json
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from .config import OBS_PATH, RESOLUTIONS_PATH, TASKS_PATH, primary_panel
+from .config import (
+    OBS_PATH,
+    PRE_REGISTRATION_ARM,
+    PRIMARY_ARM,
+    RESOLUTIONS_PATH,
+    TASKS_PATH,
+    primary_panel,
+)
 from .store import JsonlStore
 
 
@@ -121,6 +129,7 @@ def load_panel(
     require_resolved: bool = True,
     min_models_per_task: int = 2,
     include_mock: bool = False,
+    arm: Optional[str] = None,
 ) -> Panel:
     """Build a Panel from the stored record.
 
@@ -143,12 +152,33 @@ def load_panel(
             Fabricated forecasts entering a real panel is the worst failure this
             codebase could have, so the filter is on by default and has to be
             switched off deliberately.
+
+        arm: which registered arm to analyse. Defaults to `config.PRIMARY_ARM`.
+
+            FAIL-CLOSED, and deliberately so. A row is admitted only if it
+            carries this exact label; a row with a different arm, or with no arm
+            at all, is excluded and counted.
+
+            PREREGISTRATION.md 3.5 declares the 21-22 Aug pilot as a separate
+            arm, collected before the registration and excluded from every
+            primary estimate. That exclusion was previously unenforceable: `arm`
+            was recorded only on the cost ledger, never on the task or the
+            observation, so `load_panel` had no way to tell 160 real pilot
+            forecasts apart from study data and returned them inside the primary
+            panel. This is the same defect class that mock data had before
+            `include_mock`, in a form that is harder to spot -- the pilot rows
+            are real calls to real models, so nothing about them looks wrong.
+
+            The pilot rows predate the label and so carry none, which is exactly
+            why the filter refuses unlabelled rows rather than assuming the best.
+            The store is append-only, so they are excluded rather than rewritten.
     """
     # PRIMARY panel, not everything collected. Secondary arms (e.g. the frontier
     # model) are collected daily but must not enter the primary analysis: H4
     # matches humans at M = 9 against SPF headroom measured at that panel size.
     # Pass model_keys explicitly to analyse a secondary arm.
     keys = model_keys or [m.key for m in primary_panel()]
+    want_arm = PRIMARY_ARM if arm is None else arm
     key_index = {k: i for i, k in enumerate(keys)}
 
     resolutions: Dict[str, float] = {}
@@ -176,8 +206,22 @@ def load_panel(
     # task_id -> model_key -> forecast
     grid: Dict[str, Dict[str, float]] = {}
     n_mock_skipped = 0
+    n_other_arm_skipped = 0
     for record in JsonlStore(obs_path).read():
         if int(record.get("prompt_variant", 0)) != prompt_variant:
+            continue
+        row_arm = str(record.get("arm") or "")
+        # A row with no label predates the label, and everything collected before
+        # it was the pre-registration pilot -- all 228 pre-registration ledger
+        # entries are `arm="pilot"`. So unlabelled rows resolve to the pilot: they
+        # can never satisfy the primary arm (the property that matters), but
+        # asking for the pilot explicitly still reaches them, which is what
+        # PREREGISTRATION.md 3.5 permits for exploratory use. The store is
+        # append-only, so they are reinterpreted on read, never rewritten.
+        if not row_arm:
+            row_arm = PRE_REGISTRATION_ARM
+        if row_arm != want_arm:
+            n_other_arm_skipped += 1
             continue
         if not include_mock and _is_mock(record):
             n_mock_skipped += 1
@@ -190,6 +234,18 @@ def load_panel(
             continue
         task_id = str(record.get("task_id"))
         grid.setdefault(task_id, {})[str(model_key)] = float(forecast)
+
+    # An empty panel with rows on disk is the failure mode this filter could
+    # otherwise introduce, so say why rather than returning a silent zero.
+    if not grid and (n_other_arm_skipped or n_mock_skipped):
+        warnings.warn(
+            f"load_panel: no rows admitted -- skipped {n_other_arm_skipped} row(s) "
+            f"not labelled arm={want_arm!r} and {n_mock_skipped} mock row(s). "
+            "Observations written before the arm label existed carry none and are "
+            "excluded by design (PREREGISTRATION.md 3.5).",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     eligible = [
         tid

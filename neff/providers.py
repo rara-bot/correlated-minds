@@ -519,6 +519,7 @@ def ask(
         forecast=None,
         direction=None,
         confidence=None,
+        arm=arm,
     )
 
     if provider is None:
@@ -557,18 +558,44 @@ def ask(
         obs.latency_ms = int((time.time() - started) * 1000)
 
         actual = spec.price.estimate(input_tokens, output_tokens)
-        try:
-            ledger.record(
-                model=spec.key,
-                arm=arm,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                usd=actual,
-            )
+        if use_mock:
+            # A MOCK CALL SPENDS NOTHING, SO IT MUST NOT BOOK SPEND.
+            #
+            # The ledger is the budget ENFORCEMENT mechanism, not a log:
+            # `Ledger.check` raises `BudgetExceeded` rather than warning, and
+            # the arm caps are hard stops. Money that was never spent still
+            # consumes that headroom, so phantom rows do not merely make the
+            # accounting untidy -- they bring forward the day collection halts.
+            #
+            # This has happened twice. The 17 Aug mock run booked $0.055 and was
+            # archived by hand (commit 38ff332, "Reset ledger: archive phantom
+            # spend from the mock run"). That commit's own message says "the mock
+            # provider still prices and records its calls" -- the cause was
+            # understood and left in place, so the 22 Aug mock run booked another
+            # $0.0102 straight back into the same file, where it sat until the
+            # pre-freeze reconciliation found a 48-row gap between the ledger and
+            # observations.jsonl. Archiving without fixing this is why it recurred.
+            #
+            # `obs.usd` still carries the notional price, because the mock
+            # observation is the input to day-pricing and a synthetic row with no
+            # cost would understate it. The mock rows live in data/pilot_mock/ and
+            # are filtered from analysis by `panel.load_panel`; the difference is
+            # that a notional price on an archived synthetic row is a projection,
+            # while a row in data/ledger.jsonl is a claim that money moved.
             obs.usd = actual
-        except BudgetExceeded as exc:
-            # The call already happened; record the observation but flag it.
-            obs.error = f"budget breached on record: {exc}"
+        else:
+            try:
+                ledger.record(
+                    model=spec.key,
+                    arm=arm,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    usd=actual,
+                )
+                obs.usd = actual
+            except BudgetExceeded as exc:
+                # The call already happened; record the observation but flag it.
+                obs.error = f"budget breached on record: {exc}"
 
         parsed = _extract_json(text)
         if parsed is None:

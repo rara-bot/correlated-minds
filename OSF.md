@@ -73,8 +73,10 @@ numbers won't match and the whole point is lost.
 ## Step 1 — Read the plan once, properly
 
 ```bash
-open PREREGISTRATION.md
+open -e PREREGISTRATION.md
 ```
+
+(`open` without `-e` fails on this machine — no application claims `.md`.)
 
 **This is the last moment you can change anything.** After the freeze, every
 change goes in §11 as a dated, numbered deviation, visible forever.
@@ -87,21 +89,20 @@ out *against* you — tell me now, before you freeze.
 
 ## Step 2 — Push to GitHub (~5 min)
 
-You need a public repo URL to cite inside the OSF registration.
-
-1. Go to **github.com/new**
-2. Repository name: `correlated-minds` (anything works)
-3. **Public** — this matters. The public commit history is what makes your daily
-   timestamps independently checkable.
-4. Do **not** tick "Add a README" — you already have one.
-5. Click **Create repository**, then run (substituting your username):
+**Already done** — `origin` is configured and `github.com/rara-bot/correlated-minds`
+is current. What remains here is to push the freeze commit and confirm the repo is
+public; the public commit history is what makes your daily timestamps independently
+checkable.
 
 ```bash
-git remote add origin https://github.com/YOUR-USERNAME/correlated-minds.git
-git branch -M main && git push -u origin main
+git add -A && git commit -m "Freeze pre-registration" && git push
 ```
 
-Copy the resulting URL. Call it **`GITHUB_URL`** — you'll paste it twice later.
+Confirm **Public** under Settings → General → Danger Zone → Change visibility. A
+private repo proves nothing to a judge.
+
+Your **`GITHUB_URL`** is `https://github.com/rara-bot/correlated-minds` — you'll
+paste it twice later.
 
 > `.env` is git-ignored, so your API keys are not going public. Verify with
 > `git status` — if `.env` ever appears in that list, stop and tell me.
@@ -193,7 +194,7 @@ The Financial Stability Board (Oct 2025), the Bank of England (Jul 2026) and the
 ```
 
 ### Hypotheses
-> Copy §4 of `PREREGISTRATION.md` verbatim — H1 through H5 including the
+> Copy §4 of `PREREGISTRATION.md` verbatim — H1 through H6, including the
 > "FALSIFIED IF" clauses. **Do not summarise it.** The falsification clauses are
 > the most valuable thing in the document; they are what make it a
 > pre-registration rather than a plan.
@@ -217,7 +218,7 @@ Nine models across six vendor families (three of them represented at two tiers, 
 
 ### Randomization
 ```
-None. Question selection follows the fixed inclusion criteria in §3.3 rather than random assignment. The 10% extended-reasoning subsample used for H2 is drawn with a seeded pseudorandom generator; the seed is recorded in the public code.
+None. Question selection follows the fixed inclusion criteria in §3.3 rather than random assignment. The 2 questions per day put to every model twice as test-retest replicates are drawn by a seeded pseudorandom generator; the seed is recorded in the public code.
 ```
 
 ### Existing data
@@ -242,7 +243,7 @@ Target approximately 25 task-days x 9 models x 105 collection days ~ 23,625 obse
 
 ### Sample size rationale
 ```
-Powering the stress-tercile contrast in H1 requires roughly 300 task-days per tercile; the target supplies about 600, leaving margin for attrition and model failures. Separately, 400 resolved questions estimate mean pairwise error correlation precisely enough to distinguish rho = 0.996 from rho = 0.990 at approximately 7.7 sigma — a distinction that matters because those two values differ by a factor of about two in practical diversification benefit despite both rounding to 1.
+Powering the stress-tercile contrast in H1 requires roughly 300 task-days per tercile; the target supplies about 600, leaving margin for attrition and model failures. Separately, 400 resolved questions estimate mean pairwise error correlation precisely enough to distinguish rho = 0.996 from rho = 0.990 at no worse than 5 sigma even under strong serial dependence in the common component (10.4 sigma if task-days were i.i.d., 8.3 at AR(0.5), 5.3 at AR(0.8); because questions are re-asked daily they are NOT i.i.d., so the conservative figure is the registered one) — a distinction that matters because those two values differ by a factor of about two in practical diversification benefit despite both rounding to 1.
 ```
 
 ### Stopping rule
@@ -264,6 +265,8 @@ Always reported alongside it: (a) variance_reduction, the model-free ratio Var(p
 State variables for the H1 conditional test, SEVEN, fixed with no additions permitted: ladder distance (normalised distance from the strike ladder median, an experimentally varied ambiguity measure recorded at ask time), VIX level, 20-day realised volatility, cross-model forecast dispersion, absolute macro surprise, days to resolution, novelty score.
 
 Four of the seven are recorded at ask time and cannot be reconstructed afterwards (ladder distance, VIX level, 20-day realised volatility, days to resolution); three are derived at analysis time from retained data.
+
+The seven do not all point the same way: ladder distance and cross-model dispersion FALL as ambiguity rises, so H1 predicts a NEGATIVE coefficient on those two and a positive one on the other five. The predicted direction of each is registered per variable in section 4 of the attached plan, and a coefficient surviving correction in the opposite direction to the one registered counts AGAINST H1, not for it.
 ```
 
 ### Indices
@@ -274,13 +277,13 @@ N_eff is the standard effective-ensemble-size index under equicorrelation. Where
 ### Statistical models
 ```
 H1: regression of pairwise error products on standardised state variables with task-clustered standard errors; plus a top-versus-bottom stress tercile comparison of headroom.
-H2: on the 10% extended-reasoning subsample, comparison of cross-model rationale similarity and of evidence-sensitivity across ambiguity terciles.
+H2: base-rate convergence. Mean |panel median forecast - category base rate| compared across ambiguity terciles, with a block-bootstrap interval on the top-minus-bottom difference; measurable from the forecasts alone. Cross-model rationale similarity was considered and is registered as EXPLORATORY ONLY, not confirmatory: doing it honestly needs sentence embeddings plus a validation study of their own, and our rationales are capped at 25 words.
 H3: headroom compared across matched-size panels — one model under 5 prompt variants, the three within-family pairs, and family-matched cross-family pairs. Inference by exact permutation over family labels.
 H6: pairwise error correlation regressed on a same-family indicator plus the pair's mean Brier skill and skill gap, to separate shared lineage from shared capability.
 H4: difference in variance reduction, humans minus AI, on matched macro questions, with human panels subsampled to M = 9 over 500 random draws. The primary human benchmark is SPF RECESS (individual probability forecasts of a binary event), which is structurally identical to the AI task. Reported only alongside both panels' Brier scores, and at matched accuracy.
 H5: headroom estimated separately for macro and filing task types, with a bootstrap interval on the difference.
 
-Uncertainty throughout: moving-block bootstrap, block size 5 task-days, 2000 resamples, percentile intervals. Blocks rather than i.i.d. resampling because task-days are serially dependent and an ordinary bootstrap would understate uncertainty.
+Uncertainty throughout: moving-block bootstrap, block size 5 task-days, 2000 resamples, percentile intervals, reported alongside a cluster bootstrap that resamples whole resolution events (all questions sharing one underlying settlement). The day-blocked interval is the optimistic bound and the event-clustered one the conservative bound; both are reported for every primary estimate, and where they disagree materially the event-clustered interval governs the claim. Blocks rather than i.i.d. resampling because task-days are serially dependent and an ordinary bootstrap would understate uncertainty.
 
 Measurement noise: sampling at temperature 0 is not fully deterministic on production APIs. Measured before collection (22 Aug 2026, 3 prompts x 4 repetitions), five of the ten models collected are exactly repeatable and five move their emitted probability by 0.033 to 0.093 on average against an identical prompt. This noise is idiosyncratic, so it dilutes measured correlations and INFLATES apparent independence -- biasing against our own hypothesis. To quantify rather than merely note it, 2 questions per day are put to every model twice, identically, at a reserved prompt variant excluded from the primary panel. From these replicates we report each model's noise floor and test-retest reliability, and report rho_bar BOTH raw and disattenuated for measurement noise (Spearman's correction). The raw value remains primary, because the correction moves the result toward our own hypothesis.
 ```

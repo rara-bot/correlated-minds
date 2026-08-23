@@ -276,3 +276,63 @@ class TestTheSuiteSurvivesTheRealFreeze:
         _freeze(frz)
         doc.write_text(_thaw(doc.read_text(encoding="utf-8"), frz), encoding="utf-8")
         assert frz.digest(doc.read_text(encoding="utf-8")) == before
+
+
+class TestThePreviewEqualsTheRealThing:
+    """`--check` before the freeze must print the hash the freeze will publish.
+
+    The freeze is one-shot and irreversible, so the only rehearsal available is
+    to run `--check` first and look at the number. That number used to be
+    different from the one the freeze went on to publish, for two compounding
+    reasons:
+
+      * `**Status:**` was not in STAMP_PREFIXES, so the status text itself was
+        inside the hash -- and freezing rewrites DRAFT to FROZEN; and
+      * the DRAFT status ran to two lines, and `body_without_stamps` drops lines
+        that START with a stamp prefix, so the continuation line survived into
+        the pre-freeze hash and vanished from the post-freeze one.
+
+    Neither made the published hash wrong -- `--check` after the freeze always
+    matched the frozen document. But finding 16 in AUDIT.md was a real
+    freeze-tool hash mismatch, and GO-LIVE.md carries a warning about it. A
+    rehearsal that disagrees with the real run is the worst possible thing to
+    hand someone who is deciding, once, whether to trust this script.
+    """
+
+    def test_status_line_is_excluded_from_the_hash(self, frz):
+        assert "**Status:**" in frz.STAMP_PREFIXES
+
+    def test_draft_status_is_a_single_line(self, frz):
+        """A multi-line stamp leaves its continuation inside the hash."""
+        assert "\n" not in frz.DRAFT_STATUS
+        assert "\n" not in frz.FROZEN_STATUS
+
+    def test_preview_hash_equals_published_hash(self, frz):
+        before = frz.digest(frz.DOC.read_text(encoding="utf-8"))
+        _freeze(frz)
+        after = frz.digest(frz.DOC.read_text(encoding="utf-8"))
+        assert before == after, (
+            "the hash --check prints before freezing is not the hash the freeze "
+            "publishes; the rehearsal is a lie"
+        )
+
+    def test_the_recorded_hash_is_the_previewed_one(self, frz):
+        previewed = frz.digest(frz.DOC.read_text(encoding="utf-8"))
+        _freeze(frz)
+        assert frz.recorded_hash(frz.DOC.read_text(encoding="utf-8")) == previewed
+
+    def test_status_flips_to_frozen(self, frz):
+        _freeze(frz)
+        text = frz.DOC.read_text(encoding="utf-8")
+        assert frz.FROZEN_STATUS in text
+        assert frz.DRAFT_STATUS not in text
+
+    def test_the_real_document_carries_the_exact_draft_anchor(self, frz):
+        """`_replace_once` refuses to freeze unless the anchor appears exactly
+        once. If the header is reworded without updating the constant, the real
+        freeze aborts -- which is safe, but discovering it at 2am is not."""
+        real = REAL_DOC.read_text(encoding="utf-8")
+        thawed = _thaw(real, frz)
+        assert thawed.count(frz.DRAFT_STATUS) == 1
+        assert thawed.count(frz.FROZEN_ON_PLACEHOLDER) == 1
+        assert thawed.count(frz.HASH_PLACEHOLDER) == 1

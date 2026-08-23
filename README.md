@@ -116,9 +116,10 @@ The entire budget goes to one thing: paying the models to answer.
 |---|---|
 | One day, 25 tasks × 10 models | **$0.44** |
 | Full 15-week panel (105 days) | **$47** |
+| Panel + replicates, i.e. what the arm cap covers | **$50** |
 | + test-retest replicates (§5.4d) | **$4** |
 | 5 prompt variants of one model (the H3 arm) | **$3** |
-| `ws1_prospective` arm cap, enforced in code | $100 |
+| `ws1_prospective` arm cap, enforced in code | $110 |
 | Budget cap, enforced in code | $200 |
 
 Priced on 21 Aug 2026 by `neff.collect --dry-run --tasks 25` against the live
@@ -145,8 +146,13 @@ horizons, because errors are dominated by the common surprise nobody saw coming.
 
 **Consequence:** a naive "AI is more correlated than humans" hypothesis is
 untestable at short horizons — the metric saturates and leaves no room. So the
-primary outcome is now **excess correlation over the common component**, and task
-selection excludes near-settled questions. See
+primary outcome is now **diversification headroom, `N_eff - 1`**, and task
+selection excludes near-settled questions.
+
+(An intermediate fix — correlating residuals after removing the panel's mean
+error, "excess correlation over the common component" — was itself found to be
+broken and dropped: residuals sum to zero by construction, so their pairwise
+correlation is exactly `-1/(M-1)` whatever the truth is. §2.3 records it.) See
 [PREREGISTRATION.md](PREREGISTRATION.md) §2.
 
 Finding this in Week 0, rather than in November after 15 weeks of collection, is
@@ -171,7 +177,7 @@ neff/
     fred.py      realized outcomes + market state
     spf.py       the human baseline
     http.py      retries, backoff, body verification
-tests/           312 tests
+tests/           321 tests
 ```
 
 ---
@@ -188,7 +194,7 @@ tests/           312 tests
 | [ELEVATION.md](ELEVATION.md) | How this becomes a discovery, not a measurement |
 | [STRATEGY.md](STRATEGY.md) | The four-year arc |
 | [BUDGET.md](BUDGET.md) | Cost model |
-| [AUDIT.md](AUDIT.md) | 23 defects found before collection, and how |
+| [AUDIT.md](AUDIT.md) | 27 defects found before collection, and how |
 | [SUBMISSION-TARGETS.md](SUBMISSION-TARGETS.md) | Competitions and conferences |
 
 ---

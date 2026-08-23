@@ -57,6 +57,7 @@ class Task:
     outcome_kind: str = "binary"   # binary | continuous
     market_implied: Optional[float] = None   # benchmark, when the source is a market
     state: Dict[str, Any] = field(default_factory=dict)
+    arm: str = ""                  # which registered arm this belongs to
     schema: str = SCHEMA_VERSION
 
 
@@ -81,6 +82,7 @@ class Observation:
     usd: float = 0.0
     latency_ms: int = 0
     error: Optional[str] = None
+    arm: str = ""                  # which registered arm this belongs to
     created_at: str = field(default_factory=_utcnow)
     schema: str = SCHEMA_VERSION
 

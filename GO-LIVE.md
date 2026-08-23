@@ -6,7 +6,9 @@ scheduled collection run fires. Everything below has to be done before it.
 **Total: about 50 minutes.** Roughly 15 of them are you reading the plan one last
 time, and 25 are typing into OSF's form. The rest is running commands.
 
-There is no rush. You have three days of slack for a 50-minute job. Do it awake.
+As of 23 Aug 02:00 UTC there are about **35 hours** left, and an OSF registration
+can sit pending for up to ~24 of them. The typing is still only ~30 minutes, but
+the slack is spent — start the OSF steps today, not tomorrow morning.
 
 ---
 
@@ -29,8 +31,16 @@ trial's $300 does not apply to it. A key created in a billed project fixed it:
 tier contrast, M = 9 stands. `.env` and the `GOOGLE_API_KEY` GitHub secret both
 carry the billed key.
 
-**Steps 1, 2, 5 and the GitHub setup are all done.** What remains is step 3
-(read the plan), step 4 (freeze), and steps 6-8 (OSF).
+**Steps 1, 2, 3, 5 and the GitHub setup are all done** — roster verified against
+live APIs, pilot collected, plan read, repo public and current. What remains is
+**step 4 (freeze)** and **steps 6-8 (OSF)**.
+
+> **Do not re-run steps 1 or 2.** §3.5 of the plan records the pilot's exact
+> size — 16 tasks, 180 observations, 208 billed calls, $0.1224 — as at the
+> freeze, and the ledger is stated to reconcile against it. Another pilot
+> day would add rows the frozen document does not account for, and a reviewer
+> comparing the public log against the registration would find the discrepancy
+> before you did.
 
 ---
 
@@ -70,9 +80,10 @@ committing to.
 ./.venv/bin/python -m neff.verify
 ```
 
-One real call to each of the ten models, at `temperature=0`. **If you chose
-option A above, enable billing first** — otherwise `gemini_flash_pro` will fail
-here with the quota message, which is the check working, not a new problem.
+One real call to each of the ten models, at `temperature=0`. Billing is already
+enabled on the Google key (see the resolved section above); if it ever lapses,
+`gemini_flash_pro` fails here with the quota message, which is the check working
+rather than a new problem.
 
 **Expect:** every line `[OK  ]`, each showing the model id the provider actually
 served next to the one you pinned.
@@ -107,8 +118,10 @@ did not expect, while it still costs nothing to discover.
 ## 3 — Read the plan · 10-15 min · the important one
 
 ```bash
-open PREREGISTRATION.md
+open -e PREREGISTRATION.md
 ```
+
+(`open` without `-e` fails on this machine — no application claims `.md`.)
 
 Read **§3.1** (the roster), **§4** (the hypotheses and their FALSIFIED IF
 clauses), and **§7** (what would make you abandon a hypothesis).
@@ -137,7 +150,7 @@ understood your own design.
 **Expect:**
 
 ```
-FROZEN 2026-08-21 HH:MM UTC
+FROZEN 2026-08-23 HH:MM UTC
 sha256: <64 hex characters>
 
 This hash is recorded in the document and verified against it.
@@ -157,8 +170,12 @@ block to paste into OSF's "Other / Notes" field.
 > This step used to be broken. It printed one hash and wrote a different one into
 > the document, so `--check` reported `HASH MISMATCH` on a file nobody had
 > touched — and you would have published the printed hash to an immutable
-> registration. Fixed and covered by 19 tests, but run `--check` anyway. It costs
+> registration. Fixed and covered by 29 tests, but run `--check` anyway. It costs
 > two seconds and it is the claim everything else rests on.
+>
+> You can also run `--check` **before** freezing: it now prints the exact hash the
+> freeze will publish, so the one irreversible step in this document has a
+> rehearsal. That equality is itself tested.
 
 If `--check` ever says anything other than *intact*: **stop**, and do not
 re-freeze. Tell me. Re-freezing destroys the guarantee.
@@ -167,13 +184,14 @@ re-freeze. Tell me. Re-freezing destroys the guarantee.
 
 ## 5 — Push to GitHub · 5 min
 
-The repo `github.com/rara-bot/correlated-minds` exists but is **empty** — nothing
-has ever been pushed to it. The public commit history is what makes your daily
-timestamps checkable by someone who does not trust you, so this matters as much
-as the OSF record.
+`origin` is already configured and `github.com/rara-bot/correlated-minds` is
+current — the push itself is done. What this step is now for is committing the
+freeze, and confirming the repo is public. The public commit history is what
+makes your daily timestamps checkable by someone who does not trust you, so it
+matters as much as the OSF record.
 
 ```bash
-git add -A && git commit -m "Freeze pre-registration" && git push -u origin main
+git add -A && git commit -m "Freeze pre-registration" && git push
 ```
 
 Then check on github.com that the repo is **Public** (Settings → General →
@@ -287,7 +305,7 @@ each day's forecasts to a public history before their outcomes exist.
 | When | What | Why |
 |---|---|---|
 | 24 Aug, ~13:30 UTC | First real run is green | A silent failure on day one costs the whole first week before anyone notices |
-| Weekly | `data/ledger.jsonl` total | Projected $47 against a $100 arm cap. The cap is a hard stop, not a warning |
+| Weekly | `data/ledger.jsonl` total | Projected **$50** against a **$110** arm cap — the projection includes the §5.4(d) replicates, because they are real calls on the same arm and excluding them is how the old $25 figure went stale. The cap is a hard stop, not a warning |
 | Weekly | Every model's coverage | Below 80% for any model and it leaves the primary panel (§3.3) |
 | **27 Sep** | Week-5 interim read | Fit H1 on weeks 1-5, publish a hashed out-of-sample prediction. Never revised, and a miss is reported as a miss |
 | **6 Dec** | Data freeze | Calendar-based, never data-dependent. Then Zenodo — `OSF.md` step 8 |
@@ -305,7 +323,8 @@ each day's forecasts to a public history before their outcomes exist.
 | `BudgetExceeded` | Working as designed. Check `data/ledger.jsonl` before raising anything |
 | One model at 0 coverage | Wrong id or bad key. `neff.verify` and send me the output |
 | Workflow cannot push | Workflow permissions are not set to read/write |
-| `FREE-TIER DAILY QUOTA: 20 requests/day` | The decision at the top of this document. Enable billing, or tell me to swap the model |
+| `FREE-TIER DAILY QUOTA: 20 requests/day` | Google billing has lapsed on the key. Gemini bills through **AI Studio prepay**, not Cloud pay-as-you-go — re-enable it there, and do not swap the model without telling me: the roster is registered |
+| `load_panel: no rows admitted` | Working as designed. Rows must carry `arm="ws1_prospective"`; the pre-registration pilot carries none and is excluded (§3.5). Analyse it with `load_panel(arm="pilot")` |
 | Out of time before 24 Aug | `AsPredicted.org` — 8 questions, 10 minutes, still timestamped and public. Weaker than OSF, enormously better than nothing. Add the full OSF registration afterwards |
 
 ---

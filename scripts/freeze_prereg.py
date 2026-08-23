@@ -44,7 +44,23 @@ DOC = Path(__file__).resolve().parent.parent / "PREREGISTRATION.md"
 
 # Lines excluded from the hash. They carry the stamp itself, so including them
 # would be circular: writing the hash would change the hash.
-STAMP_PREFIXES = ("**Frozen on:**", "**SHA-256 of frozen version:**")
+# `**Status:**` belongs here for the same reason as the other two. Freezing
+# rewrites DRAFT -> FROZEN, so leaving it inside the hash meant the digest
+# `--check` printed BEFORE the freeze could never equal the one published after
+# it. That is not a soundness bug -- the recorded hash still matches the frozen
+# document -- but it makes the only available rehearsal of an irreversible,
+# one-shot operation print a number that is never seen again. Given that finding
+# 16 in AUDIT.md was a genuine freeze-tool hash mismatch, a preview that
+# disagrees with the real thing is precisely the wrong thing to hand someone at
+# the moment they are deciding whether to trust this script.
+#
+# With the status excluded, `--check` before the freeze prints the exact hash the
+# freeze will publish. `tests/test_freeze.py` asserts that equality.
+STAMP_PREFIXES = (
+    "**Frozen on:**",
+    "**SHA-256 of frozen version:**",
+    "**Status:**",
+)
 
 # Exact anchors in the document. If any of these stops matching -- because the
 # header was reworded or rewrapped -- freezing must FAIL rather than silently
@@ -52,9 +68,12 @@ STAMP_PREFIXES = ("**Frozen on:**", "**SHA-256 of frozen version:**")
 # announces it is frozen.
 FROZEN_ON_PLACEHOLDER = "**Frozen on:** _(to be filled at registration)_"
 HASH_PLACEHOLDER = "**SHA-256 of frozen version:** _(to be filled at registration)_"
+# ONE LINE, deliberately. `body_without_stamps` drops lines that START with a
+# stamp prefix, so a two-line status left its continuation line ("observation is
+# collected.") in the hash pre-freeze and removed it post-freeze -- reintroducing
+# the very mismatch excluding the status was meant to remove.
 DRAFT_STATUS = (
-    "**Status:** DRAFT — to be frozen, hashed, and registered on OSF before the first\n"
-    "observation is collected."
+    "**Status:** DRAFT — to be frozen, hashed, and registered on OSF before collection begins."
 )
 FROZEN_STATUS = (
     "**Status:** FROZEN. No edits permitted; changes go in section 11 as dated deviations."
