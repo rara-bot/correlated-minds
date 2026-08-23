@@ -85,19 +85,45 @@ class TestTheRealLedgerIsClean:
         assert not (live & archived), \
             "archived mock spend is back in the live ledger"
 
-    def test_the_ledger_reconciles_against_what_was_actually_collected(self):
-        """208 billed calls = 180 stored observations + 30 verification calls
-        - 2 provider failures that were never billed.
+    def test_every_call_that_reached_a_provider_was_billed(self):
+        """The durable identity: ledger rows >= observations that got a response.
 
-        A reviewer can run this arithmetic from the public files, which is the
-        point: PREREGISTRATION.md 3.5 states the pilot's exact extent, and a
-        ledger that does not reconcile against it would be the first thing a
-        skeptic finds.
+        A call bills when the API answers, even if parsing the answer then
+        fails -- so an errored observation is usually still a billed one. Only a
+        call that never got a response (timeout, dead key) goes unbilled, and it
+        carries `input_tokens == 0`.
+
+        THIS ASSERTION HAS TO SURVIVE 15 WEEKS OF COLLECTION, which an exact row
+        count does not. The daily workflow runs this suite at step 5, BEFORE it
+        collects at step 7, so a test that drifts out of true with the data files
+        does not merely go red -- it halts collection, and a day not collected
+        cannot be recollected because every question is registered before its
+        outcome exists. An earlier version of this test asserted
+        `len(ledger) == len(observations) + 30 - 2`, which held only for the
+        pilot snapshot and would have failed permanently on the first unanswered
+        call of the study.
         """
         led = [l for l in open(config.LEDGER_PATH, encoding="utf-8") if l.strip()]
         obs = [json.loads(l) for l in open(config.OBS_PATH, encoding="utf-8") if l.strip()]
-        billed_failures = sum(1 for o in obs if o.get("error"))
-        assert len(led) == len(obs) + 30 - 2, (
-            f"ledger {len(led)} does not reconcile against {len(obs)} observations "
-            f"({billed_failures} carried an error)"
+        reached = [o for o in obs if (o.get("input_tokens") or 0) > 0]
+        assert len(led) >= len(reached), (
+            f"{len(reached)} observations reached a provider but the ledger holds "
+            f"only {len(led)} rows -- real spend is going unrecorded"
         )
+
+    def test_the_pilot_snapshot_still_matches_what_3_5_froze(self):
+        """PREREGISTRATION.md 3.5 states the pilot's exact extent, and that
+        statement is now hashed. Until collection starts, the files must still
+        say what the frozen document says they say.
+
+        Skips once collection begins: after that the files legitimately grow and
+        3.5's numbers describe the pilot, not the current file length.
+        """
+        obs = [json.loads(l) for l in open(config.OBS_PATH, encoding="utf-8") if l.strip()]
+        if any(o.get("arm") == config.PRIMARY_ARM for o in obs):
+            pytest.skip("collection has started; 3.5 describes the pilot, not the file")
+        led = [l for l in open(config.LEDGER_PATH, encoding="utf-8") if l.strip()]
+        reached = [o for o in obs if (o.get("input_tokens") or 0) > 0]
+        assert len(obs) == 180
+        assert len(led) == 208
+        assert len(reached) + 30 == len(led), "pilot reconciliation drifted"

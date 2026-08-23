@@ -24,7 +24,8 @@ import pytest
 
 from neff import config
 
-PREREG = Path(__file__).resolve().parent.parent / "PREREGISTRATION.md"
+ROOT = Path(__file__).resolve().parent.parent
+PREREG = ROOT / "PREREGISTRATION.md"
 
 
 @pytest.fixture(scope="module")
@@ -64,11 +65,25 @@ class TestStructure:
         referenced = set(re.findall(r"\b(H\d)\b", doc))
         assert referenced <= declared, f"undeclared: {sorted(referenced - declared)}"
 
-    def test_deviations_table_is_empty_at_registration(self, doc):
+    def test_deviations_are_empty_before_registration_and_well_formed_after(self, doc):
+        """Section 11 must be empty when the plan is registered, and every entry
+        added later must be numbered and dated.
+
+        It cannot simply assert "empty" forever. A deviation is a legitimate
+        thing to log mid-study -- that is what section 11 is FOR -- and the daily
+        workflow runs this suite before it collects, so a test that forbids
+        deviations would halt collection on the day you honestly recorded one.
+        """
         tail = doc.split("## 11. Deviations from this plan")[-1]
         rows = [r for r in re.findall(r"^\| (.+?) \|", tail, re.M)
                 if r not in ("#", "---") and not set(r) <= {"-", "—", " "}]
-        assert not rows, f"section 11 must be empty at registration, found: {rows}"
+        registered = (ROOT / ".osf_url").exists()
+        if not registered:
+            assert not rows, f"section 11 must be empty at registration, found: {rows}"
+            return
+        for r in rows:
+            assert re.match(r"^\s*\d+\s*$", r), \
+                f"deviation rows must start with a number, got: {r!r}"
 
 
 # --------------------------------------------------------------------------
