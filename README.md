@@ -48,7 +48,7 @@ creates systemic risk.
 Every day, automatically:
 
 1. Pull open event contracts from Kalshi (economics, financials) that resolve
-   **before the 6 Dec data freeze**.
+   **before the 11 Dec data freeze**.
 2. Ask all ten models the same questions, at temperature 0, with a fixed JSON
    schema. Nine are the registered primary panel; the tenth is a second
    frontier model, collected daily and excluded from every primary estimate

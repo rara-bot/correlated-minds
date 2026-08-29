@@ -180,7 +180,7 @@ def select_tasks(
       the SPF human baseline, which is the study's headline comparison.
 
     - resolves in [min_days_out, max_days_out]: a contract settling after the
-      6 Dec data freeze never gets scored and is wasted spend. One settling in
+      11 Dec data freeze never gets scored and is wasted spend. One settling in
       hours carries almost no information.
 
     - median strikes only: without quotes we cannot see implied probability, so

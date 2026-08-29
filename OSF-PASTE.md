@@ -5,10 +5,10 @@ regenerate rather than hand-editing, or the two will disagree.
 
 | | |
 |---|---|
-| Frozen | 2026-08-23 03:33 UTC |
-| SHA-256 | `2189f8c63af6f0d143ebb0152d7beedf3dc440d7341b77d07aac3d76c84fefce` |
+| Frozen | 2026-08-29 03:54 UTC |
+| SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
 | Repo | https://github.com/rara-bot/correlated-minds |
-| Commit | `f3950b160438` |
+| Commit | _(set after you commit)_ |
 
 Verify before you start, and again if anything looks off:
 
@@ -26,19 +26,57 @@ Upload to OSF Storage: `PREREGISTRATION.md` (the frozen one), `VALIDITY.md`, `SE
 
 ---
 
-## Title
+## Page 1 — Metadata
+
+> Already complete. Kept here so the sheet matches the form end to end.
+
+### Title
+
 ```
 Correlated Minds: State-Dependent Error Correlation Across Large Language Models in Financial Forecasting, Benchmarked Against Human Professional Forecasters
 ```
 
-## Description / Summary
+### Description / Summary
+
 ```
 Financial institutions are delegating analytical judgement to large language models from a small number of vendors. Because those models share overlapping pretraining data, their apparent diversity may not deliver genuine independence of judgement. This study measures, prospectively and daily for 15 weeks, whether nine language models across six vendor families make CORRELATED ERRORS on financial forecasting questions whose answers do not yet exist, and whether that correlation worsens under market stress and question ambiguity. The same estimator is applied to individual human forecasters from the Federal Reserve Bank of Philadelphia's Survey of Professional Forecasters, giving a direct human-versus-machine comparison of diversification headroom.
 
 The Financial Stability Board (Oct 2025), the Bank of England (Jul 2026) and the IMF (Jul 2026) have each named correlated AI-driven behaviour as a systemic risk. None of them measures it. This study supplies the measurement.
 ```
 
-## Hypotheses
+### License
+
+> OSF's default, and the right one. CC0 puts the plan text in the public domain so
+> a reviewer can quote or re-check it without asking. The MIT licence on the code
+> repository is separate and unaffected.
+
+```
+CC0 1.0 Universal
+```
+
+### Subjects
+
+> Expand the arrows and tick these three. Leaf names shift slightly between
+> taxonomy versions — pick the nearest match under each parent.
+
+```
+Physical Sciences and Mathematics > Computer Sciences > Artificial Intelligence and Robotics
+Business > Finance and Financial Management
+Physical Sciences and Mathematics > Statistics and Probability
+```
+
+### Tags
+
+> Comma-separated; OSF splits them on entry. These are what make the registration
+> findable by someone searching the systemic-risk literature rather than by name.
+
+```
+large language models, error correlation, forecasting, model diversity, systemic risk, AI concentration risk, diversification, financial forecasting, preregistration, Survey of Professional Forecasters
+```
+
+## Page 2 — Overview
+
+### Research Questions Or Hypotheses
 
 **Paste §4 verbatim — all six hypotheses, including every FALSIFIED IF
 clause. Do not summarise; those clauses are what make this a
@@ -307,17 +345,71 @@ This hypothesis can overturn the study's framing. It is registered because a
 result that survives it is worth far more than one that never faced it.
 ```
 
-## Study type
+### Foreknowledge Of Data Or Evidence
+
+> This template asks the question as eight radio buttons rather than a dropdown.
+> Select the **last** option — *"Analyses in this plan have been conducted
+> already."* Every option above it requires a certification that section 2 of the
+> attached plan contradicts: the SPF human baseline exists, was accessed, was
+> analysed, and that analysis changed the hypotheses. Over-disclosing costs a
+> label; under-disclosing costs the credibility of the whole registration.
+
 ```
-Observational study — prospective, repeated measures. No manipulation of human participants; no human subjects are involved.
+Analyses in this plan have been conducted already.
 ```
 
-## Blinding
+### Explanation Of Foreknowledge And Managing Unintended Influences
+
+> Marked optional by OSF. It is not optional here — it is what buys back the
+> "retrospective" label the option above attracts.
+
+```
+The primary data -- the language model forecasts -- do not exist at registration and cannot exist, because every question concerns an event that has not yet occurred. Collection begins 29 Aug 2026. H1, H2, H3, H5 and H6 are therefore fully prospective. Each day's forecasts are committed to a public append-only log before the outcome exists, so the claim that forecast preceded outcome is checkable from commit history rather than asserted.
+
+The highest foreknowledge level is selected because of H4, and only H4. The human benchmark is the Federal Reserve Bank of Philadelphia's Survey of Professional Forecasters (individual responses, 2000-2026), a public archive that already existed and that we analysed before registering. That analysis materially changed this plan: human forecast errors proved to be highly correlated among themselves (rho_bar 0.9961 for unemployment at the nowcast horizon), which moved the primary outcome from raw correlation to diversification headroom (N_eff - 1), and moved task selection to horizons of two quarters and beyond, where headroom is measurable at all. A units error in the first version of that measurement was found and corrected before the freeze; both the error and its effect are documented in section 2.1 of the attached plan rather than quietly repaired.
+
+The human side of the H4 comparison is therefore already computed. To stop that foreknowledge from being exploited, its values are registered here in advance and cannot be revised: at three quarters ahead, headroom 0.126 (unemployment) and 0.086 (CPI) on 7-forecaster matched panels, and 0.1297 (unemployment) and 0.0826 (CPI) matched to the AI panel size M = 9 used by H4. The structurally matched SPF RECESS benchmark is reported in section 2.3. The AI side of the comparison does not exist and cannot be computed until collection runs.
+```
+
+## Page 3 — Research Design
+
+### Study Type
+
+> Checkboxes, not a text box. Tick **Non-randomized study** and nothing else.
+> The panel is observed, not assigned; the one manipulated element (prompt
+> variant, H3) is applied to models, not to subjects.
+
+```
+Non-randomized study
+```
+
+### Intention For Causal Interpretation
+
+> Optional checkbox. Tick **Indirect inference on causal relationship(s)**.
+> H1 and H6 examine potential causal structure -- state dependence, and shared
+> lineage versus shared capability -- but neither is designed to identify a
+> specific causal effect.
+
+```
+Indirect inference on causal relationship(s)
+```
+
+### Blinding Of Experimental Treatments
+
+> Checkboxes. Tick **No blinding is involved**, then put the real answer in the
+> optional box directly below it.
+
+```
+No blinding is involved.
+```
+
+### Additional Blinding During Research Or Analysis
+
 ```
 Not applicable in the conventional sense. Structurally, outcome data cannot influence forecasts: every question is posed to every model before its answer exists in the world, and all responses are committed to a public append-only log with a timestamp on the day they are collected.
 ```
 
-## Study design
+### Study Design
 
 **Paste §3 of the plan, then the paragraph after it.**
 
@@ -439,7 +531,7 @@ correlation result for trivial reasons:
 
 ### 3.3 Inclusion criteria (fixed in advance)
 - Resolves between **3 and 120 days** after being asked.
-- Resolves **on or before 6 Dec 2026**, or it is excluded from the primary analysis.
+- Resolves **on or before 11 Dec 2026**, or it is excluded from the primary analysis.
 - Drawn from mid-ladder strikes where a strike ladder exists (proxy for genuine
   uncertainty, since Kalshi quotes are not public).
 - **Excluded:** any question where the panel's median forecast is below 0.05 or
@@ -447,7 +539,7 @@ correlation result for trivial reasons:
   compress error variance for uninteresting reasons.
 
 For Type B additionally, fixed in advance:
-- The target quarter must have an expected filing date **on or before 6 Dec 2026**.
+- The target quarter must have an expected filing date **on or before 11 Dec 2026**.
 - The company must have at least 8 usable point-in-time quarters of history under
   a single current XBRL tag.
 - Quarters reconstructed by the identity `annual − (Q1+Q2+Q3)` are **flagged as
@@ -515,47 +607,48 @@ Then add:
 Nine models across six vendor families (three of them represented at two tiers, giving three within-family pairs and 36 pairs in total), each pinned to an exact API identifier which is logged on every call so that mid-study vendor model drift is detectable. A tenth model (a second frontier-tier OpenAI model) is collected daily alongside the nine and is disclosed in section 3.1 of the attached plan, but is EXCLUDED from every primary estimate: the human comparison in H4 is matched at M = 9 against SPF headroom measured at that panel size, so folding in a tenth member would unmatch it. Any analysis using the tenth model is exploratory and labelled as such. Sampling temperature fixed at 0 for all models. The daily battery is 60% macro questions (Kalshi event contracts and scheduled statistical releases) and 40% document-grounded filing tasks (SEC EDGAR XBRL). Open questions are re-asked daily until resolution; the unit of observation is the task-day.
 ```
 
-## Randomization
+### Randomization
+
 ```
 None. Question selection follows the fixed inclusion criteria in §3.3 rather than random assignment. The 2 questions per day put to every model twice as test-retest replicates are drawn by a seeded pseudorandom generator; the seed is recorded in the public code.
 ```
 
-## Existing data
-> **Answer honestly here — this is the field reviewers check hardest.** Select
-> **"Registration prior to creation of data"** for the primary data, then paste
-> this into the explanation box:
-```
-The primary data — language model forecasts — do not exist at the time of registration and cannot exist, because every question concerns an event that has not yet occurred. Collection begins 24 Aug 2026.
+## Page 4 — Sampling
 
-Disclosed in full: one dataset used in this study DOES already exist and HAS already been analysed. The human benchmark comes from the Philadelphia Fed's Survey of Professional Forecasters (individual responses, 2000-2026), a public archive. We analysed it before registering, and that analysis materially changed this plan: it showed human forecast errors are themselves highly correlated (rho ~ 0.996 at nowcast horizons), which forced us to change the primary outcome from raw correlation to diversification headroom (N_eff - 1) and to target longer forecast horizons where headroom is measurable. This is documented in §2 of the attached plan. The measured human values are stated in advance here so they cannot be adjusted later: headroom 0.126 for unemployment and 0.086 for CPI at three quarters ahead.
-```
+### Data Collection Procedures
 
-## Data collection procedures
 ```
 An automated job runs daily at 13:10 UTC, selects that day's questions under the fixed inclusion criteria, queries all ten models (the registered nine plus the secondary frontier model) at temperature 0 with an identical prompt, and appends every response, token count and cost to public JSONL files committed to a public GitHub repository. Resolutions are ingested from official sources (statistical agency releases, SEC EDGAR filings, Kalshi settlements) once the outcome exists. Because collection and commits are automated and public, the claim that each forecast preceded its outcome is externally checkable from the commit history rather than asserted.
 ```
 
-## Sample size
+### Sample Size
+
 ```
 Target approximately 25 task-days x 9 models x 105 collection days ~ 23,625 observations in the primary panel, across roughly 400 distinct resolved questions. A further 2 task-days per day are collected in duplicate from every model as test-retest replicates (~2,100 additional observations), which are excluded from the primary panel and used only to estimate measurement noise.
 ```
 
-## Sample size rationale
+### Sample Size Rationale
+
 ```
 Powering the stress-tercile contrast in H1 requires roughly 300 task-days per tercile; the target supplies about 600, leaving margin for attrition and model failures. Separately, 400 resolved questions estimate mean pairwise error correlation precisely enough to distinguish rho = 0.996 from rho = 0.990 at no worse than 5 sigma even under strong serial dependence in the common component (10.4 sigma if task-days were i.i.d., 8.3 at AR(0.5), 5.3 at AR(0.8); because questions are re-asked daily they are NOT i.i.d., so the conservative figure is the registered one) — a distinction that matters because those two values differ by a factor of about two in practical diversification benefit despite both rounding to 1.
 ```
 
-## Stopping rule
+### Starting And Stopping Rules
+
 ```
-Calendar-based and fixed in advance, never data-dependent. Collection stops at the data freeze on 6 Dec 2026 regardless of results. No interim result may extend, shorten or otherwise alter collection.
+Calendar-based and fixed in advance, never data-dependent. Collection stops at the data freeze on 11 Dec 2026 regardless of results. No interim result may extend, shorten or otherwise alter collection.
 ```
 
-## Manipulated variables
+## Page 5 — Variables
+
+### Manipulated Variables
+
 ```
 Prompt variant (five registered variants of one question, used only for the H3 intra-model diversity arm) and model identity. No other manipulation.
 ```
 
-## Measured variables
+### Measured Variables
+
 ```
 Primary outcome: diversification headroom, headroom = N_eff - 1, where N_eff = M / (1 + (M - 1) * rho_bar) and rho_bar is mean pairwise correlation of forecast ERRORS (e_it = f_it - y_t), not of forecasts.
 
@@ -568,12 +661,16 @@ Four of the seven are recorded at ask time and cannot be reconstructed afterward
 The seven do not all point the same way: ladder distance and cross-model dispersion FALL as ambiguity rises, so H1 predicts a NEGATIVE coefficient on those two and a positive one on the other five. The predicted direction of each is registered per variable in section 4 of the attached plan, and a coefficient surviving correction in the opposite direction to the one registered counts AGAINST H1, not for it.
 ```
 
-## Indices
+### Indices
+
 ```
 N_eff is the standard effective-ensemble-size index under equicorrelation. Where N_eff and the model-free variance_reduction diverge, the equicorrelation assumption is doing work, and we report that divergence explicitly rather than concealing it behind a single number.
 ```
 
-## Statistical models
+## Page 6 — Analysis Plan
+
+### Statistical Models
+
 ```
 H1: regression of pairwise error products on standardised state variables with task-clustered standard errors; plus a top-versus-bottom stress tercile comparison of headroom.
 H2: base-rate convergence. Mean |panel median forecast - category base rate| compared across ambiguity terciles, with a block-bootstrap interval on the top-minus-bottom difference; measurable from the forecasts alone. Cross-model rationale similarity was considered and is registered as EXPLORATORY ONLY, not confirmatory: doing it honestly needs sentence embeddings plus a validation study of their own, and our rationales are capped at 25 words.
@@ -587,41 +684,51 @@ Uncertainty throughout: moving-block bootstrap, block size 5 task-days, 2000 res
 Measurement noise: sampling at temperature 0 is not fully deterministic on production APIs. Measured before collection (22 Aug 2026, 3 prompts x 4 repetitions), five of the ten models collected are exactly repeatable and five move their emitted probability by 0.033 to 0.093 on average against an identical prompt. This noise is idiosyncratic, so it dilutes measured correlations and INFLATES apparent independence -- biasing against our own hypothesis. To quantify rather than merely note it, 2 questions per day are put to every model twice, identically, at a reserved prompt variant excluded from the primary panel. From these replicates we report each model's noise floor and test-retest reliability, and report rho_bar BOTH raw and disattenuated for measurement noise (Spearman's correction). The raw value remains primary, because the correction moves the result toward our own hypothesis.
 ```
 
-## Transformations
+### Transformations
+
 ```
 None beyond those stated. State variables are standardised before entering the H1 regression. Errors are used on their native scale.
 ```
 
-## Inference criteria
+### Inference Criteria
+
 ```
 Benjamini-Hochberg control of the false discovery rate at 0.05 across the seven registered state variables for H1. Intervals are 95% block-bootstrap percentile intervals. Falsification conditions for each hypothesis are stated in §4 of the attached plan and are binding.
 
-Additionally: on 27 Sep 2026 (end of Week 5) we fit H1 on weeks 1-5 and publish a hashed, timestamped numerical out-of-sample prediction. Weeks 6-15 are a genuine holdout. The prediction is never revised, and a miss is reported as a miss.
+Additionally: on 2 Oct 2026 (end of Week 5) we fit H1 on weeks 1-5 and publish a hashed, timestamped numerical out-of-sample prediction. Weeks 6-15 are a genuine holdout. The prediction is never revised, and a miss is reported as a miss.
 ```
 
-## Data exclusion
+### Data Inclusion And Exclusion
+
 ```
-Fixed in advance: questions resolving fewer than 3 or more than 120 days after being asked; questions not resolving on or before 6 Dec 2026; and any question whose panel median forecast is below 0.05 or above 0.95 on the first day asked, since effectively settled questions compress error variance for reasons unrelated to the hypothesis.
+Fixed in advance: questions resolving fewer than 3 or more than 120 days after being asked; questions not resolving on or before 11 Dec 2026; and any question whose panel median forecast is below 0.05 or above 0.95 on the first day asked, since effectively settled questions compress error variance for reasons unrelated to the hypothesis.
 
 Failed API calls are excluded from estimation but are counted and reported. If usable coverage falls below 80% for any model, that model is reported separately and excluded from the primary panel.
 ```
 
-## Missing data
+### Missing Data
+
 ```
 Handled pairwise. Tasks are never dropped listwise, because model failures (rate limits, timeouts) cluster on busy market days — exactly the high-stress conditions where H1 lives. Listwise deletion would therefore preferentially discard the observations most relevant to the hypothesis.
 ```
 
-## Exploratory analyses
+### Other Planned Analysis
+
 ```
 Any analysis not specified above is exploratory and will be labelled as such in the paper, reported separately from the confirmatory results, and not used to support the headline claim.
 ```
 
-## Other / Notes
+## Page 7 — Other
+
+> One field, marked optional, and the page ticks green while empty. It is the only place left for the hash. Do not skip it.
+
+### Context And Additional Information
+
 > Already filled in with the real hash and repo URL — paste as-is.
 ```
 The registered plan document is also version-controlled in public. SHA-256 of the frozen plan document (PREREGISTRATION.md) is:
 
-2189f8c63af6f0d143ebb0152d7beedf3dc440d7341b77d07aac3d76c84fefce
+90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009
 
 The full commit history, all collection code, and the append-only daily data log are public at:
 

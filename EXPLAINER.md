@@ -132,7 +132,7 @@ The load is not flat across the project:
 
 **Two dates that matter:**
 - **~6 October** — the pre-registered prediction is posted publicly. After this it cannot be edited.
-- **6 December** — data freeze. Collection stops, nothing more is added, analysis is final.
+- **11 December** — data freeze. Collection stops, nothing more is added, analysis is final.
 
 **One thing cannot be rescheduled:** the fifteen-week collection window. Every other task can move.
 A week of collection not started is simply gone — you cannot buy it back later, at any price. That's
@@ -142,7 +142,7 @@ why the build is front-loaded into the first two weeks.
 
 A natural question: does everything run until late December? No — and the gap is deliberate.
 
-- **Data collection stops 6 December.**
+- **Data collection stops 11 December.**
 - **Analysis and writing run 7–31 December.**
 
 Three and a half weeks of writing sounds tight, but the analysis is *not* crammed into it. Analysis
@@ -152,9 +152,9 @@ December is the **final pass plus prose** — not doing the science from scratch
 happens 28 Sep – 22 Nov.
 
 **We get the longer panel anyway.** The collector is automated, so there's no reason to switch it off
-on 6 December. Let it keep running into 2027 at near-zero cost:
+on 11 December. Let it keep running into 2027 at near-zero cost:
 
-- The **December paper** uses data through 6 Dec — frozen, clean, finished.
+- The **December paper** uses data through 11 Dec — frozen, clean, finished.
 - The **2027 conference version** (ICLR workshops ~Feb, ICAIF'27 ~Aug) uses 25+ weeks.
 
 That beats extending the freeze. Collecting to 20 December would add two weeks of data — well into

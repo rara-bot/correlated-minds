@@ -50,7 +50,7 @@ junior-vs-senior. It does not any more.
 
 | Date | Event | Status |
 |---|---|---|
-| **6 Dec 2026** | Data freeze | Ours, registered |
+| **11 Dec 2026** | Data freeze | Ours, registered |
 | Dec 2026 | Write the paper | ~4 weeks of slack |
 | **~10 Jan 2027** | NC JSHS registration deadline | Inferred from 2025 (10 Jan 2025) [S] |
 | **Late Feb 2027** | NC JSHS, **UNC Charlotte** | 2025 was 23-24 Feb [S] |
@@ -58,7 +58,7 @@ junior-vs-senior. It does not any more.
 | **3 Apr 2027** | NCSEF state fair, NC State | [F] |
 | **8-14 May 2027** | ISEF, Los Angeles | [S] |
 
-**Nothing binds before the 6 Dec freeze.** JSHS was the only candidate that could have
+**Nothing binds before the 11 Dec freeze.** JSHS was the only candidate that could have
 -- its abstracts are due "late 2026" nationally -- and the NC region's own history puts
 registration in mid-January, not November. The freeze date is safe. Verify Region 6's
 date when it posts in mid-September; it is the one remaining unknown, and the state
@@ -179,7 +179,7 @@ costs nothing but the submission.
 
 ## 8. Open questions
 
-**Resolved 18 Aug 2026:** Charlotte NC, 9th grade. See §2 -- nothing binds before the 6 Dec freeze,
+**Resolved 18 Aug 2026:** Charlotte NC, 9th grade. See §2 -- nothing binds before the 11 Dec freeze,
 and Regeneron STS is a 2030 target, not 2028.
 
 **Still open:** the **NCSEF Region 6 fair date**, which its directors finalise in **mid-September

@@ -120,17 +120,17 @@ class TestCollectionCannotStartWithoutTheCommit:
 
 class TestDatesAgree:
     @pytest.mark.parametrize(
-        "needle", ["24 Aug 2026", "6 Dec 2026"]
+        "needle", ["29 Aug 2026", "11 Dec 2026"]
     )
     def test_key_dates_appear_in_both_documents(self, osf, prereg, needle):
         assert needle in osf
         assert needle in prereg
 
     def test_dates_match_the_code(self, prereg):
-        assert config.COLLECTION_START == "2026-08-24"
-        assert config.DATA_FREEZE == "2026-12-06"
-        assert "**Collection begins:** 24 Aug 2026" in prereg
+        assert config.COLLECTION_START == "2026-08-29"
+        assert config.DATA_FREEZE == "2026-12-11"
+        assert "**Collection begins:** 29 Aug 2026" in prereg
 
     def test_stopping_rule_is_the_registered_freeze_date(self, osf):
-        assert "data freeze on 6 Dec 2026" in osf
+        assert "data freeze on 11 Dec 2026" in osf
         assert "never data-dependent" in osf

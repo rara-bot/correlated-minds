@@ -25,8 +25,8 @@ WS1 = "ws1_prospective"
 
 class TestProjection:
     def test_collection_window_is_the_registered_one(self):
-        assert config.COLLECTION_START == "2026-08-24"
-        assert config.DATA_FREEZE == "2026-12-06"
+        assert config.COLLECTION_START == "2026-08-29"
+        assert config.DATA_FREEZE == "2026-12-11"
         assert config.collection_days() == 105
 
     def test_projection_includes_the_replicate_arm(self):

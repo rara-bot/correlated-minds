@@ -99,7 +99,7 @@ def build_prompt(
 
 
 def days_until_freeze(as_of: date) -> float:
-    """Days remaining until the pre-registered data freeze (6 Dec 2026).
+    """Days remaining until the pre-registered data freeze (11 Dec 2026).
 
     This is a hard scientific boundary, not a preference. A question resolving
     after the freeze can never be scored, so forecasts on it are unusable in the

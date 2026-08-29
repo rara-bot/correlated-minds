@@ -194,14 +194,14 @@ class TestArithmeticAndDates:
         assert models == len(config.primary_panel())
         assert days == config.collection_days()
 
-    @pytest.mark.parametrize("needle", ["24 Aug 2026", "27 Sep 2026", "6 Dec 2026"])
+    @pytest.mark.parametrize("needle", ["29 Aug 2026", "2 Oct 2026", "11 Dec 2026"])
     def test_key_dates_appear(self, doc, needle):
         assert needle in doc
 
     def test_dates_match_the_code(self):
-        assert config.COLLECTION_START == "2026-08-24"
-        assert config.CALIBRATION_END == "2026-09-27"
-        assert config.DATA_FREEZE == "2026-12-06"
+        assert config.COLLECTION_START == "2026-08-29"
+        assert config.CALIBRATION_END == "2026-10-02"
+        assert config.DATA_FREEZE == "2026-12-11"
 
     def test_registered_constants_match_the_code(self, doc):
         assert f"REPLICATES_PER_DAY = {config.REPLICATES_PER_DAY}" in doc

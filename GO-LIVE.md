@@ -1,6 +1,6 @@
 # Go-Live — from "instrument built" to "collecting"
 
-**Hard deadline: Monday 24 Aug 2026, 13:10 UTC.** That is when the first
+**Hard deadline: Monday 29 Aug 2026, 13:10 UTC.** That is when the first
 scheduled collection run fires. Everything below has to be done before it.
 
 **Total: about 50 minutes.** Roughly 15 of them are you reading the plan one last
@@ -295,7 +295,7 @@ it fails, step 8's commit did not land.
 
 **Expect seven `[done]` and `Ready. Collection can start.`**
 
-That is it. It runs itself at 13:10 UTC every day until **6 December**, committing
+That is it. It runs itself at 13:10 UTC every day until **11 December**, committing
 each day's forecasts to a public history before their outcomes exist.
 
 ---
@@ -304,11 +304,11 @@ each day's forecasts to a public history before their outcomes exist.
 
 | When | What | Why |
 |---|---|---|
-| 24 Aug, ~13:30 UTC | First real run is green | A silent failure on day one costs the whole first week before anyone notices |
+| 29 Aug, ~13:30 UTC | First real run is green | A silent failure on day one costs the whole first week before anyone notices |
 | Weekly | `data/ledger.jsonl` total | Projected **$50** against a **$110** arm cap — the projection includes the §5.4(d) replicates, because they are real calls on the same arm and excluding them is how the old $25 figure went stale. The cap is a hard stop, not a warning |
 | Weekly | Every model's coverage | Below 80% for any model and it leaves the primary panel (§3.3) |
-| **27 Sep** | Week-5 interim read | Fit H1 on weeks 1-5, publish a hashed out-of-sample prediction. Never revised, and a miss is reported as a miss |
-| **6 Dec** | Data freeze | Calendar-based, never data-dependent. Then Zenodo — `OSF.md` step 8 |
+| **2 Oct** | Week-5 interim read | Fit H1 on weeks 1-5, publish a hashed out-of-sample prediction. Never revised, and a miss is reported as a miss |
+| **11 Dec** | Data freeze | Calendar-based, never data-dependent. Then Zenodo — `OSF.md` step 8 |
 
 ---
 
@@ -325,7 +325,7 @@ each day's forecasts to a public history before their outcomes exist.
 | Workflow cannot push | Workflow permissions are not set to read/write |
 | `FREE-TIER DAILY QUOTA: 20 requests/day` | Google billing has lapsed on the key. Gemini bills through **AI Studio prepay**, not Cloud pay-as-you-go — re-enable it there, and do not swap the model without telling me: the roster is registered |
 | `load_panel: no rows admitted` | Working as designed. Rows must carry `arm="ws1_prospective"`; the pre-registration pilot carries none and is excluded (§3.5). Analyse it with `load_panel(arm="pilot")` |
-| Out of time before 24 Aug | `AsPredicted.org` — 8 questions, 10 minutes, still timestamped and public. Weaker than OSF, enormously better than nothing. Add the full OSF registration afterwards |
+| Out of time before 29 Aug | `AsPredicted.org` — 8 questions, 10 minutes, still timestamped and public. Weaker than OSF, enormously better than nothing. Add the full OSF registration afterwards |
 
 ---
 

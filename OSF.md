@@ -226,7 +226,7 @@ None. Question selection follows the fixed inclusion criteria in §3.3 rather th
 > **"Registration prior to creation of data"** for the primary data, then paste
 > this into the explanation box:
 ```
-The primary data — language model forecasts — do not exist at the time of registration and cannot exist, because every question concerns an event that has not yet occurred. Collection begins 24 Aug 2026.
+The primary data — language model forecasts — do not exist at the time of registration and cannot exist, because every question concerns an event that has not yet occurred. Collection begins 29 Aug 2026.
 
 Disclosed in full: one dataset used in this study DOES already exist and HAS already been analysed. The human benchmark comes from the Philadelphia Fed's Survey of Professional Forecasters (individual responses, 2000-2026), a public archive. We analysed it before registering, and that analysis materially changed this plan: it showed human forecast errors are themselves highly correlated (rho ~ 0.996 at nowcast horizons), which forced us to change the primary outcome from raw correlation to diversification headroom (N_eff - 1) and to target longer forecast horizons where headroom is measurable. This is documented in §2 of the attached plan. The measured human values are stated in advance here so they cannot be adjusted later: headroom 0.126 for unemployment and 0.086 for CPI at three quarters ahead.
 ```
@@ -248,7 +248,7 @@ Powering the stress-tercile contrast in H1 requires roughly 300 task-days per te
 
 ### Stopping rule
 ```
-Calendar-based and fixed in advance, never data-dependent. Collection stops at the data freeze on 6 Dec 2026 regardless of results. No interim result may extend, shorten or otherwise alter collection.
+Calendar-based and fixed in advance, never data-dependent. Collection stops at the data freeze on 11 Dec 2026 regardless of results. No interim result may extend, shorten or otherwise alter collection.
 ```
 
 ### Manipulated variables
@@ -297,12 +297,12 @@ None beyond those stated. State variables are standardised before entering the H
 ```
 Benjamini-Hochberg control of the false discovery rate at 0.05 across the seven registered state variables for H1. Intervals are 95% block-bootstrap percentile intervals. Falsification conditions for each hypothesis are stated in §4 of the attached plan and are binding.
 
-Additionally: on 27 Sep 2026 (end of Week 5) we fit H1 on weeks 1-5 and publish a hashed, timestamped numerical out-of-sample prediction. Weeks 6-15 are a genuine holdout. The prediction is never revised, and a miss is reported as a miss.
+Additionally: on 2 Oct 2026 (end of Week 5) we fit H1 on weeks 1-5 and publish a hashed, timestamped numerical out-of-sample prediction. Weeks 6-15 are a genuine holdout. The prediction is never revised, and a miss is reported as a miss.
 ```
 
 ### Data exclusion
 ```
-Fixed in advance: questions resolving fewer than 3 or more than 120 days after being asked; questions not resolving on or before 6 Dec 2026; and any question whose panel median forecast is below 0.05 or above 0.95 on the first day asked, since effectively settled questions compress error variance for reasons unrelated to the hypothesis.
+Fixed in advance: questions resolving fewer than 3 or more than 120 days after being asked; questions not resolving on or before 11 Dec 2026; and any question whose panel median forecast is below 0.05 or above 0.95 on the first day asked, since effectively settled questions compress error variance for reasons unrelated to the hypothesis.
 
 Failed API calls are excluded from estimation but are counted and reported. If usable coverage falls below 80% for any model, that model is reported separately and excluded from the primary panel.
 ```
@@ -392,7 +392,7 @@ Then tell me the URL and I'll wire it into the README and paper scaffold.
 | Registration stuck "pending" | Normal. Usually minutes, sometimes ~24h. It will appear. |
 | Realised you made a mistake after registering | You cannot edit. You can **withdraw**, which leaves a public tombstone. Better: log it in §11 of the plan as a dated deviation and explain it in the paper. Judges respect that far more than a withdrawal. |
 | Hash doesn't match on `--check` | The file changed after freezing. Tell me — don't re-freeze silently, that destroys the guarantee. |
-| Out of time before 24 Aug | Use **AsPredicted.org** instead: 8 questions, 10 minutes, still timestamped and public. Weaker than OSF, enormously better than nothing. You can add the full OSF registration later. |
+| Out of time before 29 Aug | Use **AsPredicted.org** instead: 8 questions, 10 minutes, still timestamped and public. Weaker than OSF, enormously better than nothing. You can add the full OSF registration later. |
 
 ---
 
@@ -407,7 +407,7 @@ is the entire source of the document's value.
 
 ## Step 8 — Zenodo, in December (not now)
 
-Once collection stops on 6 Dec and the paper is drafted, archive the outputs so
+Once collection stops on 11 Dec and the paper is drafted, archive the outputs so
 they are permanently citable. This is what Zenodo is genuinely better at.
 
 1. Go to **zenodo.org** → log in **with GitHub** (top right).

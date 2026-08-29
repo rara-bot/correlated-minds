@@ -414,9 +414,9 @@ TASKS_PER_DAY = 25
 REPLICATE_VARIANT = 99
 REPLICATES_PER_DAY = 2
 
-COLLECTION_START = "2026-08-24"
-CALIBRATION_END = "2026-09-27"   # end of Week 5: prediction is frozen after this
-DATA_FREEZE = "2026-12-06"
+COLLECTION_START = "2026-08-29"
+CALIBRATION_END = "2026-10-02"   # end of Week 5: prediction is frozen after this
+DATA_FREEZE = "2026-12-11"
 
 # Market-state variables for the H1 conditional test. This list must match
 # PREREGISTRATION.md 4 EXACTLY -- "fixed, no additions permitted" -- because its

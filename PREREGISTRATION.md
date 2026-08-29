@@ -4,9 +4,9 @@
 financial forecasting, benchmarked against human professional forecasters.
 
 **Status:** FROZEN. No edits permitted; changes go in section 11 as dated deviations.
-**Frozen on:** 2026-08-23 03:33 UTC
-**SHA-256 of frozen version:** `2189f8c63af6f0d143ebb0152d7beedf3dc440d7341b77d07aac3d76c84fefce`
-**Collection begins:** 24 Aug 2026 · **Calibration ends:** 27 Sep 2026 · **Data freeze:** 6 Dec 2026
+**Frozen on:** 2026-08-29 03:54 UTC
+**SHA-256 of frozen version:** `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009`
+**Collection begins:** 29 Aug 2026 · **Calibration ends:** 2 Oct 2026 · **Data freeze:** 11 Dec 2026
 
 > Nothing in this document may be edited after the freeze. Any change after that
 > point goes in §11 as a dated, numbered deviation, with the reason. A study that
@@ -318,7 +318,7 @@ correlation result for trivial reasons:
 
 ### 3.3 Inclusion criteria (fixed in advance)
 - Resolves between **3 and 120 days** after being asked.
-- Resolves **on or before 6 Dec 2026**, or it is excluded from the primary analysis.
+- Resolves **on or before 11 Dec 2026**, or it is excluded from the primary analysis.
 - Drawn from mid-ladder strikes where a strike ladder exists (proxy for genuine
   uncertainty, since Kalshi quotes are not public).
 - **Excluded:** any question where the panel's median forecast is below 0.05 or
@@ -326,7 +326,7 @@ correlation result for trivial reasons:
   compress error variance for uninteresting reasons.
 
 For Type B additionally, fixed in advance:
-- The target quarter must have an expected filing date **on or before 6 Dec 2026**.
+- The target quarter must have an expected filing date **on or before 11 Dec 2026**.
 - The company must have at least 8 usable point-in-time quarters of history under
   a single current XBRL tag.
 - Quarters reconstructed by the identity `annual − (Q1+Q2+Q3)` are **flagged as
@@ -686,7 +686,7 @@ intervals are reported for every primary estimate, always together. Where they
 disagree materially, the event-clustered interval governs the claim.
 
 ### 5.3 The out-of-sample prediction
-On **27 Sep 2026** (end of Week 5) we fit H1 on weeks 1–5, then publish a hashed,
+On **2 Oct 2026** (end of Week 5) we fit H1 on weeks 1–5, then publish a hashed,
 timestamped numerical prediction of the form:
 
 > "On the next macro release with |surprise| above the 80th percentile,
@@ -722,7 +722,7 @@ by the temperature requirement in §9 -- restored logprob support and with it th
 four-model coverage this paragraph assumes.
 
 **(b) Horizon drift toward the freeze.** Eligible questions must resolve on or
-before 6 Dec 2026, so the maximum available horizon shrinks by one day per day
+before 11 Dec 2026, so the maximum available horizon shrinks by one day per day
 and reaches zero at the freeze. Since §2 shows nowcasts saturate, an unmanaged
 panel drifts into exactly the regime where nothing is measurable, *as the sample
 grows*. Pre-committed: **long-horizon enrolment is front-loaded** — questions

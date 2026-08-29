@@ -112,7 +112,7 @@ ID is wrong.
 
 ## Step 4 — Freeze the pre-registration (~10 min)
 
-**Do this before collection starts on 24 Aug. It cannot be undone.**
+**Do this before collection starts on 29 Aug. It cannot be undone.**
 
 ```bash
 ./.venv/bin/python scripts/freeze_prereg.py --freeze
@@ -211,7 +211,7 @@ outcome did.
 `scripts/preflight.py` is the single source of truth for this list — it reads the
 real state rather than your memory of it.
 
-Then it runs on its own until **6 December**.
+Then it runs on its own until **11 December**.
 
 ---
 
