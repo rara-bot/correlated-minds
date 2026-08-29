@@ -8,7 +8,7 @@ regenerate rather than hand-editing, or the two will disagree.
 | Frozen | 2026-08-29 03:54 UTC |
 | SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
 | Repo | https://github.com/rara-bot/correlated-minds |
-| Commit | _(set after you commit)_ |
+| Commit | `a300cb58b593` |
 
 Verify before you start, and again if anything looks off:
 
