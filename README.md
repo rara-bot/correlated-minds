@@ -7,6 +7,23 @@ A prospective, pre-registered study measuring error correlation across nine
 large language models on real financial forecasting questions, benchmarked
 against human professional forecasters.
 
+**Registered:** [10.5281/zenodo.22220263](https://doi.org/10.5281/zenodo.22220263)
+· plan frozen 2026-08-29 03:54 UTC
+· SHA-256 `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009`
+
+The analysis plan was frozen and hashed before any study data existed, and the
+same document is recorded in three independent places: committed publicly to
+this repository at `a300cb58b593` on 29 Aug 2026, deposited on Zenodo with the
+DOI above on 1 Sep 2026, and submitted to OSF Registries on 29 Aug 2026 (pending
+review at the time of writing; it becomes the registration of record when it
+clears). Verify the plan has not changed since freezing with:
+
+```bash
+./.venv/bin/python scripts/freeze_prereg.py --check
+```
+
+Expect `status : intact, matches recorded hash`.
+
 ---
 
 ## The idea in one paragraph
@@ -64,7 +81,7 @@ git commit makes the timestamp externally checkable rather than merely asserted.
 
 ## Status
 
-**Week 0 of 19 — instrument built, collection not yet started.**
+**Instrument built and registered; daily collection begins at the next 13:10 UTC run.** Registration cleared 1 Sep after a registry delay, so collection starts three days into the registered 29 Aug – 11 Dec window; the window itself is unchanged.
 
 | Component | Status |
 |---|---|
@@ -76,7 +93,7 @@ git commit makes the timestamp externally checkable rather than merely asserted.
 | SPF human baseline | ✅ live |
 | Multi-provider LLM client | ✅ built, mock-tested |
 | Panel assembly → analysis | ✅ end-to-end verified |
-| Pre-registration | ✅ drafted and audited, awaiting freeze |
+| Pre-registration | ✅ frozen, hashed, publicly registered (Zenodo DOI) |
 | Daily automation | ✅ workflow written |
 
 ---
