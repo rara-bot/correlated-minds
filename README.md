@@ -7,16 +7,18 @@ A prospective, pre-registered study measuring error correlation across nine
 large language models on real financial forecasting questions, benchmarked
 against human professional forecasters.
 
-**Registered:** [10.5281/zenodo.22220263](https://doi.org/10.5281/zenodo.22220263)
-· plan frozen 2026-08-29 03:54 UTC
+**Pre-registered:** [osf.io/x6kqg](https://osf.io/x6kqg/) · registered 2026-08-29 14:44 UTC
+· mirror [10.5281/zenodo.22220263](https://doi.org/10.5281/zenodo.22220263)
 · SHA-256 `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009`
 
 The analysis plan was frozen and hashed before any study data existed, and the
-same document is recorded in three independent places: committed publicly to
-this repository at `a300cb58b593` on 29 Aug 2026, deposited on Zenodo with the
-DOI above on 1 Sep 2026, and submitted to OSF Registries on 29 Aug 2026 (pending
-review at the time of writing; it becomes the registration of record when it
-clears). Verify the plan has not changed since freezing with:
+same document is recorded in three independent places: registered on OSF
+Registries at the link above, timestamped 29 Aug 2026 — **three days before the
+first observation was collected on 1 Sep**; committed publicly to this
+repository at `a300cb58b593` on 29 Aug 2026; and deposited on Zenodo with the
+DOI above on 1 Sep 2026. The three records describe one document, and the
+ordering of plan and data is checkable against all of them independently.
+Verify the plan has not changed since freezing with:
 
 ```bash
 ./.venv/bin/python scripts/freeze_prereg.py --check

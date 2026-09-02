@@ -449,3 +449,13 @@
 {"ts": "2026-09-01T17:21:42.908322+00:00", "model": "gemini_flash_pro", "arm": "ws1_prospective", "input_tokens": 331, "output_tokens": 72, "cached_input_tokens": 0, "batch": false, "usd": 0.0011445000000000001}
 {"ts": "2026-09-01T17:21:44.133281+00:00", "model": "gpt_frontier", "arm": "ws1_prospective", "input_tokens": 297, "output_tokens": 59, "cached_input_tokens": 0, "batch": false, "usd": 0.001066}
 {"ts": "2026-09-01T17:21:45.106991+00:00", "model": "deepseek", "arm": "ws1_prospective", "input_tokens": 301, "output_tokens": 50, "cached_input_tokens": 0, "batch": false, "usd": 0.000100969}
+{"ts": "2026-09-02T03:47:51.442866+00:00", "model": "claude_sonnet", "arm": "pilot", "input_tokens": 45, "output_tokens": 38, "cached_input_tokens": 0, "batch": false, "usd": 0.000705}
+{"ts": "2026-09-02T03:47:52.454864+00:00", "model": "claude_haiku", "arm": "pilot", "input_tokens": 45, "output_tokens": 38, "cached_input_tokens": 0, "batch": false, "usd": 0.00023500000000000002}
+{"ts": "2026-09-02T03:47:55.118149+00:00", "model": "gpt_mid", "arm": "pilot", "input_tokens": 44, "output_tokens": 31, "cached_input_tokens": 0, "batch": false, "usd": 6.720000000000001e-05}
+{"ts": "2026-09-02T03:47:55.934871+00:00", "model": "gemini_flash", "arm": "pilot", "input_tokens": 36, "output_tokens": 30, "cached_input_tokens": 0, "batch": false, "usd": 8.580000000000001e-05}
+{"ts": "2026-09-02T03:47:56.976524+00:00", "model": "gpt_small", "arm": "pilot", "input_tokens": 44, "output_tokens": 31, "cached_input_tokens": 0, "batch": false, "usd": 1.6800000000000002e-05}
+{"ts": "2026-09-02T03:47:57.982928+00:00", "model": "gemini_flash_pro", "arm": "pilot", "input_tokens": 36, "output_tokens": 30, "cached_input_tokens": 0, "batch": false, "usd": 0.000324}
+{"ts": "2026-09-02T03:47:59.147844+00:00", "model": "llama", "arm": "pilot", "input_tokens": 71, "output_tokens": 31, "cached_input_tokens": 0, "batch": false, "usd": 1.702e-05}
+{"ts": "2026-09-02T03:48:01.332463+00:00", "model": "qwen", "arm": "pilot", "input_tokens": 44, "output_tokens": 30, "cached_input_tokens": 0, "batch": false, "usd": 2.7839999999999998e-05}
+{"ts": "2026-09-02T03:48:03.689045+00:00", "model": "deepseek", "arm": "pilot", "input_tokens": 47, "output_tokens": 32, "cached_input_tokens": 0, "batch": false, "usd": 2.5443e-05}
+{"ts": "2026-09-02T03:48:04.853220+00:00", "model": "gpt_frontier", "arm": "pilot", "input_tokens": 44, "output_tokens": 31, "cached_input_tokens": 0, "batch": false, "usd": 0.00033600000000000004}
