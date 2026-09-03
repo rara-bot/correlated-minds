@@ -599,7 +599,34 @@ def ask(
 
         parsed = _extract_json(text)
         if parsed is None:
-            obs.error = (obs.error or "") + " | unparseable response"
+            # Name the cause, not the symptom. A reply cut off at the token cap
+            # parses to None in exactly the same way malformed JSON does, but the
+            # two mean opposite things: one is a model that will not follow the
+            # output format, the other is a model that had more to say than
+            # MAX_OUTPUT_TOKENS allowed. Told apart, the first is a roster
+            # problem and the second is a budget dial.
+            #
+            # This is not hypothetical. `claude_sonnet` lost 7 observations
+            # across 1-2 Sep 2026 -- every one of them billed at exactly 400
+            # output tokens against MAX_OUTPUT_TOKENS = 400, every one of them
+            # filed as "unparseable response", and the coverage report read as
+            # though Sonnet could not emit JSON. It emits JSON perfectly well in
+            # 60-105 tokens; it occasionally reasons out loud first and runs out
+            # of room before reaching the object.
+            #
+            # Read from the billed output count rather than a stop-reason field
+            # because the four providers spell that four different ways, and a
+            # count we already record cannot drift out of sync with one we do
+            # not. `google` never reaches here -- it raises on finishReason
+            # first (see GoogleProvider.complete) -- which is why this stays a
+            # check in the shared path rather than a fifth per-provider branch.
+            if output_tokens and output_tokens >= max_tokens:
+                obs.error = (obs.error or "") + (
+                    f" | truncated at max_tokens={max_tokens}"
+                    f" ({output_tokens} output tokens billed, no JSON reached)"
+                )
+            else:
+                obs.error = (obs.error or "") + " | unparseable response"
             return obs
 
         obs.forecast = _coerce_probability(parsed.get("probability"))
