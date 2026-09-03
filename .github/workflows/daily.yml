@@ -46,6 +46,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write     # the alarm below files a durable issue when a day is at risk
 
 jobs:
   collect:
@@ -134,7 +135,72 @@ jobs:
         # run that failed to collect is exactly the run whose continuity report
         # matters most.
         if: always()
-        run: python scripts/check_days.py
+        run: python scripts/check_days.py --json
+
+      - name: Raise an alarm if a day is at risk
+        # A failed run sends one email, and ten of those went past unread in
+        # August. An issue is durable, lands in the same place as the study, and
+        # is still there tomorrow. Deduplicated per day so a bad stretch does not
+        # bury the repo in near-identical alarms.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY' > alarm.txt || true
+          import json, os, pathlib
+          status = os.environ.get("JOB_STATUS", "")
+          try:
+              c = json.loads(pathlib.Path("continuity.json").read_text())
+          except Exception:
+              c = {}
+          reasons = []
+          if status not in ("success", ""):
+              reasons.append(f"the collection job finished `{status}`")
+          if c.get("today_state") == "late" and not c.get("today_collected"):
+              reasons.append(f"{c.get('today')} is past the cron plus its usual delay and still has no observations")
+          for m in c.get("below_floor", []):
+              cov = c.get("coverage_window", {}).get(m)
+              reasons.append(f"`{m}` is at {cov:.0%} over the last {c.get('window_days')} collected days, under the 80% floor of PREREGISTRATION.md 3.3")
+          # A day older than yesterday is permanently lost and was alarmed on at
+          # the time. Repeating it every morning for the rest of the study would
+          # turn the alarm into wallpaper; it belongs in PREREGISTRATION.md 11
+          # as a dated deviation, not in a fresh issue each day.
+          import datetime as _dt
+          try:
+              _cut = (_dt.date.fromisoformat(c["today"]) - _dt.timedelta(days=1)).isoformat()
+          except Exception:
+              _cut = ""
+          for m in c.get("missing_days", []):
+              if m == c.get("today") or m < _cut:
+                  continue          # already reported as late, or long since lost
+              reasons.append(f"{m} has no observations and cannot be recovered")
+          # Print nothing at all when there is nothing wrong. A bare newline is a
+          # non-empty file to `test -s`, which would file an alarm every day and
+          # make the alarm worthless within a week.
+          if reasons:
+              print("\n".join(f"- {r}" for r in reasons))
+          PY
+          if [ ! -s alarm.txt ]; then
+            echo "nothing to raise"
+            exit 0
+          fi
+          DAY="$(date -u +%Y-%m-%d)"
+          TITLE="collection at risk: ${DAY}"
+          BODY="$(cat alarm.txt)
+
+          Run: ${RUN_URL}
+
+          A day that is still missing tonight is missing permanently -- collection
+          cannot be back-dated. If today has not landed, re-run it now:
+          Actions -> daily-collection -> Run workflow."
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi
 
       - name: Panel health
         run: |

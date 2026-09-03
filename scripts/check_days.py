@@ -43,6 +43,14 @@ WINDOW_END = date(2026, 12, 11)  # the registered freeze date
 CRON_UTC = time(13, 10)
 DELAY_GRACE_HOURS = 10
 
+# Coverage is judged over a trailing window rather than over all history. A
+# model that lost a single day early on carries that day in its cumulative
+# figure for weeks, which would either fire a standing alarm or -- far worse --
+# teach us to ignore the one that matters. The question worth alarming on is
+# "is this model failing *now*", and that is a rolling question.
+COVERAGE_WINDOW_DAYS = 7
+COVERAGE_MIN_DAYS = 3          # too few days to judge a trend
+
 
 def _read(path: Path):
     if not path.exists():
@@ -55,7 +63,14 @@ def _read(path: Path):
     return rows
 
 
+def _coverage(rows) -> tuple[int, int]:
+    good = sum(1 for o in rows
+               if o.get("forecast") is not None and not o.get("error"))
+    return good, len(rows)
+
+
 def main() -> int:
+    emit_json = "--json" in sys.argv
     tasks = _read(TASKS)
     arm_of = {t["task_id"]: t.get("arm") for t in tasks}
 
@@ -114,24 +129,41 @@ def main() -> int:
         print(f"{day:<12}{len(rows):>6}{len(usable):>8}{len(models):>8}")
 
     # ---- coverage against the 3.3 floor -------------------------------------
+    collected_days = [d for d in days]
+    window = collected_days[-COVERAGE_WINDOW_DAYS:]
+    judgeable = len(window) >= COVERAGE_MIN_DAYS
+
     seen: dict[str, int] = defaultdict(int)
     good: dict[str, int] = defaultdict(int)
-    for rows in by_day.values():
+    wseen: dict[str, int] = defaultdict(int)
+    wgood: dict[str, int] = defaultdict(int)
+    for day, rows in by_day.items():
         for o in rows:
+            ok = o.get("forecast") is not None and not o.get("error")
             seen[o["model_key"]] += 1
-            if o.get("forecast") is not None and not o.get("error"):
-                good[o["model_key"]] += 1
+            good[o["model_key"]] += ok
+            if day in window:
+                wseen[o["model_key"]] += 1
+                wgood[o["model_key"]] += ok
 
     print()
-    print("coverage to date (floor 80%, PREREGISTRATION.md 3.3)")
+    print(f"coverage -- floor {COVERAGE_FLOOR:.0%} (PREREGISTRATION.md 3.3), "
+          f"judged on the last {len(window)} collected day(s)")
+    if not judgeable:
+        print(f"  (only {len(window)} day(s) so far; a trend needs "
+              f"{COVERAGE_MIN_DAYS} -- shown, not alarmed on)")
+    print(f"  {'model':<18}{'window':>13}{'all time':>16}")
     below = []
     for model in sorted(seen):
+        wfrac = wgood[model] / wseen[model] if wseen[model] else 0.0
         frac = good[model] / seen[model]
         mark = ""
-        if frac < COVERAGE_FLOOR:
-            below.append(model)
-            mark = "   <-- BELOW FLOOR"
-        print(f"  {model:<18}{good[model]:>4}/{seen[model]:<4}{frac:>7.1%}{mark}")
+        if wfrac < COVERAGE_FLOOR:
+            mark = "   <-- BELOW FLOOR" if judgeable else "   <-- low, too early to judge"
+            if judgeable:
+                below.append(model)
+        print(f"  {model:<18}{wgood[model]:>4}/{wseen[model]:<3}{wfrac:>6.1%}"
+              f"{good[model]:>7}/{seen[model]:<4}{frac:>6.1%}{mark}")
 
     # ---- verdict ------------------------------------------------------------
     print()
@@ -165,8 +197,29 @@ def main() -> int:
 
     if not problems and not below:
         collected = len(expected) - len(missing)
-        print(f"Unbroken: {collected} day(s) collected, no gaps, "
-              f"every model above the floor.")
+        low = [m for m in sorted(wseen)
+               if wseen[m] and wgood[m] / wseen[m] < COVERAGE_FLOOR]
+        if low:
+            # Accurate rather than reassuring: these models ARE under the floor,
+            # we simply do not yet have enough days to call it a fault.
+            print(f"Unbroken: {collected} day(s) collected, no gaps. "
+                  f"Watching {', '.join(low)} (under the floor, "
+                  f"{len(window)}/{COVERAGE_MIN_DAYS} days needed to judge).")
+        else:
+            print(f"Unbroken: {collected} day(s) collected, no gaps, "
+                  f"every model above the floor.")
+
+    if emit_json:
+        Path("continuity.json").write_text(json.dumps({
+            "today": today.isoformat(),
+            "today_state": today_state,
+            "today_collected": today.isoformat() not in missing,
+            "missing_days": hard_missing,
+            "below_floor": below,
+            "window_days": len(window),
+            "coverage_window": {m: round(wgood[m] / wseen[m], 4)
+                                for m in sorted(wseen) if wseen[m]},
+        }, indent=2), encoding="utf-8")
 
     # Only a LATE today is actionable enough to fail on. A historic gap is
     # permanent, and failing forever on it would train the alarm to be ignored;

@@ -13,3 +13,6 @@ run-summary.json
 # it is not part of the study and 32MB of build artifacts would bury the research.
 usaco/
 .DS_Store
+
+# scratch output of scripts/check_days.py --json
+continuity.json
