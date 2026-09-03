@@ -13,7 +13,20 @@ on:
   schedule:
     # 13:10 UTC daily = 09:10 ET, after US macro releases (08:30 ET) and before
     # the equity open, so the market-state snapshot is same-day and meaningful.
+    #
+    # GitHub treats this as a hint, not a promise: across the first twelve
+    # scheduled runs the job actually started between 30 minutes and 10 hours
+    # late. That is ordinary queueing for scheduled workflows, and it is not
+    # something the repository can fix.
     - cron: "10 13 * * *"
+    # Second attempt, same UTC day. `neff.collect` is idempotent -- observation
+    # ids are content-addressed from (task_id, model_key, prompt_variant) -- so
+    # if the first run succeeded this one finds nothing to do, spends nothing,
+    # and commits nothing. If the first run died on something transient, this
+    # one still saves the day. It cannot recover an *earlier* day and must not
+    # try: `neff.collect` exposes no `--as-of`, because a forecast collected
+    # today and stamped yesterday would be a fabricated observation.
+    - cron: "0 20 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -113,6 +126,15 @@ jobs:
           if s["pct_used"] > 60:
               print(f"::warning::budget {s['pct_used']}% consumed")
           PY
+
+      - name: Is the daily record still unbroken?
+        # The study's evidence is the *continuity* of the record, not any single
+        # day. Surfaced on every run so a hole is noticed while a manual re-run
+        # can still fill it -- by tonight it is permanent. `always()` because the
+        # run that failed to collect is exactly the run whose continuity report
+        # matters most.
+        if: always()
+        run: python scripts/check_days.py
 
       - name: Panel health
         run: |
