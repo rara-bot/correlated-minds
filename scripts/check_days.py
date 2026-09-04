@@ -51,6 +51,16 @@ DELAY_GRACE_HOURS = 10
 COVERAGE_WINDOW_DAYS = 7
 COVERAGE_MIN_DAYS = 3          # too few days to judge a trend
 
+# A model is alarmed on only when it is below the floor over the window AND was
+# still below it on the most recent collected day. The window alone is not
+# enough: qwen lost all of 1 Sep to an upstream routing fault and has been at
+# 100% every day since, yet its 7-day figure stays under 80% until that day
+# ages out. Waking someone each morning for a fault that fixed itself is how an
+# alarm stops being read -- and the alarm nobody reads is the one that misses
+# the day that actually matters. Models under the floor on the window alone are
+# still printed, under "watching", because the 3.3 consequence is real even
+# when the cause is historic.
+
 
 def _read(path: Path):
     if not path.exists():
@@ -133,10 +143,13 @@ def main() -> int:
     window = collected_days[-COVERAGE_WINDOW_DAYS:]
     judgeable = len(window) >= COVERAGE_MIN_DAYS
 
+    latest = window[-1] if window else None
     seen: dict[str, int] = defaultdict(int)
     good: dict[str, int] = defaultdict(int)
     wseen: dict[str, int] = defaultdict(int)
     wgood: dict[str, int] = defaultdict(int)
+    lseen: dict[str, int] = defaultdict(int)
+    lgood: dict[str, int] = defaultdict(int)
     for day, rows in by_day.items():
         for o in rows:
             ok = o.get("forecast") is not None and not o.get("error")
@@ -145,6 +158,9 @@ def main() -> int:
             if day in window:
                 wseen[o["model_key"]] += 1
                 wgood[o["model_key"]] += ok
+            if day == latest:
+                lseen[o["model_key"]] += 1
+                lgood[o["model_key"]] += ok
 
     print()
     print(f"coverage -- floor {COVERAGE_FLOOR:.0%} (PREREGISTRATION.md 3.3), "
@@ -152,17 +168,24 @@ def main() -> int:
     if not judgeable:
         print(f"  (only {len(window)} day(s) so far; a trend needs "
               f"{COVERAGE_MIN_DAYS} -- shown, not alarmed on)")
-    print(f"  {'model':<18}{'window':>13}{'all time':>16}")
-    below = []
+    print(f"  {'model':<18}{'window':>13}{'latest day':>15}{'all time':>16}")
+    below, watching = [], []
     for model in sorted(seen):
         wfrac = wgood[model] / wseen[model] if wseen[model] else 0.0
+        lfrac = lgood[model] / lseen[model] if lseen[model] else 1.0
         frac = good[model] / seen[model]
         mark = ""
         if wfrac < COVERAGE_FLOOR:
-            mark = "   <-- BELOW FLOOR" if judgeable else "   <-- low, too early to judge"
-            if judgeable:
+            if not judgeable:
+                mark = "   <-- low, too early to judge"
+            elif lfrac < COVERAGE_FLOOR:
                 below.append(model)
+                mark = "   <-- BELOW FLOOR, STILL FAILING"
+            else:
+                watching.append(model)
+                mark = "   <-- under floor, but recovered"
         print(f"  {model:<18}{wgood[model]:>4}/{wseen[model]:<3}{wfrac:>6.1%}"
+              f"{lgood[model]:>6}/{lseen[model]:<3}{lfrac:>6.1%}"
               f"{good[model]:>7}/{seen[model]:<4}{frac:>6.1%}{mark}")
 
     # ---- verdict ------------------------------------------------------------
@@ -191,20 +214,27 @@ def main() -> int:
                 print(f"  TODAY is not due until {CRON_UTC:%H:%M} UTC. Not a fault.")
 
     if below:
-        print(f"BELOW COVERAGE FLOOR: {', '.join(below)}")
-        print("  A model under 80% leaves the primary panel (3.3). Check whether")
-        print("  this is one bad day already recovered, or an ongoing fault.")
+        print(f"BELOW COVERAGE FLOOR AND STILL FAILING: {', '.join(below)}")
+        print("  Under 80% across the window and again on the most recent day.")
+        print("  A model under the floor leaves the primary panel (3.3).")
+
+    if watching:
+        print(f"WATCHING (under floor, recovered): {', '.join(watching)}")
+        print(f"  Below 80% across the last {len(window)} collected days, but at or")
+        print("  above it on the most recent one -- an old bad day still inside the")
+        print("  window. Not alarmed on. It clears as the bad day ages out.")
 
     if not problems and not below:
         collected = len(expected) - len(missing)
-        low = [m for m in sorted(wseen)
-               if wseen[m] and wgood[m] / wseen[m] < COVERAGE_FLOOR]
+        low = watching or [m for m in sorted(wseen)
+                           if wseen[m] and wgood[m] / wseen[m] < COVERAGE_FLOOR]
         if low:
-            # Accurate rather than reassuring: these models ARE under the floor,
-            # we simply do not yet have enough days to call it a fault.
+            # Accurate rather than reassuring: these models ARE under the floor
+            # over the window, whether or not the cause is still live.
+            why = ("recovered since" if watching
+                   else f"only {len(window)} of {COVERAGE_MIN_DAYS} days to judge")
             print(f"Unbroken: {collected} day(s) collected, no gaps. "
-                  f"Watching {', '.join(low)} (under the floor, "
-                  f"{len(window)}/{COVERAGE_MIN_DAYS} days needed to judge).")
+                  f"Watching {', '.join(low)} -- under the floor, {why}.")
         else:
             print(f"Unbroken: {collected} day(s) collected, no gaps, "
                   f"every model above the floor.")
