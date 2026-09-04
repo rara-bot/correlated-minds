@@ -243,29 +243,42 @@ All four are covered by tests (`tests/test_edgar.py`).
    unaided. We make no claim about profitability; we measure independence of
    judgement.
 
-5. **Missing observations are not missing at random.** `MAX_OUTPUT_TOKENS` is
-   400. Most of the panel answers in 60–105 output tokens, but `claude_sonnet`
-   sometimes reasons in prose before emitting the object and is cut off before
-   it gets there: 7 lost observations across 1–2 Sep 2026, every one billed at
-   exactly 400 tokens. Two things follow, and only the first is comfortable.
+5. **Days 1–2 carry a non-random hole, and the instrument changed to stop it.**
+   `MAX_OUTPUT_TOKENS` was 400 for the first two collection days. Most of the
+   panel answers in 60–105 output tokens, but `claude_sonnet` sometimes reasons
+   in prose before emitting the object and was cut off before reaching it: 7
+   lost observations across 1–2 Sep 2026, every one billed at exactly 400.
 
-   The comfortable one is that this is a token budget, not a model that cannot
-   follow instructions — Sonnet's successful replies are perfectly formed. As of
-   3 Sep it is diagnosed as such in the log rather than filed under
-   `unparseable response`, so the coverage figure can be read for what it is.
+   The loss was **correlated with the question**. 1 Sep truncated on CAT, JNJ,
+   JPM, PG and UNH; 2 Sep on JPM and PG — both repeats. A question that invites
+   longer reasoning invites it again the next day, so the same items dropped out
+   repeatedly rather than a random 13% of the sample, concentrating the loss on
+   the harder end — precisely the subpopulation H2 is about.
 
-   The uncomfortable one is that the loss is **correlated with the question**.
-   1 Sep truncated on CAT, JNJ, JPM, PG and UNH; 2 Sep truncated on JPM and PG —
-   both of them repeats. A question that invites longer reasoning invites it
-   again the next day, so the same items drop out repeatedly rather than a
-   random 13% of the sample. So Sonnet's missing rows concentrate
-   on the harder questions — which is precisely the subpopulation H2 is about,
-   and precisely where a correlation estimate is least able to afford a biased
-   sample. Coverage remains above the §3.3 floor and Sonnet stays in the panel,
-   so this is a bias to report, not a model to drop. Any published `rho_bar`
-   that includes `claude_sonnet` should carry a sensitivity check computed
-   without it.
+   The cap was raised to 1000 on 3 Sep 2026 (§11, deviation 1). `max_tokens` is
+   a stopping rule rather than a sampling parameter — it cannot change the
+   distribution a model generates from, only halt it early — so replies that
+   already finished inside 400 tokens are unaffected and the discontinuity is
+   confined to replies that were being discarded. It is still a mid-collection
+   change to the instrument, on 2 of ~101 days.
 
+   **What this means for the analysis.** Any `rho_bar` including `claude_sonnet`
+   should carry a sensitivity check computed without it, and the 1–2 Sep rows
+   should be reported as collected under the smaller cap. Coverage never fell
+   below the §3.3 floor, so this is a bias to state, not a model to drop.
+
+
+6. **2026-09-03 carries 30 tasks, not 25.** A backup collection run added that
+   day to protect against a transient first-run failure re-selected questions
+   instead of reusing the ones already registered, and picked up 5 Kalshi
+   housing-start ladder rungs that had appeared during the afternoon. All 30
+   tasks were registered before any outcome existed and all 320 observations are
+   real, so nothing is back-dated or double-counted — but 5 of that day's tasks
+   carry a market state 5 hours removed from the other 25. Fixed the same day
+   (§11, deviation 2); the rows are kept rather than deleted, because removing
+   real pre-outcome forecasts after the fact is a worse failure than the
+   imbalance. **Day-level analyses should weight by task count rather than
+   assume a constant 25.**
 ---
 
 ## 8. The one-sentence answer for a judge

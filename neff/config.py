@@ -374,7 +374,25 @@ def families() -> Dict[str, List[str]]:
 # modal judgement. Prompt-variant diversity (H3) is manipulated explicitly at
 # the prompt level, never accidentally through sampling randomness.
 TEMPERATURE = 0.0
-MAX_OUTPUT_TOKENS = 400
+
+# Raised 400 -> 1000 on 2026-09-03; PREREGISTRATION.md 11, deviation 1.
+#
+# At 400 this silently deleted data. `claude_sonnet` sometimes reasons in prose
+# before emitting the object, and 7 replies across 1-2 Sep were cut off before
+# reaching it -- every one billed at exactly 400 output tokens. Worse than the
+# volume was the shape: the same questions truncated on both days, so the loss
+# landed on the items that invite long reasoning rather than on a random 13%.
+#
+# Raising a stopping rule is not the same kind of change as raising a sampling
+# parameter. `max_tokens` cannot alter the distribution a model draws from; it
+# can only halt generation early. A reply that finished inside 400 tokens is
+# unaffected -- and the panel's median is 60 to 105 -- so what changes is
+# confined to the replies that were being discarded anyway.
+#
+# The ceiling still binds: it is a guard against a runaway response, not a
+# budget. Spend is billed on real tokens, which is why observed cost is ~$0.21
+# a day against a $110 arm cap.
+MAX_OUTPUT_TOKENS = 1000
 
 # !! ROSTER CONSTRAINT, discovered 19 Aug 2026.
 # Newer reasoning models are REMOVING the sampling parameters: temperature,

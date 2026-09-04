@@ -24,7 +24,15 @@ Verify the plan has not changed since freezing with:
 ./.venv/bin/python scripts/freeze_prereg.py --check
 ```
 
-Expect `status : intact, matches recorded hash`.
+Before any deviation was logged this printed `status : intact, matches recorded
+hash`. It now prints `status : intact outside section 11`, and lists the
+deviations, because the plan **requires** post-freeze changes to be written into
+§11 and writing one necessarily changes the file. The registered hash above is
+still the hash of the document as registered; what the check now also verifies
+is that everything outside the §11 table is byte-identical to it. Prose appended
+anywhere, a row added to any other table, or a single character altered
+elsewhere all still fail. The frozen text is public at commit `a300cb58b593` if
+you would rather diff it yourself than trust the check.
 
 ---
 

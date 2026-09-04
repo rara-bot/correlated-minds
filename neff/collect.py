@@ -27,6 +27,7 @@ import json
 import random
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import fields
 from datetime import date, datetime, timezone
 from typing import Dict, List, Optional
 
@@ -43,7 +44,7 @@ from .config import (
 )
 from .ledger import Ledger
 from .providers import ask
-from .store import JsonlStore, Observation, Resolution, observation_id
+from .store import JsonlStore, Observation, Resolution, Task, observation_id
 from .tasks import build_daily_tasks, summarize
 
 
@@ -69,8 +70,38 @@ def run_day(
     _log(f"collection for {today} | {len(models)} models | arm={config.arm}")
     _log(f"budget: ${ledger.spent:.2f} spent of ${ledger.cap_usd:.2f}")
 
-    # 1. Build today's questions.
-    tasks = build_daily_tasks(as_of=today, max_tasks=config.tasks_per_day)
+    # 1. Today's questions.
+    #
+    # A SECOND RUN ON THE SAME DAY MUST NOT RE-SELECT THEM.
+    #
+    # `build_daily_tasks` picks from live sources, so it is not stable within a
+    # day: called at 17:04 and again at 22:24 it can return questions that did
+    # not exist at the first call. On 3 Sep 2026 that is exactly what happened --
+    # the 20:00 UTC backup run added 5 Kalshi housing-start rungs on top of the
+    # morning's 25, and the day closed with 30 tasks carrying a market-state
+    # snapshot five hours removed from the rest of it.
+    #
+    # The backup exists to finish an interrupted day, never to extend a finished
+    # one. So if this day already has registered tasks, those tasks ARE the day,
+    # and this run's only job is to fill in observations still missing against
+    # them. Only a day with nothing registered at all gets a fresh selection.
+    _TASK_FIELDS = {f.name for f in fields(Task)}
+    already_registered = [
+        row for row in task_store.read_all()
+        if str(row.get("asked_at", ""))[:10] == today.isoformat()
+        and row.get("arm") == config.arm
+    ]
+    if already_registered:
+        tasks = [
+            Task(**{k: v for k, v in row.items() if k in _TASK_FIELDS})
+            for row in already_registered
+        ]
+        _log(
+            f"reusing the {len(tasks)} task(s) already registered for {today} "
+            f"-- a rerun finishes the day, it does not extend it"
+        )
+    else:
+        tasks = build_daily_tasks(as_of=today, max_tasks=config.tasks_per_day)
     if not tasks:
         _log("no tasks available today -- nothing to collect")
         return {"date": today.isoformat(), "tasks": 0, "observations": 0}

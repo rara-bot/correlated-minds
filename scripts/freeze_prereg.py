@@ -81,6 +81,41 @@ FROZEN_STATUS = (
 
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 
+# --------------------------------------------------------------------------
+# Logging a deviation must not look like tampering.
+# --------------------------------------------------------------------------
+# The document mandates that every post-freeze change is written into section 11
+# as a dated row. Doing that changes the file, so it changes the hash, so
+# `--check` reports HASH MISMATCH -- permanently, from the first honest
+# deviation onward. The README tells a skeptic to expect "intact"; the first
+# time the study did the very thing its plan requires, that instruction would
+# start producing what looks like evidence of tampering.
+#
+# So there are two hashes. The recorded one still covers the whole document and
+# is the one registered on OSF, deposited on Zenodo and printed at freeze time:
+# it is the primary claim and nothing here softens it. The second covers the
+# document with the section 11 TABLE ROWS removed, which is the part that was
+# actually promised not to change.
+#
+# The constant below was computed on 2026-09-03 from a document whose full hash
+# still matched the registered one -- so it is provably the body of the plan as
+# registered, not a value fitted to a document that had already drifted.
+#
+# What this does NOT do is let anything through. Only well-formed table rows
+# inside section 11 are excluded. Prose appended after the table, a row added to
+# any other table, or a single character altered anywhere else all still fail,
+# and TestTamperDetection in tests/test_freeze.py holds that line.
+#
+# The root of trust is not this constant. The frozen text is public in this
+# repository's history at the freeze commit a300cb58b593, so anyone who distrusts
+# a number stored next to the code it checks can diff against that instead.
+DEVIATION_HEADING = re.compile(r"^##\s+11\.")
+_ANY_HEADING = re.compile(r"^##\s+")
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+REGISTERED_BODY_SHA = (
+    "22948652de436e497477299c5234069af2db67f6151e4bc2d0f55731e0c322e0"
+)
+
 
 def body_without_stamps(text: str) -> str:
     """Hash the content, not the stamp lines -- otherwise the hash changes when
@@ -92,6 +127,49 @@ def body_without_stamps(text: str) -> str:
 
 def digest(text: str) -> str:
     return hashlib.sha256(body_without_stamps(text).encode("utf-8")).hexdigest()
+
+
+def body_without_deviations(text: str) -> str:
+    """The document minus the rows logged in section 11.
+
+    Section 11 is the one place the frozen plan invites writing to. Everything
+    outside it -- including any prose inside section 11 itself -- is covered.
+    """
+    out, in_section = [], False
+    for line in body_without_stamps(text).splitlines():
+        if DEVIATION_HEADING.match(line):
+            in_section = True
+            out.append(line)
+            continue
+        if in_section and _ANY_HEADING.match(line):
+            in_section = False
+        if in_section and _TABLE_ROW.match(line):
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def body_digest(text: str) -> str:
+    return hashlib.sha256(body_without_deviations(text).encode("utf-8")).hexdigest()
+
+
+def logged_deviations(text: str) -> list:
+    """The dated rows in section 11, excluding its header and the empty marker."""
+    rows, in_section = [], False
+    for line in text.splitlines():
+        if DEVIATION_HEADING.match(line):
+            in_section = True
+            continue
+        if in_section and _ANY_HEADING.match(line):
+            break
+        if in_section and _TABLE_ROW.match(line):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if not cells or cells[0] in ("#", "---", "—", ""):
+                continue
+            if set("".join(cells)) <= set("-: "):
+                continue
+            rows.append(cells)
+    return rows
 
 
 def recorded_hash(text: str) -> str:
@@ -150,6 +228,25 @@ def _do_check(text: str) -> int:
         print("   no SHA-256. Do not register it in this state.")
         return 2
     if recorded != h:
+        deviations = logged_deviations(text)
+        if body_digest(text) == REGISTERED_BODY_SHA and deviations:
+            # The plan itself is untouched; what changed is the log of changes.
+            print("status    : intact outside section 11 "
+                  f"({len(deviations)} deviation(s) logged)")
+            print(f"body sha  : {REGISTERED_BODY_SHA}")
+            print()
+            print("The registered hash no longer matches the file, by design: the")
+            print("plan requires deviations to be written into section 11, and")
+            print("writing them changes the document. Sections 1-10 are unchanged")
+            print("and verified against the body hash above.")
+            print()
+            for cells in deviations:
+                print(f"   {' | '.join(cells)}")
+            print()
+            print(f"The version registered on OSF hashes to {recorded};")
+            print("its text is in this repository at commit a300cb58b593.")
+            return 0
+
         print("\n!! HASH MISMATCH -- the document changed after freezing.")
         print(f"   recorded: {recorded}")
         print(f"   actual  : {h}")
