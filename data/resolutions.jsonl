@@ -3,3 +3,5 @@
 {"task_id": "f5590bb697ec360979c9", "outcome": 1.0, "resolved_at": "2026-09-01T17:21:52.723375+00:00", "source": "kalshi:edgar:1045810:2026-04-26", "note": "settled", "schema": "v1"}
 {"task_id": "73bcecef36b74580518c", "outcome": 1.0, "resolved_at": "2026-09-01T17:21:52.723378+00:00", "source": "kalshi:edgar:1045810:2026-04-26", "note": "settled", "schema": "v1"}
 {"task_id": "c9e40f28bbd13822da6d", "outcome": 1.0, "resolved_at": "2026-09-01T17:21:54.226789+00:00", "source": "kalshi:edgar:104169:2026-04-30", "note": "settled", "schema": "v1"}
+{"task_id": "9d4c41cac632ce00835a", "outcome": 1.0, "resolved_at": "2026-09-04T16:53:17.199327+00:00", "source": "kalshi:KXPAYROLLS-26AUG-T-25000", "note": "settled", "schema": "v1"}
+{"task_id": "c5af354c8c0146ef13df", "outcome": 1.0, "resolved_at": "2026-09-04T16:53:17.199345+00:00", "source": "kalshi:KXPAYROLLS-26AUG-T-25000", "note": "settled", "schema": "v1"}
