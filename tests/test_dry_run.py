@@ -25,7 +25,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from neff import collect
-from neff.config import RunConfig
+from neff.config import RunConfig, mock_sandbox
 from neff.store import Task
 
 
@@ -57,7 +57,10 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(collect, "LEDGER_PATH", ledger)
     monkeypatch.setattr(collect, "build_daily_tasks",
                         lambda **kw: [_task(i) for i in range(5)])
-    return {"tasks": tasks, "obs": obs, "ledger": ledger}
+    # A mock run writes to the sandbox beside these, never to them -- so the
+    # tests below that exercise `use_mock=True` look there instead.
+    return {"tasks": tasks, "obs": obs, "ledger": ledger,
+            "mock_tasks": mock_sandbox(tasks), "mock_obs": mock_sandbox(obs)}
 
 
 def _run(dry_run):
@@ -126,8 +129,8 @@ class TestRealRunStillRegisters:
             as_of=date(2026, 8, 21),
             use_mock=True,
         )
-        assert sandbox["tasks"].exists()
-        assert len(sandbox["tasks"].read_text().strip().splitlines()) == 5
+        assert sandbox["mock_tasks"].exists()
+        assert len(sandbox["mock_tasks"].read_text().strip().splitlines()) == 5
 
     def test_tasks_are_written_before_observations(self, sandbox):
         collect.run_day(
@@ -135,4 +138,5 @@ class TestRealRunStillRegisters:
             as_of=date(2026, 8, 21),
             use_mock=True,
         )
-        assert sandbox["tasks"].stat().st_mtime <= sandbox["obs"].stat().st_mtime
+        assert (sandbox["mock_tasks"].stat().st_mtime
+                <= sandbox["mock_obs"].stat().st_mtime)

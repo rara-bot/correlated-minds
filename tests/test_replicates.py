@@ -34,7 +34,12 @@ from datetime import date
 import pytest
 
 from neff import collect, panel
-from neff.config import REPLICATE_VARIANT, REPLICATES_PER_DAY, RunConfig
+from neff.config import (
+    REPLICATE_VARIANT,
+    REPLICATES_PER_DAY,
+    RunConfig,
+    mock_sandbox,
+)
 from neff.stats import disattenuate, noise_floor
 from neff.stats import test_retest_reliability as reliability
 from neff.store import Task, observation_id
@@ -111,7 +116,9 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(collect, "OBS_PATH", tmp_path / "obs.jsonl")
     monkeypatch.setattr(collect, "LEDGER_PATH", tmp_path / "ledger.jsonl")
     monkeypatch.setattr(collect, "build_daily_tasks", lambda **kw: [_task(i) for i in range(6)])
-    return tmp_path / "obs.jsonl"
+    # These runs are `use_mock=True`, so collection lands in the mock sandbox
+    # beside the paths above rather than in them.
+    return mock_sandbox(tmp_path / "obs.jsonl")
 
 
 def _run(obs_path, replicates=REPLICATES_PER_DAY):

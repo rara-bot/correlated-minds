@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from neff import collect
-from neff.config import RunConfig
+from neff.config import RunConfig, mock_sandbox
 from neff.store import JsonlStore, Task
 
 ARM = "pilot"
@@ -50,7 +50,9 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(collect, "TASKS_PATH", tmp_path / "tasks.jsonl")
     monkeypatch.setattr(collect, "OBS_PATH", tmp_path / "observations.jsonl")
     monkeypatch.setattr(collect, "LEDGER_PATH", tmp_path / "ledger.jsonl")
-    return tmp_path
+    # Every run below is `use_mock=True`, which writes to the mock sandbox beside
+    # those paths, not to them.
+    return mock_sandbox(tmp_path / "x").parent
 
 
 def _serve(monkeypatch, refs, calls=None):

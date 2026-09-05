@@ -7,6 +7,13 @@ __pycache__/
 !.env.example
 data/spf_raw/*.xlsx
 data/spf_raw/*.part
+
+# Output of `neff.collect --mock`: fabricated forecasts, written here so they
+# cannot land in the study record. The daily workflow ends in `git add -A data/`,
+# so this line is the last thing standing between a smoke test and a synthetic
+# row in the public repository. data/pilot_mock/ is the pilot-era archive and
+# stays tracked.
+data/mock/
 run-summary.json
 
 # Unrelated competitive-programming practice. Kept locally, never published:

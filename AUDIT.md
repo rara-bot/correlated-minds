@@ -753,11 +753,59 @@ carrying a daily quota is reported with the number, the shortfall against
 transient rate limit. It is recorded as the first blocking decision in
 `GO-LIVE.md`.
 
+## 28. `--mock` wrote fabricated forecasts into the study record
+
+Found 3 Sep 2026, after collection had begun. The same family as finding 20, one
+layer out: 20 stopped a dry run registering questions it would never answer; this
+is a mock run writing answers nobody ever gave.
+
+`neff.collect --mock` fabricates a forecast for every model on every task and
+appended them straight to `data/observations.jsonl`, with the questions to
+`data/tasks.jsonl` and — until `tests/test_mock_never_bills.py` — the notional
+cost to `data/ledger.jsonl`. Everything protecting the study from that sat
+downstream: rows carry `provider="mock"`, `panel.load_panel` filters them,
+`preflight` counts them. Every one of those is a reader remembering to exclude
+something, and none of them help the reviewer who clones the repository and reads
+the file.
+
+Not hypothetical. A mock run has twice been taken for a real one — 140 fabricated
+forecasts sat in the study log on 17 Aug, and the 22 Aug run put $0.0102 of
+phantom spend in the ledger — both times because synthetic output was sitting
+exactly where real output lives. And the daily workflow ends in `git add -A data/`
+and a push, so a mock run on the collection host does not merely dirty a local
+file: it publishes fabricated forecasts to the public repository of a registered
+study.
+
+**Fixed:** a mock run reads and writes `data/mock/` and nothing else — tasks,
+observations, ledger, resolutions — and `data/mock/` is gitignored, so the
+workflow's `git add -A data/` cannot see it. Containment, not deletion: `--mock`
+is still a full offline rehearsal, and its output is still there to inspect. The
+substitution happens only when `use_mock` is set, so the collection path is
+unchanged; the guard is in `run_day`, where the writers are opened, rather than
+at the CLI, which a programmatic caller walks straight past. 9 tests
+(`tests/test_mock_never_touches_the_record.py`) — including one that a real run
+still writes to the record, because a guard that stopped collection would fail in
+the same direction as one that let junk in, and one standing check that the
+committed observations contain no mock rows at all. Verified by disabling the fix
+and watching 4 of them fail.
+
+**No data was affected.** `data/observations.jsonl` holds 1040 observations and
+zero mock rows. The hazard was live and unguarded for the whole pilot and the
+first three collection days; it never fired against the record.
+
 ---
 
-**Total: 27 defects found before collection, 0 after.** Twenty-three were found
-by reading; four required spending five cents on live calls, and one of those
+**Total: 27 defects found before collection.** Twenty-three were found by
+reading; four required spending five cents on live calls, and one of those
 four — the quota — could not have been found any other way.
 
 The number that matters is not 27. It is that every one of them was found while
 it was still free to fix.
+
+**Findings since collection began on 1 Sep 2026 are logged elsewhere**, because
+they are no longer free and a reader needs them next to the data rather than at
+the end of an audit that closed before the first observation:
+`PREREGISTRATION.md` §11 for anything that changed the instrument or the record,
+`VALIDITY.md` §7 for what it means for the analysis. Finding 28 above is listed
+here instead of there because it reached neither — it is a defect in the tooling
+around the study that never touched the study.

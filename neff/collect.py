@@ -41,6 +41,7 @@ from .config import (
     TASKS_PATH,
     RunConfig,
     REPLICATE_VARIANT,
+    mock_sandbox,
 )
 from .ledger import Ledger
 from .providers import ask
@@ -62,12 +63,32 @@ def run_day(
     config = config or RunConfig()
     today = as_of or datetime.now(timezone.utc).date()
 
-    ledger = Ledger(LEDGER_PATH, cap_usd=BUDGET_USD, arm_caps=dict(ARM_CAPS_USD))
-    task_store = JsonlStore(TASKS_PATH)
-    obs_store = JsonlStore(OBS_PATH)
+    # A MOCK RUN DOES NOT WRITE TO THE STUDY'S FILES.
+    #
+    # Its forecasts are fabricated, and the record they were landing in is the
+    # one whose contents are the evidence -- see `mock_sandbox` in config.py for
+    # why downstream filtering was not enough. Resolved here rather than at the
+    # CLI because this is where a writer is opened, and a rule enforced anywhere
+    # else is one a programmatic caller walks straight past.
+    #
+    # The ledger goes with them, which means a mock run reports $0.00 spent of
+    # its own empty sandbox rather than inheriting real spend. That is the
+    # intended reading: one rule, no exceptions, and a budget line that cannot be
+    # mistaken for the real one. `--dry-run` remains the way to price a day
+    # against the real ledger.
+    paths = (mock_sandbox if use_mock else (lambda p: p))
+    ledger_path, tasks_path, obs_path = (
+        paths(LEDGER_PATH), paths(TASKS_PATH), paths(OBS_PATH)
+    )
+
+    ledger = Ledger(ledger_path, cap_usd=BUDGET_USD, arm_caps=dict(ARM_CAPS_USD))
+    task_store = JsonlStore(tasks_path)
+    obs_store = JsonlStore(obs_path)
 
     models = config.models()
     _log(f"collection for {today} | {len(models)} models | arm={config.arm}")
+    if use_mock:
+        _log(f"MOCK -- writing to {obs_store.path.parent}, not the study record")
     _log(f"budget: ${ledger.spent:.2f} spent of ${ledger.cap_usd:.2f}")
 
     # 1. Today's questions.
@@ -278,17 +299,25 @@ def run_day(
     }
 
 
-def resolve_outcomes() -> Dict[str, object]:
+def resolve_outcomes(use_mock: bool = False) -> Dict[str, object]:
     """Score any task whose event has now settled.
 
     Runs alongside collection each day. Resolutions are append-only and written
     only once per task -- a task that is already resolved is never revisited, so
     a later data revision cannot silently rewrite history.
+
+    `use_mock` carries the same containment as `run_day`: it resolves the mock
+    run's own tasks into the mock run's own file. Settlements themselves are read
+    from the live sources either way -- an outcome is not something there is a
+    fake version of -- but a mock run must not append to the real resolution
+    record, which is the file that closes the loop on "the question predates the
+    answer".
     """
     from .sources import edgar, kalshi
 
-    task_store = JsonlStore(TASKS_PATH)
-    resolution_store = JsonlStore(RESOLUTIONS_PATH)
+    paths = (mock_sandbox if use_mock else (lambda p: p))
+    task_store = JsonlStore(paths(TASKS_PATH))
+    resolution_store = JsonlStore(paths(RESOLUTIONS_PATH))
 
     resolved = resolution_store.existing_ids("task_id")
     tasks = task_store.read_all()
@@ -478,8 +507,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         # 140 fabricated forecasts sat in the study log for a day. Be loud.
         print("=" * 64)
         print("  MOCK MODE -- NO API CALLS. Every forecast below is FABRICATED.")
-        print("  Rows are written with provider='mock' and are excluded from")
-        print("  analysis by default. This is NOT a real pilot.")
+        print(f"  Rows go to {mock_sandbox(OBS_PATH).parent}/ -- never to the study")
+        print("  record, and never to git. This is NOT a real pilot.")
         print("=" * 64)
 
     summary = run_day(config=config, use_mock=args.mock)
@@ -490,7 +519,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("  For a real pilot, set your API keys in .env and drop --mock.")
         print("=" * 64)
     if not args.no_resolve and not args.dry_run:
-        summary["resolution"] = resolve_outcomes()
+        summary["resolution"] = resolve_outcomes(use_mock=args.mock)
 
     print(json.dumps(summary, indent=2, default=str))
     return 0

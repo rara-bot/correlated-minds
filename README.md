@@ -115,7 +115,9 @@ python3 -m venv .venv && ./.venv/bin/python -m pip install -r requirements.txt
 ./.venv/bin/python -m pytest tests/ -q
 ```
 
-Run a full day offline, with zero spend and no API keys:
+Run a full day offline, with zero spend and no API keys. Every forecast it
+produces is fabricated, so it writes to `data/mock/` — never to the study
+record, and `data/mock/` is gitignored:
 
 ```bash
 ./.venv/bin/python -m neff.collect --mock --tasks 8 --arm pilot

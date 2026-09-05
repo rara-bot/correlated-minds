@@ -20,6 +20,31 @@ LEDGER_PATH = DATA_DIR / "ledger.jsonl"
 TASKS_PATH = DATA_DIR / "tasks.jsonl"
 RESOLUTIONS_PATH = DATA_DIR / "resolutions.jsonl"
 
+# --- where a mock run is allowed to write --------------------------------------
+# `--mock` fabricates forecasts, and it used to append them to the four files
+# above -- the append-only public record the study's evidence consists of. The
+# containment was all downstream: rows carry provider="mock", `panel.load_panel`
+# filters them, `preflight` counts them. Every one of those is a reader
+# remembering to exclude something, and the file itself is what a reviewer
+# clones. Twice already a mock run has been mistaken for a real one (17 Aug, and
+# the $0.0102 of phantom ledger spend on 22 Aug), each time because synthetic
+# output was sitting in the place real output lives.
+#
+# So it no longer lands there. A mock run reads and writes data/mock/ and nothing
+# else, and data/mock/ is gitignored -- the daily workflow ends in
+# `git add -A data/`, so an ignored directory is what makes it impossible for a
+# fabricated forecast to reach the public repository at all.
+#
+# Distinct from data/pilot_mock/, which is the hand-archived pilot-era mock
+# output described in PREREGISTRATION.md 3.5. That is a frozen archive and
+# nothing writes to it.
+MOCK_DIRNAME = "mock"
+
+
+def mock_sandbox(path: Path) -> Path:
+    """The mock-run counterpart of a study data file: <dir>/mock/<name>."""
+    return path.parent / MOCK_DIRNAME / path.name
+
 # --- budget -----------------------------------------------------------------
 # Hard cap. Enforced in code by neff.ledger.Ledger, not by discipline.
 BUDGET_USD = 200.0
