@@ -411,6 +411,72 @@ def apply_stale_source_exclusion(
     )
 
 
+# PREREGISTRATION.md 5.6. Stated once, here, so the analysis and the daily alarm
+# in scripts/check_days.py cannot drift apart on what the floor is.
+COVERAGE_FLOOR = 0.80
+
+
+def model_coverage(panel: Panel) -> Dict[str, float]:
+    """Usable coverage per model, measured on the panel as it will be estimated.
+
+    Measured HERE rather than over the raw store because 5.6 governs the
+    PRIMARY PANEL, and the primary panel is what survives the row exclusions.
+    A model can be at 97% across everything collected and still have answered
+    almost none of the tasks that actually resolved.
+    """
+    out: Dict[str, float] = {}
+    for i, key in enumerate(panel.model_keys):
+        column = panel.forecasts[:, i]
+        out[key] = float(np.sum(~np.isnan(column)) / column.size) if column.size else 0.0
+    return out
+
+
+def apply_coverage_exclusion(
+    panel: Panel, floor: float = COVERAGE_FLOOR
+) -> Tuple[Panel, Dict[str, float]]:
+    """Drop models below the usable-coverage floor. REGISTERED (5.6).
+
+    "If usable coverage falls below 80% for any model, that model is reported
+    separately and excluded from the primary panel." Both halves matter, so this
+    returns what it dropped as well as what it kept, and the caller reports it.
+
+    THIS IS NOT A JUDGEMENT CALL AND IT IS NOT NEW. The rule was registered
+    before collection and is applied mechanically to whatever the panel looks
+    like when the analysis runs; there is no list of model keys here, and nothing
+    about it can be fitted to a result. It reads only which cells are filled,
+    never what is in them or how they scored, so it decides identically on
+    permuted and unpermuted outcomes -- `neff.analysis` runs blind by default and
+    this must not be the thing that makes blinding a fiction.
+
+    WHY IT IS LOAD-BEARING RATHER THAN TIDY. M is inside the estimator:
+
+        N_eff = M / (1 + (M - 1) * rho_bar)
+
+    and `stats.n_eff_from_errors` takes M from the COLUMN COUNT, while `rho_bar`
+    is a mean over pairs that clear `min_overlap`. A model too sparse to form a
+    single estimable pair therefore contributes nothing to rho_bar and still
+    raises M -- the two halves of one formula estimated on different panels. On
+    2026-09-09 that was live: qwen lost 2026-09-01 and 2026-09-07 entirely to an
+    upstream host (11, deviation 4), every resolved task then traced to the
+    2026-09-07 settlement, and qwen sat at 0.0% coverage inside a nine-column
+    panel.
+
+    Guarded against emptying the panel: if the floor would remove every model,
+    nothing is dropped and the report says so. A panel with no forecasters is not
+    a more conservative estimate, it is an absent one.
+    """
+    if panel.n_tasks == 0 or panel.n_models == 0:
+        return panel, {}
+
+    coverage = model_coverage(panel)
+    keep = [k for k in panel.model_keys if coverage[k] >= floor]
+    dropped = {k: v for k, v in coverage.items() if v < floor}
+
+    if not dropped or not keep:
+        return panel, dropped
+    return panel.subset_by_models(keep), dropped
+
+
 def describe(panel: Panel) -> Dict[str, object]:
     """Quick health read on the panel -- run this daily during collection."""
     per_model = {

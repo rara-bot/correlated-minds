@@ -18,17 +18,23 @@ looking early, and a pipeline that has only ever been run on the real numbers
 is one whose bugs were found by their effect on the answer.
 """
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 from .panel import (
     Panel,
+    apply_coverage_exclusion,
     apply_settled_question_exclusion,
     apply_stale_source_exclusion,
     load_panel,
 )
-from .stats import block_bootstrap_ci, mean_pairwise_correlation, n_eff_from_errors
+from .stats import (
+    block_bootstrap_ci,
+    mean_pairwise_correlation,
+    n_eff_from_errors,
+    pairwise_error_correlations,
+)
 
 BLOCK_DAYS = 5        # PREREGISTRATION.md 5.2
 N_BOOT = 2000         # PREREGISTRATION.md 5.2
@@ -52,15 +58,34 @@ def resolution_event(source_ref: str) -> str:
     return "-".join(parts[:2]) if len(parts) > 2 else source_ref
 
 
-def apply_registered_exclusions(panel: Panel) -> Panel:
+# Below this many resolved tasks a coverage fraction is a small-sample artefact
+# rather than a measurement. It changes NOTHING about whether 5.6 is applied --
+# the registered rule runs regardless -- it only makes the driver say out loud
+# that the verdict is provisional. Mirrors COVERAGE_MIN_DAYS in
+# scripts/check_days.py, which makes the same distinction for the daily alarm.
+COVERAGE_JUDGEMENT_MIN_TASKS = 20
+
+
+def apply_registered_exclusions(panel: Panel) -> Tuple[Panel, Dict[str, object]]:
     """Every exclusion that governs the primary estimate, in one place.
 
-    Kept together deliberately. Both were previously reachable only from tests,
+    Kept together deliberately. Each was previously reachable only from tests,
     and an analysis that forgets one silently readmits exactly what it excluded.
+    This docstring claimed to be complete while 5.6 was missing from it, which is
+    the same failure one level up: the promise was here and the code was not.
+
+    Order is not free. The two ROW rules run first because they change the
+    denominator the COLUMN rule measures against -- coverage means coverage of
+    the tasks that actually survive into the estimate, not of everything ever
+    collected.
+
+    Returns the panel and a report of what the column rule removed, because 5.6
+    requires both halves: excluded from the primary panel AND reported separately.
     """
     panel = apply_stale_source_exclusion(panel)      # 11, deviation 3
     panel = apply_settled_question_exclusion(panel)  # 3.3
-    return panel
+    panel, below_floor = apply_coverage_exclusion(panel)  # 5.6
+    return panel, {"models_below_coverage_floor": below_floor}
 
 
 def _permute_outcomes(panel: Panel, seed: int) -> Panel:
@@ -178,6 +203,28 @@ def estimate(panel: Panel, n_boot: int = N_BOOT) -> Dict[str, object]:
     # effective panel size any more and no interval built on it is reportable;
     # 5.5 already refuses the mirror-image blowup at high rho as "not a
     # reportable headline", and this is the same refusal at the other end.
+    # THE TWO HALVES OF THE FORMULA MUST BE ESTIMATED ON THE SAME PANEL.
+    #
+    #     N_eff = M / (1 + (M - 1) * rho_bar)
+    #
+    # `stats.n_eff_from_errors` takes M from the column count. `rho_bar` is a
+    # mean over pairs that clear `min_overlap`. A model too sparse to form one
+    # estimable pair therefore contributes nothing to rho_bar while still raising
+    # M -- silently, with no NaN and no error, and in the direction that
+    # overstates the panel's independence.
+    #
+    # The 5.6 coverage floor removes the ordinary version of this before we get
+    # here. This catches the version it cannot: a model ABOVE 80% coverage whose
+    # answered tasks still fail to overlap anyone else's by `min_overlap`. Named
+    # rather than fixed, because M is the registered estimator's own quantity and
+    # 9 gives up the right to revise it -- so the honest move is to say the
+    # number is not usable, not to quietly compute a different one.
+    _, estimable_pairs = pairwise_error_correlations(errors)
+    in_a_pair = {i for pair in estimable_pairs for i in pair}
+    contributes_nothing = [
+        panel.model_keys[i] for i in range(panel.n_models) if i not in in_a_pair
+    ]
+
     out["clamp_binds"] = clamp_binds(float(out["rho_bar"]), panel.n_models)
     out["n_eff_exceeds_m"] = bool(float(out["point_n_eff"]) > panel.n_models + 1e-9)
     warnings_out: List[str] = []
@@ -203,6 +250,15 @@ def estimate(panel: Panel, n_boot: int = N_BOOT) -> Dict[str, object]:
             f"only {out['distinct_events']} distinct settlement(s): every row "
             "traces to one surprise, so the panel has ~1 independent observation."
         )
+    if contributes_nothing:
+        warnings_out.append(
+            f"{len(contributes_nothing)} model(s) form no estimable pair and so "
+            f"contribute nothing to rho_bar, yet still count toward M="
+            f"{panel.n_models}: {', '.join(contributes_nothing)}. The two halves "
+            "of N_eff are being estimated on different panels; N_eff is not "
+            "reportable until they agree."
+        )
+    out["models_without_an_estimable_pair"] = contributes_nothing
     out["warnings"] = warnings_out
     return out
 
@@ -221,7 +277,8 @@ def run(
     """
     panel = load_panel(model_keys=model_keys, **load_kwargs)
     before = panel.n_tasks
-    panel = apply_registered_exclusions(panel)
+    models_before = list(panel.model_keys)
+    panel, exclusion_report = apply_registered_exclusions(panel)
     if blind:
         panel = _permute_outcomes(panel, seed)
 
@@ -229,4 +286,25 @@ def run(
     result["blind"] = blind
     result["tasks_before_exclusions"] = before
     result["tasks_excluded"] = before - panel.n_tasks
+    result["models_before_exclusions"] = models_before
+    result["models_excluded"] = exclusion_report["models_below_coverage_floor"]
+
+    # 5.6 says "reported separately", not "quietly dropped". A registered panel
+    # member leaving the estimate is the single largest thing that can happen to
+    # M without anyone deciding it, so it is stated in the result and in the
+    # warnings the driver prints.
+    below = result["models_excluded"]
+    if below:
+        result.setdefault("warnings", []).insert(0, (
+            f"5.6 coverage floor removed {len(below)} model(s) from the primary "
+            f"panel: " + ", ".join(f"{k} at {v:.1%}" for k, v in sorted(below.items()))
+            + f". M is {panel.n_models}, not {len(models_before)}, and M is inside "
+            f"the estimator. Report these models separately."
+        ))
+        if panel.n_tasks < COVERAGE_JUDGEMENT_MIN_TASKS:
+            result["warnings"].insert(1, (
+                f"that coverage verdict rests on {panel.n_tasks} resolved task(s); "
+                f"it is registered and applied as registered, but it is not yet a "
+                f"stable measurement of a 15-week panel."
+            ))
     return result

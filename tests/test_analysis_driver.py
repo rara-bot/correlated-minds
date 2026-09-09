@@ -75,7 +75,7 @@ class TestBothExclusionsAreWired:
     def test_a_dead_source_task_does_not_survive(self):
         p = _panel(n=6)
         p.state[0] = {"asked_on": "2026-09-08", "last_reported_end": "2014-12-31"}
-        kept = analysis.apply_registered_exclusions(p)
+        kept, _ = analysis.apply_registered_exclusions(p)
         assert kept.n_tasks == 5
         assert "t0" not in kept.task_ids
 
@@ -83,7 +83,7 @@ class TestBothExclusionsAreWired:
         p = _panel(n=6, events=6)
         p.forecasts[0, :] = 0.01           # decided on its first (only) day
         p = Panel(**{**p.__dict__, "errors": p.forecasts - p.outcomes[:, None]})
-        kept = analysis.apply_registered_exclusions(p)
+        kept, _ = analysis.apply_registered_exclusions(p)
         assert "t0" not in kept.task_ids
 
     def test_run_applies_them_and_says_how_many_it_dropped(self):
