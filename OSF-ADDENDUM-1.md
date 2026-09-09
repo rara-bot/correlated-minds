@@ -1,7 +1,17 @@
 # OSF addendum 1 — ready to paste
 
-**Post this as an update to the registration at [osf.io/x6kqg](https://osf.io/x6kqg/).**
-It reports a specification error we found in our own registered analysis plan,
+**Three steps. Two pastes and one upload. Roughly twenty minutes.**
+
+| Step | Where | What |
+|---|---|---|
+| 1 | Zenodo — DOI `10.5281/zenodo.22220263` → **New version** | **Upload** `OSF-ADDENDUM-1.md` (this file) and `PREREGISTRATION.md`, then Publish |
+| 2 | Your OSF **project** (not the frozen registration) | **Upload** the same two files, then **paste** the wiki entry at the end of this file |
+| 3 | osf.io/x6kqg — only if it offers an update option | **Paste** the title and body below |
+
+**Do not withdraw the registration.** Its immutability is the asset. Steps 1 and
+2 put the record beside it; they do not touch it.
+
+This reports a specification error we found in our own registered analysis plan,
 and what we are doing about it. It does **not** revise the registered analysis.
 
 | | |
@@ -168,4 +178,63 @@ Data, tasks and resolutions are committed daily to that public repository as
 append-only JSONL, so the claim that no outcome existed for the affected
 questions when this was written is checkable against the commit history rather
 than asserted.
+```
+
+---
+
+## Step 2 — paste this as the OSF project wiki entry
+
+Title the wiki page **`Addendum 1 — 2026-09-09`**, then paste:
+
+```
+ADDENDUM 1 -- 9 September 2026
+
+Two disclosures about the registered plan, both found before any primary
+estimate had been computed on real outcomes.
+
+1. A SPECIFICATION ERROR IN THE SECTION 5.2 EVENT-CLUSTERED INTERVAL.
+
+Section 5.2 justifies its cluster bootstrap by noting that every strike on a
+ladder settles against a single print, then operationalises the clustering on
+`source_ref`. A Kalshi ticker is SERIES-EXPIRY-STRIKE, so `source_ref` contains
+the strike and splits the very ladder the justification names. Measured on the
+241 tasks collected through 8 September: 80 distinct source_refs against 40
+distinct settlements.
+
+The interval registered as the conservative bound -- the one section 5.2 says
+governs the claim -- therefore treats about twice as many clusters as
+independent as exist.
+
+We are NOT revising it. Section 9 gives up the right to, and that commitment
+stands. A settlement-clustered interval is computed alongside and reported with
+it, always labelled unregistered. Because it groups strictly more task-days per
+cluster it can only widen an interval, never narrow a claim.
+
+2. STALE MARKET STATE ON NON-TRADING DAYS.
+
+Markets are shut at our 13:10 UTC collection time on weekends and holidays, so
+29.4% of collection days (30 of 102) carry the prior close. It biases nothing --
+the duplicated state is the correct state -- and it is confined to the stress
+leg. The stress leg still clears its registered requirement; the margin is
+narrower than the sentence in section 6 implies.
+
+HOW THESE WERE FOUND
+
+By running the registered analysis end to end for the first time with OUTCOMES
+PERMUTED. The analysis driver is blind by default and has never been run against
+real outcomes, which the public commit history shows.
+
+VERIFICATION
+
+  Repository:  https://github.com/rara-bot/correlated-minds
+  Recorded at: PREREGISTRATION.md section 11, deviations 5 and 6
+  Zenodo:      10.5281/zenodo.22220263 (see the latest version)
+
+The registered plan is unchanged outside section 11, which the plan itself
+requires deviations to be written into:
+
+  ./.venv/bin/python scripts/freeze_prereg.py --check
+
+reports "intact outside section 11" and prints the registered hash. The text as
+registered is public at commit a300cb58b593.
 ```
