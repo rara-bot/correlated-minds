@@ -44,7 +44,7 @@ from .config import (
     mock_sandbox,
 )
 from .ledger import Ledger
-from .providers import ask
+from .providers import PROVIDERS, ask
 from .store import JsonlStore, Observation, Resolution, Task, observation_id
 from .tasks import build_daily_tasks, summarize
 
@@ -301,6 +301,36 @@ def run_day(
     )
     if routing:
         _log(f"upstream hosts: {routing}")
+
+    # DID THE INSTRUMENTATION ACTUALLY TAKE EFFECT?
+    #
+    # The host is read from ONE named key on the response body. If the aggregator
+    # renames it, or answers a shape we did not anticipate, `upstream_provider`
+    # comes back None on every row: no error, no failed call, nothing in the
+    # ledger, and the line above simply stops appearing. Fifteen weeks of rows
+    # would carry no attribution and nothing would have said so.
+    #
+    # That is the failure this repository keeps meeting, and the rule is already
+    # written in `scripts/freeze_prereg.py`: "where a registered commitment is
+    # involved, confirm the change took EFFECT -- do not settle for 'the call
+    # returned without error'."
+    #
+    # WARNS, NEVER RAISES. Losing the day is strictly worse than losing the
+    # attribution, and the workflow runs this job unattended.
+    aggregators = {
+        name for name, provider in PROVIDERS.items()
+        if getattr(provider, "UPSTREAM_FIELD", None)
+    }
+    answered = [
+        o for o in collected if o.provider in aggregators and o.model_id_returned
+    ]
+    if answered and not routing:
+        _log(
+            f"!! NO UPSTREAM HOST recorded on any of {len(answered)} calls that "
+            f"went through an aggregator ({', '.join(sorted(aggregators))}). The "
+            f"response no longer carries the field we read it from. Collection is "
+            f"unaffected; today's rows carry no serving-stack attribution."
+        )
 
     return {
         "date": today.isoformat(),

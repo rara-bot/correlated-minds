@@ -299,6 +299,68 @@ class TestTheDailyRunRecordsAndReportsIt:
         assert self._run()["routing"] == ["qwen -> DeepInfra"]
 
 
+class TestTheInstrumentationSaysWhenItStopsWorking:
+    """The host is read from ONE named key. If it moves, every row goes back to
+    carrying nothing -- with no error, no failed call and no line in the log. A
+    silent regression that lasts 15 weeks is the failure this whole change
+    exists to prevent, so the absence has to announce itself."""
+
+    @pytest.fixture
+    def run_with(self, tmp_path, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+
+        from neff.store import Task
+
+        close = datetime.now(timezone.utc) + timedelta(days=30)
+        tasks = [Task(task_id="t0", kind="event", prompt="Will X?",
+                      resolves_after=close.isoformat(), source="kalshi",
+                      source_ref="TICKER-0", outcome_kind="binary",
+                      state={"asked_on": "2026-09-09"})]
+        monkeypatch.setattr(collect, "TASKS_PATH", tmp_path / "tasks.jsonl")
+        monkeypatch.setattr(collect, "OBS_PATH", tmp_path / "observations.jsonl")
+        monkeypatch.setattr(collect, "LEDGER_PATH", tmp_path / "ledger.jsonl")
+        monkeypatch.setattr(collect, "build_daily_tasks", lambda **kw: tasks)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+        monkeypatch.setitem(PROVIDERS, "openrouter", OpenRouterProvider())
+
+        def go(payload, use_mock=False):
+            monkeypatch.setattr("neff.providers.httpx.post",
+                                lambda *a, **k: FakeResponse(payload))
+            return collect.run_day(
+                config=config.RunConfig(arm="pilot", tasks_per_day=1,
+                                        model_keys=["qwen"], replicates_per_day=0),
+                as_of=date(2026, 9, 9), use_mock=use_mock,
+            )
+
+        return go
+
+    def test_a_day_that_records_no_host_says_so(self, run_with, capsys):
+        """The call succeeds and the forecast is fine -- only the attribution is
+        gone. Nothing else in the run would notice."""
+        run_with({k: v for k, v in PROBED.items() if k != "provider"})
+        out = capsys.readouterr().out
+        assert "NO UPSTREAM HOST" in out
+        assert "1 calls that went through an aggregator" in out
+
+    def test_a_healthy_day_does_not_cry_wolf(self, run_with, capsys):
+        run_with(PROBED)
+        out = capsys.readouterr().out
+        assert "NO UPSTREAM HOST" not in out
+        assert "upstream hosts:" in out
+
+    def test_a_mock_run_is_not_accused(self, run_with, capsys):
+        """Mock rows are labelled provider='mock' and route through nothing."""
+        run_with(PROBED, use_mock=True)
+        assert "NO UPSTREAM HOST" not in capsys.readouterr().out
+
+    def test_the_warning_never_stops_the_day(self, run_with):
+        """It warns and returns. `neff.collect` exposes no --as-of, so a day
+        halted by an instrumentation gap can never be filled."""
+        summary = run_with({k: v for k, v in PROBED.items() if k != "provider"})
+        assert summary["observations"] == 1
+        assert summary["usable"] == 1
+
+
 class TestThePreFlightReceiptCarriesItToo:
     """`neff.verify` writes the dated proof that each pinned id answered a live
     API. Its own docstring calls that receipt the start of the drift series --
