@@ -202,6 +202,75 @@ jobs:
             gh issue create --title "$TITLE" --body "$BODY"
           fi
 
+      - name: Say so if the market moved
+        # NOT an alarm, and deliberately not folded into the one above: nothing
+        # here means collection is at risk, so titling it that way would teach
+        # us to skim the alarm that does.
+        #
+        # The stress leg of H1 is a tercile contrast on vix_level, and
+        # PREREGISTRATION.md 10 limitation 5 concedes that a calm 15 weeks leaves
+        # it untestable. A genuine shock cannot be manufactured -- but if one
+        # arrives it will be a handful of days, those days ARE the stress leg,
+        # and losing one costs incomparably more than losing an ordinary Tuesday.
+        # The failure mode this removes is the quiet one: a spike nobody noticed
+        # is a spike nobody checked collected in full.
+        #
+        # Threshold is absolute (VIX >= 25) or a >= 20% jump over every earlier
+        # day. Both are rare by construction: early in collection almost any day
+        # sets a new high, and firing on that would be wallpaper within a week.
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY' > stress.txt || true
+          import json, pathlib
+          try:
+              c = json.loads(pathlib.Path("continuity.json").read_text())
+          except Exception:
+              c = {}
+          vix, day = c.get("vix_latest"), c.get("vix_latest_day")
+          if isinstance(vix, (int, float)):
+              why = []
+              if vix >= 25.0:
+                  why.append(f"VIX closed at {vix:.2f} ({c.get('vix_band')}) on {day}")
+              prev = c.get("vix_max_prior")
+              if c.get("vix_new_high") and isinstance(prev, (int, float)) and prev > 0 \
+                 and vix >= prev * 1.20:
+                  why.append(f"VIX {vix:.2f} is {vix / prev - 1:+.0%} over the prior "
+                             f"maximum of {prev:.2f} -- a fast move, not a drift")
+              if why:
+                  print("\n".join(f"- {w}" for w in why))
+                  print()
+                  print(f"Collected today: {c.get('today_collected')}")
+                  print(f"Distinct market states so far: {c.get('vix_distinct')}")
+          PY
+          if [ ! -s stress.txt ]; then
+            echo "market unremarkable"
+            exit 0
+          fi
+          DAY="$(date -u +%Y-%m-%d)"
+          TITLE="stress regime: ${DAY}"
+          BODY="$(cat stress.txt)
+
+          This is a notice, not a fault. It matters because the stress leg of H1
+          depends on days like this one existing, and there may be very few.
+
+          Check, in this order:
+            1. Did today collect in full? Every model, every task.
+            2. If not, re-run NOW: Actions -> daily-collection -> Run workflow.
+               Collection cannot be back-dated, and this is not a day to lose.
+
+          Run: ${RUN_URL}"
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number' || true)"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" || true
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label "" || \
+            gh issue create --title "$TITLE" --body "$BODY" || true
+          fi
+
       - name: Panel health
         run: |
           python - <<'PY'

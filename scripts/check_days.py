@@ -79,6 +79,107 @@ def _coverage(rows) -> tuple[int, int]:
     return good, len(rows)
 
 
+# --- market state -------------------------------------------------------------
+#
+# The stress leg of H1 is a tercile contrast on `vix_level`, and it is the one
+# leg that depends on markets cooperating (PREREGISTRATION.md §10, limitation 5).
+# If a genuine shock lands inside the window it will be a handful of days, and
+# those days ARE the stress leg -- losing one costs incomparably more than losing
+# an ordinary Tuesday. Nothing here can prevent that, but silence is the failure
+# mode worth removing: a spike that nobody noticed is a spike nobody checked
+# collected.
+#
+# NOTHING IN THIS SECTION MAY FAIL A RUN. It is reporting, not a gate: it never
+# touches the exit status and is wrapped so a malformed state field prints a note
+# instead of halting collection. A day that does not collect can never be filled.
+
+# Absolute bands, for a reader who does not know this study's own range.
+VIX_BANDS = ((30.0, "SEVERE"), (25.0, "stressed"), (20.0, "elevated"),
+             (15.0, "normal"), (0.0, "calm"))
+
+
+def _vix_band(v: float) -> str:
+    for floor, name in VIX_BANDS:
+        if v >= floor:
+            return name
+    return "calm"
+
+
+def _market_state(tasks) -> dict:
+    """VIX per collection day, and whether today is an extreme worth noticing."""
+    by_day = {}
+    for t in tasks:
+        # FAIL-CLOSED on the arm label, the same rule panel.load_panel uses. The
+        # 36 unlabelled task rows predate the label and are all pre-registration
+        # pilot (2026-08-17/21/22); admitting them would report a VIX range the
+        # stress leg will never see.
+        if t.get("arm") != PRIMARY_ARM:
+            continue
+        st = t.get("state") or {}
+        d, v = st.get("asked_on"), st.get("vix_level")
+        if isinstance(d, str) and isinstance(v, (int, float)):
+            by_day[d] = float(v)
+    return by_day
+
+
+def _print_market_state(tasks, today: str) -> dict:
+    out = {}
+    try:
+        by_day = _market_state(tasks)
+        if not by_day:
+            return out
+        days = sorted(by_day)
+        vals = [by_day[d] for d in days]
+        latest_day = days[-1]
+        latest = by_day[latest_day]
+        distinct = sorted(set(vals))
+
+        print()
+        print("market state -- the stress leg of H1 lives on this variable")
+        print(f"  vix range      : {min(vals):.2f} - {max(vals):.2f} "
+              f"(spread {max(vals) - min(vals):.2f}) over {len(days)} day(s)")
+        print(f"  distinct values: {len(distinct)}  "
+              f"({len(days) - len(distinct)} day(s) repeat an earlier state)")
+        print(f"  latest         : {latest:.2f} on {latest_day} [{_vix_band(latest)}]")
+
+        out = {"vix_latest": latest, "vix_latest_day": latest_day,
+               "vix_min": min(vals), "vix_max": max(vals),
+               "vix_distinct": len(distinct), "vix_band": _vix_band(latest),
+               "vix_new_high": False, "vix_notable": False}
+
+        prior = [by_day[d] for d in days[:-1]]
+        # The maximum EXCLUDING today. `vix_max` includes it, so a consumer
+        # asking "how big a jump was this?" needs the prior bar, not the new one.
+        out["vix_max_prior"] = max(prior) if prior else None
+        if prior:
+            if latest > max(prior):
+                out["vix_new_high"] = out["vix_notable"] = True
+                print(f"  *** NEW HIGH: {latest:.2f} exceeds every earlier day "
+                      f"(prev max {max(prior):.2f}, {latest_day}).")
+                print(f"      This day is worth more to H1 than an ordinary one. "
+                      f"Confirm it collected in full before anything else.")
+            elif latest < min(prior):
+                out["vix_notable"] = True
+                print(f"  *** NEW LOW: {latest:.2f} below every earlier day "
+                      f"(prev min {min(prior):.2f}). Widens the bottom tercile.")
+        if latest >= 25.0:
+            out["vix_notable"] = True
+            print(f"  *** {_vix_band(latest).upper()} in absolute terms "
+                  f"(VIX >= 25). A genuine stress regime, if it holds.")
+
+        if len(distinct) >= 3:
+            mid = distinct[len(distinct) // 3], distinct[(2 * len(distinct)) // 3]
+            print(f"  tercile cuts   : {mid[0]:.2f} / {mid[1]:.2f}")
+        else:
+            print(f"  tercile cuts   : not yet meaningful "
+                  f"({len(distinct)} distinct value(s))")
+    except Exception as exc:                                       # noqa: BLE001
+        # Deliberately swallowed. This is a report; it must never be the reason
+        # a day fails to collect.
+        print(f"\nmarket state   : unavailable ({type(exc).__name__})")
+    return out
+
+
 def main() -> int:
     emit_json = "--json" in sys.argv
     tasks = _read(TASKS)
@@ -239,8 +340,11 @@ def main() -> int:
             print(f"Unbroken: {collected} day(s) collected, no gaps, "
                   f"every model above the floor.")
 
+    market = _print_market_state(tasks, today.isoformat())
+
     if emit_json:
         Path("continuity.json").write_text(json.dumps({
+            **market,
             "today": today.isoformat(),
             "today_state": today_state,
             "today_collected": today.isoformat() not in missing,
