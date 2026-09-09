@@ -19,6 +19,7 @@ These tests hold two properties:
 """
 
 import json
+import warnings
 from datetime import date
 from pathlib import Path
 
@@ -115,10 +116,35 @@ class TestAgainstTheRealRecord:
         ]
         assert {t["state"]["ticker"] for t in stale} == {"JPM"}
 
-    def test_no_affected_task_had_resolved_when_the_rule_was_written(self, tasks):
-        """The claim the exclusion rests on. If this ever fails, the rule stopped
-        being outcome-blind at the moment it was written, and saying so in
-        PREREGISTRATION.md 11 would no longer be true."""
+    def test_the_exclusion_never_consults_an_outcome(self):
+        """What "decided before the scores existed" actually rests on.
+
+        The first version of this test asserted that no JPM task had resolved.
+        That is a fact about the world, not about the code: JPM could start
+        reporting under a tracked tag at any time, the assertion would fail, and
+        because the daily workflow runs this suite BEFORE collecting
+        (.github/workflows/daily.yml), it would halt the day. A day that does
+        not collect can never be filled -- `neff.collect` exposes no `--as-of`,
+        because a forecast collected today and stamped yesterday is fabricated.
+        Blocking the study to police a claim that git history and the §11 row
+        already prove is the wrong trade.
+
+        The durable property is this one: the rule reads `last_reported_end` and
+        `asked_on`, never `outcomes`. So it decides identically whichever way a
+        task settles, and cannot have been fitted to a score at any point --
+        then, now, or after the freeze.
+        """
+        st = [{"asked_on": "2026-09-08", "last_reported_end": "2014-12-31"}]
+        settled_yes = _panel(st)
+        settled_yes.outcomes[:] = 1.0
+        settled_no = _panel(st)
+        settled_no.outcomes[:] = 0.0
+        assert apply_stale_source_exclusion(settled_yes).n_tasks == 0
+        assert apply_stale_source_exclusion(settled_no).n_tasks == 0
+
+    def test_none_of_them_had_resolved_when_the_rule_was_written(self, tasks):
+        """The historical fact §11 deviation 3 states. Reported, never fatal --
+        see the test above for why this must not be able to stop a day."""
         res_path = ROOT / "data" / "resolutions.jsonl"
         resolved = {
             json.loads(l)["task_id"]
@@ -126,10 +152,14 @@ class TestAgainstTheRealRecord:
         }
         jpm = {t["task_id"] for t in tasks if (t.get("state") or {}).get("ticker") == "JPM"}
         assert jpm, "no JPM tasks in the store"
-        assert not (jpm & resolved), (
-            "a JPM task has an outcome -- the deviation-3 exclusion can no "
-            "longer be described as decided before the scores existed"
-        )
+        if jpm & resolved:
+            warnings.warn(
+                f"{len(jpm & resolved)} JPM task(s) now carry an outcome. The "
+                "deviation-3 exclusion still holds -- it is mechanical and "
+                "outcome-blind -- but the record should note that they settled "
+                "after the rule was written, not before.",
+                RuntimeWarning,
+            )
 
     def test_the_guard_stops_new_ones_being_built(self, tasks):
         """A row dated after the fix means collection is still generating them."""
