@@ -201,12 +201,13 @@ neff/
   tasks.py       daily task battery construction
   collect.py     the daily runner
   panel.py       observations -> matrices for analysis
+  analysis.py    the registered analysis, composed; blind by default
   sources/
     kalshi.py    questions + ground-truth settlement
     fred.py      realized outcomes + market state
     spf.py       the human baseline
     http.py      retries, backoff, body verification
-tests/           417 tests
+tests/           435 tests
 ```
 
 ---

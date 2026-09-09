@@ -1,412 +1,232 @@
-"""Registered analyses that need to exist as code, not just as prose in the plan.
+"""Compose the registered analysis: load -> exclude -> estimate -> intervals.
 
-Three of the pre-registered tests were specified in PREREGISTRATION.md before
-they were implementable. A registered analysis nobody has written is a promise,
-not a method -- so each one here is executable and tested against synthetic data
-with a known answer.
+Everything this module needs already existed. `stats.py` implements every
+registered estimator and `panel.py` implements every registered exclusion --
+but nothing called them together, so on 11 Dec the study would have been
+assembling its own headline number for the first time, under time pressure,
+against data it could no longer change. This is the driver, written while
+collection is still running and there is still time for what it finds to
+matter.
 
-  H6  capability control  -- does same-family lineage predict error correlation
-                             once the pair's ACCURACY is in the model? (arXiv
-                             2607.20768 shows most diversity findings do not
-                             survive this.)
-  5.4a exact-tie rate     -- do models collapse onto identical round numbers?
-  5.4b horizon strata     -- are primary estimates stable across horizon bands,
-                             or is the eligible pool's drift toward the freeze
-                             doing the work?
+IT IS BLIND BY DEFAULT. `run()` permutes outcomes unless `blind=False` is
+passed explicitly. A permuted run breaks the forecast-to-outcome link while
+keeping every shape that can break the pipeline -- real missingness, real
+ragged days, real event clustering, real panel dimensions -- so it exercises
+the whole path and reveals nothing about the effect. The registered plan fixes
+every analytic choice in advance, so there is nothing legitimate to gain by
+looking early, and a pipeline that has only ever been run on the real numbers
+is one whose bugs were found by their effect on the answer.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 
-from .config import panel_by_key
-from .stats import mean_pairwise_correlation
-
-__all__ = [
-    "brier_skill_per_model",
-    "lineage_permutation_test",
-    "exact_tie_rate",
-    "pairwise_capability_frame",
-    "capability_controlled_lineage_test",
-    "horizon_strata",
-    "LineageTest",
-]
-
-HORIZON_BANDS: Tuple[Tuple[str, float, float], ...] = (
-    ("3-14d", 3.0, 14.0),
-    ("15-45d", 15.0, 45.0),
-    ("46-90d", 46.0, 90.0),
-    ("91d+", 91.0, float("inf")),
+from .panel import (
+    Panel,
+    apply_settled_question_exclusion,
+    apply_stale_source_exclusion,
+    load_panel,
 )
+from .stats import block_bootstrap_ci, mean_pairwise_correlation, n_eff_from_errors
+
+BLOCK_DAYS = 5        # PREREGISTRATION.md 5.2
+N_BOOT = 2000         # PREREGISTRATION.md 5.2
+ALPHA = 0.05          # PREREGISTRATION.md 5.2
 
 
-def brier_skill_per_model(forecasts: np.ndarray, outcomes: np.ndarray) -> np.ndarray:
-    """Brier skill vs. the base rate, per model. Higher is better; 0 = no skill.
+def resolution_event(source_ref: str) -> str:
+    """The settlement that decides a question, which is coarser than the question.
 
-    Skill rather than raw Brier because the reference must be the same for every
-    model, otherwise "accuracy" in the H6 regression would partly encode which
-    questions a model happened to answer.
+    A Kalshi ticker is SERIES-EXPIRY-STRIKE. Every strike on one ladder settles
+    against ONE print: the five KXAAAGASWNJ-26SEP07 rungs at 4.15 through 4.19
+    all resolved to 1.0 on 2026-09-07 from a single AAA gas figure. They are one
+    surprise observed five times, not five observations.
+
+    EDGAR refs (`edgar:CIK:PERIOD`) carry no strike -- one company's next filing
+    is already one event -- so they are returned unchanged.
     """
-    f = np.asarray(forecasts, dtype=float)
-    y = np.asarray(outcomes, dtype=float)
-    base = float(np.nanmean(y))
-    reference = float(np.nanmean((base - y) ** 2))
-    if not np.isfinite(reference) or reference <= 0:
-        return np.full(f.shape[1], np.nan)
-    with np.errstate(invalid="ignore"):
-        brier = np.nanmean((f - y[:, None]) ** 2, axis=0)
-    return 1.0 - brier / reference
+    if ":" in source_ref:
+        return source_ref
+    parts = source_ref.split("-")
+    return "-".join(parts[:2]) if len(parts) > 2 else source_ref
 
 
-def exact_tie_rate(forecasts: np.ndarray, min_models: int = 3) -> Dict[str, float]:
-    """Fraction of task-days on which every responding model returned the SAME value.
+def apply_registered_exclusions(panel: Panel) -> Panel:
+    """Every exclusion that governs the primary estimate, in one place.
 
-    This is the shared-mass-point threat from §5.4(a). Independent rounding adds
-    idiosyncratic noise and is harmless; models converging on one identical round
-    number collapses cross-model dispersion and inflates rho for a reason that is
-    about verbal habit rather than shared priors.
+    Kept together deliberately. Both were previously reachable only from tests,
+    and an analysis that forgets one silently readmits exactly what it excluded.
     """
-    f = np.asarray(forecasts, dtype=float)
-    ties = 0
-    usable = 0
-    values: List[float] = []
-    for row in f:
-        present = row[~np.isnan(row)]
-        if present.size < min_models:
-            continue
-        usable += 1
-        values.extend(present.tolist())
-        if np.allclose(present, present[0]):
-            ties += 1
-    unique = len(set(np.round(values, 6))) if values else 0
-    return {
-        "tasks_considered": float(usable),
-        "exact_tie_rate": float(ties / usable) if usable else float("nan"),
-        "distinct_values_emitted": float(unique),
-        "values_per_task": float(len(values) / usable) if usable else float("nan"),
-    }
+    panel = apply_stale_source_exclusion(panel)      # 11, deviation 3
+    panel = apply_settled_question_exclusion(panel)  # 3.3
+    return panel
 
 
-def pairwise_capability_frame(
-    errors: np.ndarray,
-    forecasts: np.ndarray,
-    outcomes: np.ndarray,
-    model_keys: Sequence[str],
-    block_index: Optional[Sequence[int]] = None,
-    min_overlap: int = 6,
-) -> Dict[str, np.ndarray]:
-    """One row per (model pair, time block): correlation, lineage, capability.
+def _permute_outcomes(panel: Panel, seed: int) -> Panel:
+    """Break the forecast-to-outcome link, keep every shape.
 
-    Blocking by time rather than pooling is what makes H6 estimable. Pooled over
-    the whole sample there are only M(M-1)/2 = 21 correlations -- too few to
-    separate lineage from capability. Computing each pair's correlation within
-    each block gives 21 x n_blocks rows, and standard errors are then clustered
-    BY PAIR, because a pair's blocks are not independent of one another.
+    Errors are recomputed from the shuffled outcomes rather than shuffled
+    directly: shuffling the error matrix would carry each row's missingness
+    pattern with it and could not produce the error structure the real pipeline
+    sees. This keeps NaN exactly where the panel actually failed to answer.
     """
-    e = np.asarray(errors, dtype=float)
-    f = np.asarray(forecasts, dtype=float)
-    y = np.asarray(outcomes, dtype=float)
-    keys = list(model_keys)
-    spec = panel_by_key()
-    families = [spec[k].family if k in spec else k for k in keys]
-
-    blocks = (
-        np.asarray(block_index, dtype=int)
-        if block_index is not None
-        else np.zeros(e.shape[0], dtype=int)
-    )
-
-    rho: List[float] = []
-    same_family: List[float] = []
-    mean_skill: List[float] = []
-    skill_gap: List[float] = []
-    pair_id: List[int] = []
-
-    pair_counter = 0
-    for i in range(len(keys)):
-        for j in range(i + 1, len(keys)):
-            for b in np.unique(blocks):
-                rows = blocks == b
-                if int(rows.sum()) < min_overlap:
-                    continue
-                sub = e[rows][:, [i, j]]
-                r = mean_pairwise_correlation(sub, min_overlap=min_overlap)
-                if not np.isfinite(r):
-                    continue
-                skill = brier_skill_per_model(f[rows][:, [i, j]], y[rows])
-                if not np.all(np.isfinite(skill)):
-                    continue
-                rho.append(r)
-                same_family.append(1.0 if families[i] == families[j] else 0.0)
-                mean_skill.append(float(np.mean(skill)))
-                skill_gap.append(float(abs(skill[0] - skill[1])))
-                pair_id.append(pair_counter)
-            pair_counter += 1
-
-    return {
-        "rho": np.asarray(rho, dtype=float),
-        "same_family": np.asarray(same_family, dtype=float),
-        "mean_skill": np.asarray(mean_skill, dtype=float),
-        "skill_gap": np.asarray(skill_gap, dtype=float),
-        "pair_id": np.asarray(pair_id, dtype=int),
-    }
-
-
-@dataclass
-class LineageTest:
-    """Result of H6. `survives` is the pre-registered decision rule."""
-
-    n_obs: int
-    n_pairs: int
-    coefficients: Dict[str, float] = field(default_factory=dict)
-    std_errors: Dict[str, float] = field(default_factory=dict)
-    t_stats: Dict[str, float] = field(default_factory=dict)
-    survives: bool = False
-
-    def describe(self) -> str:
-        if not self.coefficients:
-            return "H6: not estimable"
-        parts = [
-            f"{k}={self.coefficients[k]:+.4f} (t={self.t_stats.get(k, float('nan')):+.2f})"
-            for k in self.coefficients
-        ]
-        verdict = "LINEAGE SURVIVES" if self.survives else "capability explains it"
-        return f"H6 [{verdict}] n={self.n_obs} pairs={self.n_pairs}: " + ", ".join(parts)
-
-
-def capability_controlled_lineage_test(
-    frame: Dict[str, np.ndarray], t_threshold: float = 2.0
-) -> LineageTest:
-    """OLS of pairwise error correlation on lineage + capability, clustered by pair.
-
-    Registered decision rule (H6): the lineage claim survives only if the
-    `same_family` coefficient remains distinguishable from zero WITH the
-    capability terms in the model. If it does not, the honest reading is that the
-    measured correlation is a capability phenomenon and H3 is reinterpreted.
-    """
-    rho = frame["rho"]
-    if rho.size < 8:
-        return LineageTest(n_obs=int(rho.size), n_pairs=0)
-
-    names = ["intercept", "same_family", "mean_skill", "skill_gap"]
-    X = np.column_stack(
-        [np.ones_like(rho), frame["same_family"], frame["mean_skill"], frame["skill_gap"]]
-    )
-    # Drop regressors with no variation, otherwise the design is singular.
-    keep = [0] + [k for k in range(1, X.shape[1]) if np.std(X[:, k]) > 1e-12]
-    X = X[:, keep]
-    names = [names[k] for k in keep]
-
-    beta, *_ = np.linalg.lstsq(X, rho, rcond=None)
-    resid = rho - X @ beta
-    XtX_inv = np.linalg.pinv(X.T @ X)
-
-    # Cluster-robust (CR0) by pair: a pair's blocks are serially dependent.
-    meat = np.zeros((X.shape[1], X.shape[1]))
-    clusters = frame["pair_id"]
-    for c in np.unique(clusters):
-        rows = clusters == c
-        Xc, uc = X[rows], resid[rows]
-        s = Xc.T @ uc
-        meat += np.outer(s, s)
-    cov = XtX_inv @ meat @ XtX_inv
-    se = np.sqrt(np.clip(np.diag(cov), 0.0, None))
-
-    coefficients = {n: float(b) for n, b in zip(names, beta)}
-    std_errors = {n: float(s) for n, s in zip(names, se)}
-    t_stats = {
-        n: float(coefficients[n] / std_errors[n]) if std_errors[n] > 0 else float("nan")
-        for n in names
-    }
-    return LineageTest(
-        n_obs=int(rho.size),
-        n_pairs=int(np.unique(clusters).size),
-        coefficients=coefficients,
-        std_errors=std_errors,
-        t_stats=t_stats,
-        survives=bool(abs(t_stats.get("same_family", 0.0)) >= t_threshold),
-    )
-
-
-def lineage_permutation_test(
-    errors: np.ndarray,
-    forecasts: np.ndarray,
-    outcomes: np.ndarray,
-    model_keys: Sequence[str],
-    block_index: Optional[Sequence[int]] = None,
-    n_permutations: int = 5000,
-    seed: int = 0,
-    min_overlap: int = 6,
-) -> Dict[str, float]:
-    """Exact-style permutation test for the lineage effect. REGISTERED inference for H6.
-
-    WHY THIS REPLACES THE CLUSTER-ROBUST t-STATISTIC.
-
-    The `same_family` dummy is switched on by a handful of specific pairs. The
-    OLS above clusters by pair, so with k within-family pairs that coefficient's
-    variance is estimated from k clusters. At k = 1 the standard error is not a
-    standard error at all: on synthetic data with NO family structure whatsoever,
-    the clustered t-statistic came back at +7.06 and declared the lineage effect
-    real. That is a false positive produced by the inference, not by the data.
-
-    The permutation test conditions on the observed correlations and re-randomises
-    which models are labelled as sharing a family, holding family sizes fixed. It
-    makes no asymptotic claim, and its resolution is bounded honestly by the
-    number of distinct labelings:
-
-        1 within-family pair  (7 models, 21 pairs)  -> min achievable p = 1/21 = 0.048
-        3 within-family pairs (9 models, 36 pairs)  -> min achievable p < 0.001
-
-    That bound is why the panel carries three within-family pairs rather than one.
-    """
-    e = np.asarray(errors, dtype=float)
-    keys = list(model_keys)
-    spec = panel_by_key()
-    families_observed = [spec[k].family if k in spec else k for k in keys]
-
-    blocks = (
-        np.asarray(block_index, dtype=int)
-        if block_index is not None
-        else np.zeros(e.shape[0], dtype=int)
-    )
-
-    # Pairwise correlations are computed ONCE; only the labels are permuted.
-    rho: List[float] = []
-    idx_i: List[int] = []
-    idx_j: List[int] = []
-    for i in range(len(keys)):
-        for j in range(i + 1, len(keys)):
-            for b in np.unique(blocks):
-                rows = blocks == b
-                if int(rows.sum()) < min_overlap:
-                    continue
-                r = mean_pairwise_correlation(e[rows][:, [i, j]], min_overlap=min_overlap)
-                if np.isfinite(r):
-                    rho.append(r)
-                    idx_i.append(i)
-                    idx_j.append(j)
-
-    rho_arr = np.asarray(rho, dtype=float)
-    ii, jj = np.asarray(idx_i), np.asarray(idx_j)
-    if rho_arr.size == 0:
-        return {"observed": float("nan"), "p_value": float("nan"), "n_permutations": 0}
-
-    def _gap(labels: Sequence[str]) -> float:
-        labels = list(labels)
-        same = np.asarray([labels[a] == labels[b] for a, b in zip(ii, jj)], dtype=bool)
-        if not same.any() or same.all():
-            return float("nan")
-        return float(np.mean(rho_arr[same]) - np.mean(rho_arr[~same]))
-
-    observed = _gap(families_observed)
-
     rng = np.random.default_rng(seed)
-    null: List[float] = []
-    for _ in range(n_permutations):
-        value = _gap(list(rng.permutation(families_observed)))
-        if np.isfinite(value):
-            null.append(value)
+    outcomes = np.array(panel.outcomes, dtype=float)
+    rng.shuffle(outcomes)
+    return Panel(
+        forecasts=panel.forecasts,
+        outcomes=outcomes,
+        errors=panel.forecasts - outcomes[:, None],
+        task_ids=list(panel.task_ids),
+        model_keys=list(panel.model_keys),
+        market_implied=panel.market_implied,
+        state=list(panel.state),
+        question_ids=list(panel.question_ids),
+        asked_on=list(panel.asked_on),
+    )
 
-    null_arr = np.asarray(null, dtype=float)
-    if null_arr.size == 0 or not np.isfinite(observed):
-        return {"observed": float(observed), "p_value": float("nan"), "n_permutations": 0}
 
-    # One-sided: the hypothesis is that same-family pairs correlate MORE.
-    p = float((1 + np.sum(null_arr >= observed)) / (1 + null_arr.size))
+def clamp_binds(rho_bar: float, n_models: int, tol: float = 1e-6) -> bool:
+    """Is rho_bar sitting on the floor where N_eff stops meaning anything?
+
+    `stats.n_eff` clamps rho_bar at -1/(M-1), the point below which an
+    equicorrelation matrix stops being positive semi-definite. The clamp is
+    correct and prevents a division by zero -- but what it returns instead is
+    not small, it is astronomical: at M = 9 the blind rehearsal produced an
+    N_eff upper bound of 1.1e12 from a panel of five rows.
+
+    A finite nonsense number is more dangerous than an exception, because it
+    propagates into a percentile interval and prints. So the driver asks the
+    question explicitly rather than letting the value speak for itself.
+    """
+    if not np.isfinite(rho_bar) or n_models < 2:
+        return False
+    return rho_bar <= (-1.0 / (n_models - 1)) + tol
+
+
+def _interval(
+    errors: np.ndarray, groups: Sequence, block_size: int, n_boot: int = N_BOOT
+) -> Dict[str, float]:
+    point, lo, hi = block_bootstrap_ci(
+        errors,
+        statistic="n_eff",
+        block_size=block_size,
+        n_boot=n_boot,
+        alpha=ALPHA,
+        groups=groups,
+    )
+    # Headroom is N_eff - 1 (PREREGISTRATION.md 2). A shift is monotone, so the
+    # percentile interval transforms directly rather than needing its own run.
     return {
-        "observed": float(observed),
-        "p_value": p,
-        "null_mean": float(np.mean(null_arr)),
-        "null_sd": float(np.std(null_arr)),
-        "n_permutations": int(null_arr.size),
-        "within_family_pairs": int(
-            sum(1 for a, b in zip(ii, jj) if families_observed[a] == families_observed[b])
-        ),
+        "n_eff": point,
+        "n_eff_lo": lo,
+        "n_eff_hi": hi,
+        "headroom": point - 1.0,
+        "headroom_lo": lo - 1.0,
+        "headroom_hi": hi - 1.0,
     }
 
 
-def horizon_strata(state: Sequence[Dict]) -> Dict[str, np.ndarray]:
-    """Row indices per registered horizon band (§5.4b).
+def estimate(panel: Panel, n_boot: int = N_BOOT) -> Dict[str, object]:
+    """The registered primary estimate, with every interval 5.2 requires.
 
-    Primary estimates are reported within band as well as pooled, so that the
-    eligible pool's drift toward short horizons as the freeze approaches cannot
-    be mistaken for a state effect.
+    `n_boot` exists so tests can exercise the composition cheaply. It defaults
+    to the registered 2000 and production never passes it; the suite gates
+    collection, so a full-resample test run would cost every day 60+ seconds of
+    the workflow's budget to re-derive a number no test asserts.
     """
-    out: Dict[str, List[int]] = {label: [] for label, _, _ in HORIZON_BANDS}
-    for i, row in enumerate(state):
-        value = row.get("days_out")
-        if not isinstance(value, (int, float)):
-            continue
-        for label, low, high in HORIZON_BANDS:
-            if low <= float(value) <= high:
-                out[label].append(i)
-                break
-    return {k: np.asarray(v, dtype=int) for k, v in out.items()}
+    errors = panel.errors
+    out: Dict[str, object] = {
+        "n_tasks": panel.n_tasks,
+        "n_models": panel.n_models,
+        "coverage": panel.coverage(),
+        "distinct_questions": len(set(panel.question_ids)),
+        "distinct_events": len(set(resolution_event(q) for q in panel.question_ids)),
+        "rho_bar": mean_pairwise_correlation(errors),
+        "point_n_eff": n_eff_from_errors(errors),
+    }
+    if panel.n_tasks == 0:
+        return out
 
+    # 5.2, interval 1 of 2: moving blocks of five TASK-DAYS. Optimistic.
+    out["day_blocked"] = _interval(errors, panel.asked_on, BLOCK_DAYS, n_boot)
 
-# ---------------------------------------------------------------------------
-# H2 — SHARED-PRIOR MECHANISM
-#
-# H2 registered two legs. Only one of them had a method, which is the same
-# defect that H6 had: a registered analysis nobody has written is a promise, not
-# a hypothesis. Resolved by implementing the tractable leg and demoting the other.
-#
-#   KEPT, CONFIRMATORY -- base-rate convergence. If models fall back on absorbed
-#     priors when evidence is weak, the panel's judgement should drift toward the
-#     category base rate as ambiguity rises. This is measurable from the forecasts
-#     alone: no text, no embeddings, no judgement calls from us.
-#
-#   DEMOTED TO EXPLORATORY -- cross-model rationale similarity. Measuring it
-#     honestly needs sentence embeddings and a validation study of its own, and
-#     the rationales we collect are capped at 25 words, which is thin evidence for
-#     a confirmatory claim. Reported as exploratory and labelled as such.
-# ---------------------------------------------------------------------------
+    # 5.2, interval 2 of 2: whole clusters resampled, block_size=1. Registered
+    # AS WRITTEN, on source_ref. This is the interval 5.2 says governs the claim
+    # where the two disagree, so it is computed exactly as registered.
+    out["event_clustered_registered"] = _interval(errors, panel.question_ids, 1, n_boot)
 
+    # SENSITIVITY, NOT REGISTERED. 11, deviation 5.
+    #
+    # 5.2 justifies the clustered interval with the CPI ladder -- "every strike
+    # on a CPI ladder settles against a single print and therefore shares a
+    # single surprise" -- and then operationalises it as `source_ref`. Those are
+    # not the same grouping: source_ref CONTAINS the strike, so the ladder it
+    # names as the motivating case is split back into one cluster per rung.
+    # Measured on the 241 tasks collected to 2026-09-08: 80 source_refs against
+    # 40 actual settlements. The interval registered as the conservative bound
+    # therefore treats about twice as many clusters as independent as there are,
+    # which is the precise error it exists to avoid.
+    #
+    # The registered interval is not replaced -- 9 gives up the right to revise
+    # it and it still governs. This is reported alongside, always labelled.
+    events = [resolution_event(q) for q in panel.question_ids]
+    out["event_clustered_settlement"] = _interval(errors, events, 1, n_boot)
 
-def base_rate_convergence(
-    forecasts: np.ndarray,
-    outcomes: np.ndarray,
-    ambiguity: Sequence[float],
-    n_terciles: int = 3,
-) -> Dict[str, float]:
-    """Does the panel drift toward the base rate as questions get more ambiguous?
-
-    Returns the mean absolute distance between the panel median forecast and the
-    sample base rate, by ambiguity tercile. H2 predicts this SHRINKS with
-    ambiguity: under weak evidence the panel stops discriminating between
-    questions and reverts to what it absorbed in training.
-    """
-    f = np.asarray(forecasts, dtype=float)
-    y = np.asarray(outcomes, dtype=float)
-    a = np.asarray(list(ambiguity), dtype=float)
-
-    usable = np.isfinite(a) & np.any(~np.isnan(f), axis=1)
-    if int(usable.sum()) < 3 * n_terciles:
-        return {"estimable": 0.0}
-
-    f, y, a = f[usable], y[usable], a[usable]
-    base = float(np.nanmean(y))
-    with np.errstate(invalid="ignore"):
-        median = np.nanmedian(f, axis=1)
-    distance = np.abs(median - base)
-
-    cuts = np.quantile(a, np.linspace(0, 1, n_terciles + 1)[1:-1])
-    bucket = np.digitize(a, cuts)
-
-    out: Dict[str, float] = {"estimable": 1.0, "base_rate": base}
-    means = []
-    for b in range(n_terciles):
-        rows = bucket == b
-        value = float(np.mean(distance[rows])) if rows.any() else float("nan")
-        out[f"tercile_{b}_distance"] = value
-        out[f"tercile_{b}_n"] = float(rows.sum())
-        means.append(value)
-    if np.all(np.isfinite(means)):
-        # Negative => the panel converges on the base rate as ambiguity rises,
-        # which is the direction H2 predicts.
-        out["high_minus_low"] = float(means[-1] - means[0])
+    # Surfaced, never silently absorbed. If the clamp binds, N_eff is not an
+    # effective panel size any more and no interval built on it is reportable;
+    # 5.5 already refuses the mirror-image blowup at high rho as "not a
+    # reportable headline", and this is the same refusal at the other end.
+    out["clamp_binds"] = clamp_binds(float(out["rho_bar"]), panel.n_models)
+    out["n_eff_exceeds_m"] = bool(float(out["point_n_eff"]) > panel.n_models + 1e-9)
+    warnings_out: List[str] = []
+    if out["clamp_binds"]:
+        warnings_out.append(
+            f"rho_bar {out['rho_bar']:.6f} is at the -1/(M-1) floor for M="
+            f"{panel.n_models}: N_eff is unbounded here and must not be reported."
+        )
+    if out["n_eff_exceeds_m"]:
+        warnings_out.append(
+            f"N_eff {float(out['point_n_eff']):.3f} exceeds M={panel.n_models}. "
+            "That is arithmetically possible when rho_bar < 0, but 'more "
+            "independent opinions than forecasters' is not a claim; it means "
+            "rho_bar is noise-dominated at this sample size."
+        )
+    if len(set(panel.asked_on)) < BLOCK_DAYS:
+        warnings_out.append(
+            f"only {len(set(panel.asked_on))} distinct day(s): the day-blocked "
+            f"bootstrap resamples the same day and its interval is degenerate."
+        )
+    if out["distinct_events"] < 2:
+        warnings_out.append(
+            f"only {out['distinct_events']} distinct settlement(s): every row "
+            "traces to one surprise, so the panel has ~1 independent observation."
+        )
+    out["warnings"] = warnings_out
     return out
 
 
-__all__ += ["base_rate_convergence"]
+def run(
+    blind: bool = True,
+    seed: int = 0,
+    model_keys: Optional[List[str]] = None,
+    n_boot: int = N_BOOT,
+    **load_kwargs,
+) -> Dict[str, object]:
+    """Load the panel, apply the registered exclusions, estimate.
+
+    `blind=True` (the default) permutes outcomes. Ask for `blind=False` only
+    when the freeze has passed and the real estimate is the thing wanted.
+    """
+    panel = load_panel(model_keys=model_keys, **load_kwargs)
+    before = panel.n_tasks
+    panel = apply_registered_exclusions(panel)
+    if blind:
+        panel = _permute_outcomes(panel, seed)
+
+    result = estimate(panel, n_boot=n_boot)
+    result["blind"] = blind
+    result["tasks_before_exclusions"] = before
+    result["tasks_excluded"] = before - panel.n_tasks
+    return result
