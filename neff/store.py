@@ -85,7 +85,12 @@ class Observation:
     # rows written before this was recorded.
     upstream_provider: Optional[str] = None
     rationale: str = ""
-    logprobs: Optional[Dict[str, float]] = None
+    # Token-level alternatives for the DIGIT positions of the emitted number,
+    # for the models that expose them (PREREGISTRATION.md 5.4(a), which
+    # registers a re-estimation "on logprob-derived probabilities"). One entry
+    # per kept position: {"t": token, "lp": logprob, "top": [[token, logprob)]]}.
+    # None where the provider offers none, or where none was asked for.
+    logprobs: Optional[List[Dict[str, Any]]] = None
     raw_response: str = ""
     input_tokens: int = 0
     output_tokens: int = 0

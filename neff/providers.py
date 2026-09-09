@@ -34,7 +34,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -85,6 +85,80 @@ class Completion:
     input_tokens: int
     output_tokens: int
     upstream_provider: Optional[str] = None
+    logprobs: Optional[List[Dict[str, Any]]] = None
+
+
+# How many alternatives to ask for at each token position. 5 is enough to see
+# whether the emitted digit was nearly a different digit, which is the whole
+# question 5.4(a) asks of this leg, and small enough that the stored record stays
+# a record rather than a payload.
+TOP_LOGPROBS = 5
+
+# Positions kept per response. Replies land in 60-105 output tokens and only the
+# digits matter (below), so this is a ceiling against a pathological response,
+# not a working limit.
+MAX_LOGPROB_POSITIONS = 24
+
+
+def _digit_logprobs(payload: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """Token-level alternatives for the positions that carry the NUMBER.
+
+    5.4(a) registers a re-estimation "on logprob-derived probabilities" for the
+    models that expose them. What that needs is the distribution over the emitted
+    VALUE -- whether `0.62` was nearly `0.72` -- so the useful positions are the
+    ones bearing digits, in `"probability": 0.62` and `"confidence": 0.7`.
+
+    Everything else in the reply is JSON scaffolding whose logprobs answer no
+    registered question. Keeping only the digits is what makes this affordable to
+    store: the full token stream with five alternatives each would add roughly
+    18 KB to every row, which over 15 weeks is a quarter-gigabyte of
+    append-only file to carry the same information.
+
+    Returns None rather than [] when the provider sent nothing, so "not offered"
+    stays distinguishable from "offered and empty".
+    """
+    choices = payload.get("choices") or []
+    if not choices:
+        return None
+    content = ((choices[0].get("logprobs") or {}).get("content")) or []
+    if not content:
+        return None
+
+    out: List[Dict[str, Any]] = []
+    for position in content:
+        token = str(position.get("token", ""))
+        if not any(ch.isdigit() for ch in token):
+            continue
+        alternatives = [
+            [str(alt.get("token", "")), round(float(alt.get("logprob", 0.0)), 4)]
+            for alt in (position.get("top_logprobs") or [])
+            if isinstance(alt, dict)
+        ]
+        out.append({
+            "t": token,
+            "lp": round(float(position.get("logprob", 0.0)), 4),
+            "top": alternatives,
+        })
+        if len(out) >= MAX_LOGPROB_POSITIONS:
+            break
+    return out or None
+
+
+def _rejects_logprobs(response) -> bool:
+    """Is this failure specifically about the `logprobs` parameter?
+
+    Narrow on purpose. A blanket "retry without logprobs on any error" would
+    silently drop the registered leg the first time a host rate-limited, and
+    nothing would say the data had stopped arriving. Only a 4xx that names the
+    parameter counts; a 429 or a 500 is left to the ordinary retry path.
+    """
+    if not (400 <= int(getattr(response, "status_code", 0)) < 500):
+        return False
+    try:
+        body = str(response.text)[:2000].lower()
+    except Exception:                                          # noqa: BLE001
+        return False
+    return "logprob" in body
 
 
 def _upstream_host(payload: Dict[str, Any], field: Optional[str]) -> Optional[str]:
@@ -284,6 +358,12 @@ class OpenAICompatProvider(Provider):
     # and any key of this name in its response would mean something else.
     UPSTREAM_FIELD: Optional[str] = None
 
+    def __init__(self) -> None:
+        # Model ids observed to reject `logprobs`, remembered for this run only.
+        # Per-run rather than persisted: a host that gains support is asked again
+        # tomorrow instead of being written off for the study.
+        self._logprobs_refused: set = set()
+
     # OpenAI renamed this for the gpt-5 line: `max_tokens` now returns HTTP 400
     # "Unsupported parameter ... Use 'max_completion_tokens' instead". OpenRouter
     # still accepts the old name and normalises it, so this differs by PROVIDER,
@@ -291,23 +371,55 @@ class OpenAICompatProvider(Provider):
     # spec.model_id.
     MAX_TOKENS_PARAM = "max_completion_tokens"
 
+    def _body(self, spec, prompt, max_tokens, with_logprobs: bool) -> Dict[str, Any]:
+        body = {
+            "model": spec.model_id,
+            self.MAX_TOKENS_PARAM: max_tokens,
+            "temperature": TEMPERATURE,
+            "messages": [{"role": "user", "content": prompt}],
+            **self.EXTRA_BODY,
+        }
+        if with_logprobs:
+            body["logprobs"] = True
+            body["top_logprobs"] = TOP_LOGPROBS
+        return body
+
     def complete(self, spec, prompt, max_tokens, timeout):
         key = self._key(*self.KEY_NAMES)
         if not key:
             raise ProviderError(f"{self.KEY_NAMES[0]} not set")
 
-        response = httpx.post(
-            self.URL,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json={
-                "model": spec.model_id,
-                self.MAX_TOKENS_PARAM: max_tokens,
-                "temperature": TEMPERATURE,
-                "messages": [{"role": "user", "content": prompt}],
-                **self.EXTRA_BODY,
-            },
-            timeout=timeout,
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+        # LOGPROBS ARE ASKED FOR, BUT NEVER AT THE PRICE OF THE OBSERVATION.
+        #
+        # 5.4(a) registers a re-estimation on logprob-derived probabilities for
+        # the models that expose them. The field was never requested, so that leg
+        # had no data at all -- and the store is append-only, so every day it
+        # stayed unasked is a day that can never have it.
+        #
+        # Asking is a request change on a live panel, so it is built unable to
+        # cost anything. If a host rejects the parameter we reissue the SAME call
+        # without it, and the observation lands exactly as it would have before.
+        # The fallback belongs here rather than in `ask()`, which retries a
+        # ProviderError with an identical body: three attempts would carry the
+        # same bad parameter and fail together, which is exactly how qwen lost
+        # two whole days to Novita (11, deviation 4). The refusal is remembered
+        # per model id, so only the first call of a run pays for the discovery.
+        want = bool(getattr(spec, "supports_logprobs", False)) and (
+            spec.model_id not in self._logprobs_refused
         )
+        response = httpx.post(
+            self.URL, headers=headers,
+            json=self._body(spec, prompt, max_tokens, want), timeout=timeout,
+        )
+        if want and response.status_code != 200 and _rejects_logprobs(response):
+            self._logprobs_refused.add(spec.model_id)
+            want = False
+            response = httpx.post(
+                self.URL, headers=headers,
+                json=self._body(spec, prompt, max_tokens, False), timeout=timeout,
+            )
         if response.status_code != 200:
             raise ProviderError(f"{self.name} HTTP {response.status_code}: {response.text[:300]}")
 
@@ -321,6 +433,7 @@ class OpenAICompatProvider(Provider):
             input_tokens=int(usage.get("prompt_tokens", 0)),
             output_tokens=int(usage.get("completion_tokens", 0)),
             upstream_provider=_upstream_host(payload, self.UPSTREAM_FIELD),
+            logprobs=_digit_logprobs(payload) if want else None,
         )
 
 
@@ -661,6 +774,7 @@ def ask(
         # someone will want to look up -- that is how deviation 4 was diagnosed --
         # and an attribution that only survives on the successes is no use for it.
         obs.upstream_provider = result.upstream_provider
+        obs.logprobs = result.logprobs
         obs.input_tokens = input_tokens
         obs.output_tokens = output_tokens
         obs.raw_response = text[:4000]
