@@ -202,12 +202,13 @@ neff/
   collect.py     the daily runner
   panel.py       observations -> matrices for analysis
   analysis.py    the registered analysis, composed; blind by default
+  state.py       the three state variables derived at analysis time
   sources/
     kalshi.py    questions + ground-truth settlement
     fred.py      realized outcomes + market state
     spf.py       the human baseline
     http.py      retries, backoff, body verification
-tests/           453 tests
+tests/           504 tests
 ```
 
 ---
