@@ -234,6 +234,10 @@ class OpenAICompatProvider(Provider):
     URL = "https://api.openai.com/v1/chat/completions"
     KEY_NAMES = ("OPENAI_API_KEY",)
 
+    # Merged into the request body. Empty for direct vendor APIs, which serve
+    # their own models; only aggregators need to say HOW to route.
+    EXTRA_BODY: Dict[str, Any] = {}
+
     # OpenAI renamed this for the gpt-5 line: `max_tokens` now returns HTTP 400
     # "Unsupported parameter ... Use 'max_completion_tokens' instead". OpenRouter
     # still accepts the old name and normalises it, so this differs by PROVIDER,
@@ -254,6 +258,7 @@ class OpenAICompatProvider(Provider):
                 self.MAX_TOKENS_PARAM: max_tokens,
                 "temperature": TEMPERATURE,
                 "messages": [{"role": "user", "content": prompt}],
+                **self.EXTRA_BODY,
             },
             timeout=timeout,
         )
@@ -279,6 +284,33 @@ class OpenRouterProvider(OpenAICompatProvider):
     # Verified 19 Aug 2026: OpenRouter accepts the original name across all four
     # models we route through it, including the OpenAI ones.
     MAX_TOKENS_PARAM = "max_tokens"
+
+    # ROUTING IS NOT NEUTRAL. OpenRouter is an aggregator: it picks an upstream
+    # host per request, and the choice is invisible unless you ask for it.
+    # Probed 2026-09-09, one model per host: qwen -> DeepInfra,
+    # llama -> Parasail, deepseek -> Venice. Those assignments can change
+    # between requests, and when qwen was routed to Novita the call failed with
+    #
+    #     HTTP 400 INVALID_REQUEST_BODY -- "model: qwen/qwen-2.5-72b-instruct
+    #     does not support endpoint: completions"  (provider_name: Novita)
+    #
+    # for every retry, because all three attempts landed on the same upstream.
+    # That cost the whole of 2026-09-01 and 2026-09-07 -- 27 observations each,
+    # every qwen row for the day. It reads as a flaky model and is not one.
+    #
+    # `require_parameters` drops hosts that cannot serve the request as sent;
+    # `ignore` names the one already observed to fail; `allow_fallbacks` keeps
+    # the remaining hosts available so this cannot become a single point of
+    # failure. Routing is deliberately left free otherwise: days 1-8 were
+    # collected with it floating, and pinning one host now would put a
+    # discontinuity mid-panel to fix a problem the filter already solves.
+    EXTRA_BODY = {
+        "provider": {
+            "require_parameters": True,
+            "allow_fallbacks": True,
+            "ignore": ["Novita"],
+        }
+    }
 
 
 def google_daily_quota(response_json: Dict[str, Any]) -> Optional[int]:
