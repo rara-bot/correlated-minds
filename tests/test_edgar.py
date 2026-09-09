@@ -193,7 +193,11 @@ def test_build_filing_task_rejects_thin_history():
 
 
 def test_build_filing_task_produces_a_well_formed_question():
-    task = edgar.build_filing_task("TEST", 1, date(2030, 1, 1), facts=quarterly_series(12, growth=0.1))
+    # as_of sits just after the last quarter was filed, as it does in collection.
+    # It used to read date(2030, 1, 1) against a series ending in 2024, which
+    # describes a filer five years dead -- now correctly refused by the
+    # staleness guard, so the date is made realistic rather than the guard loosened.
+    task = edgar.build_filing_task("TEST", 1, date(2025, 2, 15), facts=quarterly_series(12, growth=0.1))
     assert task is not None
     assert "TEST" in task["title"]
     assert task["threshold"] > 0
@@ -201,3 +205,42 @@ def test_build_filing_task_produces_a_well_formed_question():
     assert "quarterly revenue as reported" in task["context"]
     # the question must state its own resolution rule
     assert "Resolves YES" in task["rules"]
+
+
+# --- staleness: the successor quarter must actually be in the future ----------
+
+def test_build_filing_task_refuses_a_dead_reporting_series():
+    """The JPM defect, 2026-09-08.
+
+    JPMorgan reports under a tag this module does not read, so its best
+    available series ended in 2014 and the task asked models for the quarter
+    following 2014-12-31 -- a figure filed in 2015 that they can simply recall.
+    Nine such task-days were collected. Nothing downstream could detect it: the
+    question is well-formed, scores through the normal path, and the recall it
+    rewards shows up as models agreeing, which inflates the study's primary
+    estimand toward its own hypothesis.
+    """
+    series = quarterly_series(12)                     # ends 2024-12-26
+    assert edgar.build_filing_task("JPM", 19617, date(2026, 9, 8), facts=series) is None
+
+
+def test_a_filer_deep_into_the_next_quarter_is_still_accepted():
+    """The guard must not quietly shrink the universe.
+
+    An ordinary filer sits at 32-161 days between its last reported period end
+    and today; XOM was at 161 on 2026-09-08. A threshold that clipped that would
+    drop real companies and silently move the registered 60/40 task mix.
+    """
+    series = quarterly_series(12)                     # ends 2024-12-26
+    as_of = date(2025, 6, 5)                          # 161 days later
+    assert (as_of - series[-1].end).days == 161
+    assert edgar.build_filing_task("XOM", 34088, as_of, facts=series) is not None
+
+
+def test_the_boundary_is_the_documented_constant():
+    series = quarterly_series(12)
+    last = series[-1].end
+    ok = date.fromordinal(last.toordinal() + edgar.MAX_REPORTING_GAP_DAYS)
+    too_old = date.fromordinal(last.toordinal() + edgar.MAX_REPORTING_GAP_DAYS + 1)
+    assert edgar.build_filing_task("T", 1, ok, facts=series) is not None
+    assert edgar.build_filing_task("T", 1, too_old, facts=series) is None

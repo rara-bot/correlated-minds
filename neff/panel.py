@@ -22,6 +22,7 @@ rather than incidental:
 import json
 import warnings
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -35,6 +36,7 @@ from .config import (
     TASKS_PATH,
     primary_panel,
 )
+from .sources.edgar import MAX_REPORTING_GAP_DAYS
 from .store import JsonlStore
 
 
@@ -342,6 +344,59 @@ def apply_settled_question_exclusion(
         verdict[qid] = low <= median <= high
 
     keep = [i for i, qid in enumerate(panel.question_ids) if verdict.get(qid, True)]
+    idx = np.asarray(keep, dtype=int)
+    return Panel(
+        forecasts=panel.forecasts[idx],
+        outcomes=panel.outcomes[idx],
+        errors=panel.errors[idx],
+        task_ids=[panel.task_ids[i] for i in keep],
+        model_keys=list(panel.model_keys),
+        market_implied=panel.market_implied[idx],
+        state=[panel.state[i] for i in keep],
+        question_ids=[panel.question_ids[i] for i in keep],
+        asked_on=[panel.asked_on[i] for i in keep],
+    )
+
+
+def apply_stale_source_exclusion(
+    panel: Panel, max_gap_days: int = MAX_REPORTING_GAP_DAYS
+) -> Panel:
+    """Drop filing tasks built on a dead reporting series. DEVIATION 3 (2026-09-08).
+
+    `edgar.build_filing_task` now refuses to construct these, but the store is
+    append-only and 9 JPM task-days were already collected before the guard
+    existed. They ask for the quarter following 2014-12-31 -- a figure filed in
+    2015 and present in every model's pretraining -- so the panel would be
+    scoring recall, not forecasting, and models that recall the same fact agree.
+    That inflates `rho_bar`, which is the study's primary estimand, in the
+    direction the hypothesis predicts. It is the one direction a contaminated
+    task must never push.
+
+    THE RULE IS MECHANICAL AND WAS FIXED BEFORE ANY OF THESE TASKS RESOLVED.
+    It reproduces the generator's own precondition on the read side -- same
+    threshold, stated once -- rather than naming JPM or a CIK. So it is not a
+    choice about which rows to keep: it catches any filer whose series goes dead
+    later, and it cannot have been fitted to an outcome, because on the date it
+    was written none of the affected tasks had one. An exclusion decided after
+    seeing the scores would be worth nothing, whatever its rationale.
+
+    Macro tasks carry no `last_reported_end` and are never touched.
+    """
+    keep: List[int] = []
+    for i, st in enumerate(panel.state):
+        end = (st or {}).get("last_reported_end")
+        asked = (st or {}).get("asked_on") or panel.asked_on[i]
+        if not end or not asked:
+            keep.append(i)
+            continue
+        try:
+            gap = (date.fromisoformat(str(asked)) - date.fromisoformat(str(end))).days
+        except ValueError:
+            keep.append(i)
+            continue
+        if gap <= max_gap_days:
+            keep.append(i)
+
     idx = np.asarray(keep, dtype=int)
     return Panel(
         forecasts=panel.forecasts[idx],

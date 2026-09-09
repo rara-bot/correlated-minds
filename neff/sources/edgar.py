@@ -31,8 +31,14 @@ Truth:  The value the company itself reports in its next 10-Q/10-K, read from
 
 Three properties make this a good task:
 
-1. CONTAMINATION-PROOF BY CONSTRUCTION. The next quarter has not been filed, so
-   no amount of pretraining can contain the answer.
+1. CONTAMINATION-PROOF BY CONSTRUCTION -- but only while the source is live.
+   The next quarter has not been filed, so no amount of pretraining can contain
+   the answer. That holds only if the freshest figure we can see is genuinely
+   recent. If a filer's tag series has gone dead, the "next" quarter is one the
+   company reported years ago, and every model may simply recall it.
+   MAX_REPORTING_GAP_DAYS enforces the precondition; without it this property
+   is assumed rather than built in, and a contaminated task is indistinguishable
+   from a good one at every later stage.
 2. UNAMBIGUOUS GROUND TRUTH. The outcome is a number the company reports itself,
    in a structured field, with a filing date. No judgement call from us.
 3. NO PRICE DATA NEEDED. Free daily equity prices are hard to obtain reliably
@@ -60,6 +66,19 @@ REVENUE_TAGS = (
     "RevenueFromContractWithCustomerIncludingAssessedTax",
     "SalesRevenueNet",
 )
+
+# A live quarterly filer produces a new reported period roughly every 92 days.
+# Allowing two missed quarters plus a filing lag puts the outer edge of normal
+# reporting at ~200 days. Past that, the tag series is no longer tracking the
+# company: the successor quarter exists, was filed long ago, and is reported
+# under a tag we are not reading -- so the task would ask for something the
+# models can recall rather than forecast.
+#
+# Banks are the live case. JPMorgan reports under RevenuesNetOfInterestExpense,
+# which is not in REVENUE_TAGS, so its best available series ends in 2014.
+# Measured across the collected battery on 2026-09-08, ordinary filers sat at
+# 32-161 days and JPM sat at 4,269.
+MAX_REPORTING_GAP_DAYS = 200
 
 # Large, liquid, reliably quarterly filers across several sectors. Sector spread
 # matters: a panel of only mega-cap tech would confound "model agreement" with
@@ -355,6 +374,13 @@ def build_filing_task(
 
     history = visible_history(all_facts, as_of)
     if len(history) < 6:
+        return None
+
+    # STALENESS GUARD. A dead series produces a question whose answer is already
+    # public, and it looks exactly like a good one: same shape, same scoring
+    # path, same prompt. It has to be refused at the point of construction,
+    # because nothing downstream can tell the difference.
+    if (as_of - history[-1].end).days > MAX_REPORTING_GAP_DAYS:
         return None
 
     picked = next_period_threshold(history)
