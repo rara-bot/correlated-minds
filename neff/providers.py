@@ -7,7 +7,9 @@ be corrupted:
   - PINNED MODEL IDS, and we log whatever id the API actually served. Providers
     silently upgrade models behind aliases; a swap mid-panel would corrupt a
     longitudinal correlation study in a way that is nearly undetectable after
-    the fact.
+    the fact. The same argument reaches one level further down: where the API is
+    an aggregator, the served id does not identify the machine that ran the
+    weights, so we log the upstream host it names as well.
 
   - STRUCTURED OUTPUT. We correlate decisions, not prose. A rigid JSON schema
     removes extraction error and stops free-text length differences across
@@ -31,7 +33,8 @@ import os
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 import httpx
 
@@ -61,6 +64,44 @@ Respond with ONLY a JSON object, no prose before or after, in exactly this form:
 
 class ProviderError(RuntimeError):
     """Non-retryable provider failure."""
+
+
+@dataclass
+class Completion:
+    """One call's result, in the form the observation record needs it.
+
+    A dataclass rather than a tuple because what we need to know about a call is
+    not a fixed-width thing. It began as (text, model_id, in, out); recording the
+    upstream host made it five, and the next provider quirk worth logging will
+    make it six. Widening a tuple silently breaks every call site that unpacks it
+    by position, and one of those call sites bills the study's budget.
+
+    `upstream_provider` is optional because most providers serve their own
+    models and the question does not arise for them.
+    """
+
+    text: str
+    model_id: str
+    input_tokens: int
+    output_tokens: int
+    upstream_provider: Optional[str] = None
+
+
+def _upstream_host(payload: Dict[str, Any], field: Optional[str]) -> Optional[str]:
+    """The upstream host an aggregator named for this call, if it named one.
+
+    Deliberately strict. A missing host is a gap in the log; a WRONG host is a
+    confounder recorded as if it were controlled, which is worse. OpenRouter
+    answers with a bare name ("DeepInfra"), so anything that is not a non-empty
+    string -- notably the routing-preference object we send under the same key --
+    is read as "not stated" rather than coerced into a value.
+    """
+    if not field:
+        return None
+    value = payload.get(field)
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
 
 
 # `"direction": "yes, confidence": 0.7`  ->  `"direction": "yes", "confidence": 0.7`
@@ -169,8 +210,8 @@ class Provider(ABC):
     @abstractmethod
     def complete(
         self, spec: ModelSpec, prompt: str, max_tokens: int, timeout: float
-    ) -> Tuple[str, str, int, int]:
-        """Return (text, model_id_returned, input_tokens, output_tokens)."""
+    ) -> "Completion":
+        """Issue one call and return what was served."""
 
     @staticmethod
     def _key(*names: str) -> Optional[str]:
@@ -215,11 +256,11 @@ class AnthropicProvider(Provider):
             if block.get("type") == "text"
         )
         usage = payload.get("usage", {})
-        return (
-            text,
-            payload.get("model", spec.model_id),
-            int(usage.get("input_tokens", 0)),
-            int(usage.get("output_tokens", 0)),
+        return Completion(
+            text=text,
+            model_id=payload.get("model", spec.model_id),
+            input_tokens=int(usage.get("input_tokens", 0)),
+            output_tokens=int(usage.get("output_tokens", 0)),
         )
 
 
@@ -237,6 +278,11 @@ class OpenAICompatProvider(Provider):
     # Merged into the request body. Empty for direct vendor APIs, which serve
     # their own models; only aggregators need to say HOW to route.
     EXTRA_BODY: Dict[str, Any] = {}
+
+    # Response key naming the upstream host that served the call. None for a
+    # direct vendor API: OpenAI IS the host, so there is nothing to disambiguate
+    # and any key of this name in its response would mean something else.
+    UPSTREAM_FIELD: Optional[str] = None
 
     # OpenAI renamed this for the gpt-5 line: `max_tokens` now returns HTTP 400
     # "Unsupported parameter ... Use 'max_completion_tokens' instead". OpenRouter
@@ -269,11 +315,12 @@ class OpenAICompatProvider(Provider):
         choices = payload.get("choices") or []
         text = choices[0].get("message", {}).get("content", "") if choices else ""
         usage = payload.get("usage", {})
-        return (
-            text,
-            payload.get("model", spec.model_id),
-            int(usage.get("prompt_tokens", 0)),
-            int(usage.get("completion_tokens", 0)),
+        return Completion(
+            text=text,
+            model_id=payload.get("model", spec.model_id),
+            input_tokens=int(usage.get("prompt_tokens", 0)),
+            output_tokens=int(usage.get("completion_tokens", 0)),
+            upstream_provider=_upstream_host(payload, self.UPSTREAM_FIELD),
         )
 
 
@@ -311,6 +358,24 @@ class OpenRouterProvider(OpenAICompatProvider):
             "ignore": ["Novita"],
         }
     }
+
+    # AND BECAUSE ROUTING IS LEFT FREE, IT HAS TO BE RECORDED.
+    #
+    # The filter above removes one known-bad host and stops there, deliberately:
+    # days 1-8 were collected with the upstream floating and pinning one host now
+    # would put a discontinuity mid-panel. What that leaves is a variable that
+    # moves per request and, until this field, was written down nowhere -- while
+    # PREREGISTRATION.md 10 (limitation 4) promises "we log the served id every
+    # call and report drift". The served id is `qwen/qwen-2.5-72b-instruct`
+    # whichever host answers, so on its own it does not discharge that promise
+    # here: hosts serve different quantisations of the same open weights, and
+    # the study's estimand is agreement BETWEEN models.
+    #
+    # OpenRouter names the host it chose in a top-level `provider` field on the
+    # response body (verified live, 2026-09-09). It shares its name with the
+    # routing preference we SEND under EXTRA_BODY above; the two are unrelated,
+    # which is why `_upstream_host` accepts only a bare string.
+    UPSTREAM_FIELD = "provider"
 
 
 def google_daily_quota(response_json: Dict[str, Any]) -> Optional[int]:
@@ -469,11 +534,11 @@ class GoogleProvider(Provider):
                 f"budget or reduce thinkingBudget."
             )
 
-        return (
-            text,
-            payload.get("modelVersion", spec.model_id),
-            int(usage.get("promptTokenCount", 0)),
-            output_tokens,
+        return Completion(
+            text=text,
+            model_id=payload.get("modelVersion", spec.model_id),
+            input_tokens=int(usage.get("promptTokenCount", 0)),
+            output_tokens=output_tokens,
         )
 
 
@@ -508,7 +573,12 @@ class MockProvider(Provider):
                 "rationale": f"mock response from {spec.key}",
             }
         )
-        return text, f"{spec.model_id}-mock", len(prompt) // 4, 40
+        return Completion(
+            text=text,
+            model_id=f"{spec.model_id}-mock",
+            input_tokens=len(prompt) // 4,
+            output_tokens=40,
+        )
 
 
 PROVIDERS: Dict[str, Provider] = {
@@ -574,16 +644,23 @@ def ask(
 
     for attempt in range(max_retries + 1):
         try:
-            text, model_id, input_tokens, output_tokens = provider.complete(
-                spec, prompt, max_tokens, timeout
-            )
+            result = provider.complete(spec, prompt, max_tokens, timeout)
         except (ProviderError, httpx.RequestError) as exc:
             last_error = f"{type(exc).__name__}: {exc}"
             if attempt < max_retries:
                 time.sleep(2.0 * (attempt + 1))
             continue
 
-        obs.model_id_returned = model_id
+        text = result.text
+        input_tokens = result.input_tokens
+        output_tokens = result.output_tokens
+
+        obs.model_id_returned = result.model_id
+        # Recorded HERE, before parsing, so it lands on failed observations too.
+        # A row that came back unusable is exactly the row whose serving stack
+        # someone will want to look up -- that is how deviation 4 was diagnosed --
+        # and an attribution that only survives on the successes is no use for it.
+        obs.upstream_provider = result.upstream_provider
         obs.input_tokens = input_tokens
         obs.output_tokens = output_tokens
         obs.raw_response = text[:4000]

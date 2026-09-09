@@ -20,7 +20,7 @@ import pytest
 
 from neff import config
 from neff.ledger import Ledger
-from neff.providers import PROVIDERS, Provider, ask
+from neff.providers import PROVIDERS, Completion, Provider, ask
 
 # Copied from data/observations.jsonl, obs on 2026-09-01: Sonnet reasoning out
 # loud about JPM's Q1 2015 revenue and being guillotined before the object.
@@ -43,7 +43,12 @@ class _StubProvider(Provider):
         self._output_tokens = output_tokens
 
     def complete(self, spec, prompt, max_tokens, timeout):
-        return self._text, spec.model_id, 100, self._output_tokens
+        return Completion(
+            text=self._text,
+            model_id=spec.model_id,
+            input_tokens=100,
+            output_tokens=self._output_tokens,
+        )
 
 
 @pytest.fixture

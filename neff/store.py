@@ -74,6 +74,16 @@ class Observation:
     forecast: Optional[float]       # probability in [0,1], or a continuous estimate
     direction: Optional[str]
     confidence: Optional[float]
+    # WHICH MACHINE ACTUALLY RAN THE WEIGHTS, when the API we called does not
+    # know itself. `provider` above is the API endpoint; for OpenRouter that is a
+    # router rather than a server, and it picks an upstream host per request.
+    # Different hosts serve different quantisations of the same open-weight
+    # model, so in a study whose estimand is agreement BETWEEN models the serving
+    # stack is an uncontrolled variable -- and it is the one that cost every qwen
+    # observation on 2026-09-01 and 2026-09-07 (PREREGISTRATION.md 11, deviation
+    # 4). None for direct vendor APIs, which serve their own models, and None on
+    # rows written before this was recorded.
+    upstream_provider: Optional[str] = None
     rationale: str = ""
     logprobs: Optional[Dict[str, float]] = None
     raw_response: str = ""

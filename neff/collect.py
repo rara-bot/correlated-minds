@@ -287,6 +287,21 @@ def run_day(
     if drift:
         _log(f"!! MODEL ID DRIFT: {drift}")
 
+    # Which upstream host served each aggregated model today.
+    #
+    # The drift check above cannot see this. Every host behind OpenRouter returns
+    # the same served id, so a day that ran entirely on a different serving stack
+    # -- a different quantisation of the same open weights -- passes the drift
+    # check silently. Reported next to it because it is the same promise
+    # (PREREGISTRATION.md 10, limitation 4) one level further down, and because
+    # the hosts are how 2026-09-01 and 2026-09-07 were lost.
+    routing = sorted(
+        {f"{o.model_key} -> {o.upstream_provider}"
+         for o in collected if o.upstream_provider}
+    )
+    if routing:
+        _log(f"upstream hosts: {routing}")
+
     return {
         "date": today.isoformat(),
         "tasks": len(tasks),
@@ -296,6 +311,7 @@ def run_day(
         "spend_today_usd": round(sum(o.usd for o in collected), 4),
         "ledger": ledger.summary(),
         "drift": drift,
+        "routing": routing,
     }
 
 

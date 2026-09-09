@@ -122,18 +122,20 @@ class TestThinkingTokensAreBilled:
         """Google bills thinking as output. Recording only the visible tokens
         understated this model by 14x."""
         captured["_payload"] = _ok_payload(candidates=65, thoughts=867)
-        _text, _mid, in_tok, out_tok = _call(REASONING)
+        done = _call(REASONING)
+        in_tok, out_tok = done.input_tokens, done.output_tokens
         assert in_tok == 346
         assert out_tok == 65 + 867
 
     def test_absent_thoughts_field_is_not_an_error(self, captured):
         captured["_payload"] = _ok_payload(candidates=60)
-        _t, _m, _i, out_tok = _call(LITE)
+        out_tok = _call(LITE).output_tokens
         assert out_tok == 60
 
     def test_cost_reflects_the_thinking_tokens(self, captured):
         captured["_payload"] = _ok_payload(candidates=65, thoughts=867)
-        _t, _m, in_tok, out_tok = _call(REASONING)
+        done = _call(REASONING)
+        in_tok, out_tok = done.input_tokens, done.output_tokens
         billed = REASONING.price.estimate(in_tok, out_tok)
         visible_only = REASONING.price.estimate(in_tok, 65)
         assert billed > 5 * visible_only
@@ -162,7 +164,7 @@ class TestTruncationIsLoud:
 
     def test_a_normal_stop_does_not_raise(self, captured):
         captured["_payload"] = _ok_payload(finish="STOP")
-        text, _m, _i, _o = _call(REASONING)
+        text = _call(REASONING).text
         assert text
 
 

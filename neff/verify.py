@@ -198,9 +198,11 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
        operator to run the very command they had just run.
     2. The receipt is EVIDENCE. It is a dated record that every pinned id was
        confirmed against a live API *before the pre-registration was frozen*,
-       carrying the id each provider actually served. The study's drift claim
+       carrying the id each provider actually served -- and, where the provider
+       is an aggregator, the upstream host it routed to. The study's drift claim
        ("we log the served id every call and report drift") begins at this file
-       rather than on the first collection day.
+       rather than on the first collection day, so the receipt has to record
+       everything the daily row records or the series starts with a gap.
     """
     out: List[Tuple[str, str, str]] = []
     ledger = Ledger(LEDGER_PATH, cap_usd=BUDGET_USD, arm_caps={"pilot": spend_cap_usd})
@@ -259,17 +261,24 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
         if obs.error and obs.forecast is None:
             out.append((CROSS, spec.key, obs.error[:110]))
             _receipt(spec, ok=False, model_id_returned=obs.model_id_returned or "",
+                     upstream_provider=obs.upstream_provider,
                      usd=obs.usd, error=obs.error)
             continue
 
         served = obs.model_id_returned or "?"
         drift, note = classify_served_id(spec.model_id, served)
-        _receipt(spec, ok=True, model_id_returned=served, usd=obs.usd,
+        _receipt(spec, ok=True, model_id_returned=served,
+                 upstream_provider=obs.upstream_provider, usd=obs.usd,
                  drift=drift, error=None)
+        # The host is printed as well as recorded. `qwen -> DeepInfra,
+        # llama -> Parasail, deepseek -> Venice` is the probe quoted in
+        # deviations 4 and 7; it was read off an ad-hoc script, and the operator
+        # should be able to see it from the command that already exists.
         out.append(
             (WARN if drift else TICK,
              spec.key,
              f"served {served!r} (pinned {spec.model_id!r}), ${obs.usd:.5f}"
+             + (f"  via {obs.upstream_provider}" if obs.upstream_provider else "")
              + (f"  <- {note}" if note else ""))
         )
 
