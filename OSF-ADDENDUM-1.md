@@ -10,7 +10,7 @@ and what we are doing about it. It does **not** revise the registered analysis.
 | Plan frozen | 2026-08-29 03:54 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
 | Addendum date | 2026-09-09 |
-| Also recorded at | PREREGISTRATION.md §11, deviation 5 |
+| Also recorded at | PREREGISTRATION.md §11, deviations 5 and 6 |
 
 **Why now:** posting this while the outcomes it could affect do not yet exist is
 the whole of its value. Eight collection days exist and five resolved task-days
@@ -27,7 +27,7 @@ unfalsifiable.
 ### Title of update
 
 ```
-Addendum 1: a specification error in the §5.2 event-clustered interval, found before any primary estimate was computed
+Addendum 1: a specification error in the §5.2 event-clustered interval, and a qualification to the §6 stress-leg power rationale — both found before any primary estimate was computed
 ```
 
 ### Body
@@ -116,12 +116,43 @@ as documented -- but both are values that would have printed. The driver now
 refuses to report an N_eff sitting on that clamp, flags N_eff exceeding the
 panel size, and names a panel whose rows all trace to a single settlement.
 
+A SECOND, SMALLER DISCLOSURE
+
+The same review found that 29.4% of our collection days carry a market state
+that is not their own. Markets are shut at our 13:10 UTC collection time on
+weekends and holidays, so FRED and the VIX return the prior close and that day's
+questions are stamped with it. Observed directly: 2026-09-05 (Saturday),
+2026-09-06 (Sunday) and 2026-09-07 (Labor Day) all carry VIX 14.32, which is
+Friday 2026-09-04's value. Eight collection days produced five distinct market
+states. Across the full 2026-09-01 to 2026-12-11 window this is 30 of 102 days.
+
+This biases nothing -- the duplicated state is the correct state, because no
+trading occurred -- and it is confined to the stress leg of H1. Of the seven
+registered state variables, three are market-derived and go stale (VIX level,
+20-day realised volatility, |macro surprise|); the other four do not. Ladder
+distance is set per question, cross-model dispersion is computed from that day's
+own forecasts, days-to-resolution decrements daily, and novelty grows with the
+corpus. The ambiguity leg of H1, which is the experimentally varied one, is
+untouched.
+
+The stress leg still clears its registered requirement. Section 6 requires
+roughly 300 task-days per stress tercile and about 600 remain informative. What
+is narrower than the sentence in section 6 implies is the margin, not the power:
+about 2x the requirement rather than the ~2.9x a reader would compute from the
+raw task-day count. We are stating this before the terciles are formed rather
+than defending it afterwards.
+
+We are changing nothing in response to it. Collecting seven days a week remains
+correct: the forecasts themselves are not stale, only the market covariates are,
+and dropping weekend days would break the continuity of the daily public record
+that makes our timestamps checkable.
+
 VERIFICATION
 
 Everything above is checkable without taking our word for it.
 
   Repository:   https://github.com/rara-bot/correlated-minds
-  Recorded at:  PREREGISTRATION.md section 11, deviation 5
+  Recorded at:  PREREGISTRATION.md section 11, deviations 5 and 6
   Code:         neff/analysis.py, tests/test_analysis_driver.py
 
 The registered plan is unchanged outside section 11, which the plan itself
