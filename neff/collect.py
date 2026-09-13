@@ -44,7 +44,7 @@ from .config import (
     mock_sandbox,
 )
 from .ledger import Ledger
-from .providers import PROVIDERS, ask
+from .providers import PROVIDERS, RATE_LIMIT_ALLOWANCE_S, RateLimitAllowance, ask
 from .store import JsonlStore, Observation, Resolution, Task, observation_id
 from .tasks import build_daily_tasks, summarize
 
@@ -52,6 +52,32 @@ from .tasks import build_daily_tasks, summarize
 def _log(message: str) -> None:
     stamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
     print(f"[{stamp}] {message}", flush=True)
+
+
+def logprobs_coverage(collected, models) -> Dict[str, Dict[str, object]]:
+    """For each model asked for logprobs: calls answered, calls that carried
+    them, and the hosts that answered without them.
+
+    Only answered calls count. A call that never came back had no answer to
+    carry logprobs on, and is already reported as a failure. Mock rows are left
+    out, because the mock provider serves none by design.
+    """
+    asked = {m.key for m in models if getattr(m, "supports_logprobs", False)}
+    report: Dict[str, Dict[str, object]] = {}
+    for o in collected:
+        if o.model_key not in asked or not o.model_id_returned or o.provider == "mock":
+            continue
+        entry = report.setdefault(
+            o.model_key, {"answered": 0, "carried": 0, "hosts_without": {}}
+        )
+        entry["answered"] += 1
+        if o.logprobs:
+            entry["carried"] += 1
+        else:
+            # A direct vendor API names no upstream host; it IS the host.
+            host = o.upstream_provider or o.provider
+            entry["hosts_without"][host] = entry["hosts_without"].get(host, 0) + 1
+    return report
 
 
 def run_day(
@@ -227,6 +253,11 @@ def run_day(
     collected: List[Observation] = []
     failures = 0
 
+    # One allowance for waiting out rate limits, shared by every call in the run
+    # so that waiting can never hold the job past its time limit
+    # (RATE_LIMIT_WAITS_S in providers.py says why a 429 is waited out at all).
+    rate_limits = RateLimitAllowance(RATE_LIMIT_ALLOWANCE_S)
+
     with ThreadPoolExecutor(max_workers=config.concurrency) as pool:
         futures = {
             pool.submit(
@@ -238,6 +269,7 @@ def run_day(
                 arm=config.arm,
                 prompt_variant=variant,
                 use_mock=use_mock,
+                rate_limits=rate_limits,
             ): (task, spec, variant)
             for task, spec, variant in pending
         }
@@ -332,6 +364,62 @@ def run_day(
             f"unaffected; today's rows carry no serving-stack attribution."
         )
 
+    waited = rate_limits.summary()
+    if waited["waits"]:
+        _log(
+            f"rate limits: {waited['waits']} wait(s), {waited['waited_s']:.0f}s "
+            f"of the {waited['allowance_s']:.0f}s allowance"
+        )
+    if waited["refused"]:
+        _log(
+            f"!! RATE-LIMIT ALLOWANCE SPENT: {waited['refused']} rate-limited "
+            f"attempt(s) went back to the ordinary short retries. The allowance "
+            f"exists so that waiting cannot run the job out of time; rows that "
+            f"still failed carry the 429."
+        )
+
+    # DID THE LOGPROBS ACTUALLY ARRIVE?
+    #
+    # Asking is not receiving. Hosts that OpenRouter's catalogue lists as
+    # supporting `logprobs` answer HTTP 200 with `logprobs: null` -- AtlasCloud
+    # and StreamLake for deepseek, Cloudflare for llama, probed 2026-09-13 -- and
+    # a row like that is otherwise perfect: no error, no failed call, nothing
+    # else in this log. deepseek carried logprobs on 26 of its first 108 rows
+    # after they were requested (PREREGISTRATION.md 11, deviation 10), and
+    # nothing said so. The run cannot recover what a host never sends, so this
+    # names the hosts, which are both the cause and the only lever
+    # (deviation 12).
+    #
+    # WARNS, NEVER RAISES, for the same reason as the check above.
+    logprobs: Dict[str, Dict[str, object]] = {}
+    try:
+        logprobs = logprobs_coverage(collected, models)
+        if logprobs:
+            _log("logprobs carried: " + ", ".join(
+                f"{key} {c['carried']}/{c['answered']}"
+                for key, c in sorted(logprobs.items())
+            ))
+        missing = {key: c for key, c in logprobs.items() if c["hosts_without"]}
+        if missing:
+            total = sum(sum(c["hosts_without"].values()) for c in missing.values())
+            detail = "; ".join(
+                f"{key}: " + ", ".join(
+                    f"{host} x{n}" for host, n in sorted(c["hosts_without"].items())
+                )
+                for key, c in sorted(missing.items())
+            )
+            _log(
+                f"!! LOGPROBS MISSING on {total} answered call(s) -- {detail}. Those "
+                f"hosts answered without them, so 5.4(a) cannot use these rows. "
+                f"Collection is unaffected."
+            )
+    except Exception as exc:  # noqa: BLE001
+        logprobs = {}
+        _log(
+            f"!! logprobs report failed ({type(exc).__name__}: {exc}); "
+            f"collection is unaffected"
+        )
+
     return {
         "date": today.isoformat(),
         "tasks": len(tasks),
@@ -342,6 +430,8 @@ def run_day(
         "ledger": ledger.summary(),
         "drift": drift,
         "routing": routing,
+        "rate_limit_waits": waited,
+        "logprobs": logprobs,
     }
 
 

@@ -31,6 +31,7 @@ be corrupted:
 import json
 import os
 import re
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -703,6 +704,92 @@ PROVIDERS: Dict[str, Provider] = {
 }
 
 
+# A RATE LIMIT IS WAITED OUT, NOT COUNTED AS A FAILURE.
+#
+# A 429 means "not now", and `ask()` used to answer it like any other failure:
+# three attempts, two and four seconds apart. Six seconds outlasts nothing. Since
+# Novita went on the ignore list (PREREGISTRATION.md 11, deviation 4), OpenRouter
+# has had exactly one host for qwen -- DeepInfra -- so `allow_fallbacks` has
+# nowhere to go when that host's shared pool throttles:
+#
+#     HTTP 429 -- "qwen/qwen-2.5-72b-instruct is temporarily rate-limited
+#     upstream. Please retry shortly"  (provider_name: DeepInfra)
+#
+# On 2026-09-09 eighteen consecutive qwen calls failed that way between 17:09:20
+# and 17:10:53 UTC, and the day lost 24 of its 27 qwen observations; 2026-09-11
+# lost 5 more. qwen was already under the 80% coverage floor that removes a
+# panel member (3.3, 5.6). The evening backup run cannot recover such a row: it
+# is written as a failure, and its content-addressed id then reads as done. So
+# the wait has to happen here, inside the call. The schedule's 225 s horizon
+# outlasts the 93 s streak above.
+RATE_LIMIT_WAITS_S = (15.0, 30.0, 60.0, 120.0)
+
+# WAITING HAS ITS OWN WAY TO LOSE A DAY. The workflow kills the job at 45
+# minutes, and nothing is committed until collection has finished, so a run held
+# past that loses every model's rows rather than one model's. Every wait is
+# therefore drawn from one allowance for the whole run, summed across threads:
+# at most fifteen minutes added to a collection that normally takes four. Once
+# it is spent, a 429 is retried exactly as before, and the run log says so.
+RATE_LIMIT_ALLOWANCE_S = 900.0
+
+# A quota is not a queue. These 429s mean the allowance for the day or the
+# account is gone, and waiting inside one run cannot bring it back -- spending
+# the run's allowance on them would only starve the rate limits that do pass.
+# Google names a per-day quota through `_google_quota_message`; OpenAI answers
+# an account that is out of credit with a 429 of type `insufficient_quota`.
+_QUOTA_EXHAUSTED = ("DAILY QUOTA", "insufficient_quota")
+
+# Every provider above builds its message as `<name> HTTP <status>: <body>`.
+# Anchored at the start so that a 429 quoted inside another error's body does not
+# count.
+_HTTP_429 = re.compile(r"^\w+ HTTP 429\b")
+
+
+def _rate_limited(exc: BaseException) -> bool:
+    """Is this failure a rate limit that waiting can outlast?
+
+    Narrow on purpose, like `_rejects_logprobs`: a transport error, a 400, a 500
+    and an exhausted quota all keep the ordinary retry path.
+    """
+    if not isinstance(exc, ProviderError):
+        return False
+    message = str(exc)
+    if not _HTTP_429.match(message):
+        return False
+    return not any(marker in message for marker in _QUOTA_EXHAUSTED)
+
+
+class RateLimitAllowance:
+    """How long one run may spend waiting out rate limits, shared by its threads."""
+
+    def __init__(self, seconds: float = RATE_LIMIT_ALLOWANCE_S) -> None:
+        self.seconds = float(seconds)
+        self.waited_s = 0.0
+        self.waits = 0
+        self.refused = 0
+        self._lock = threading.Lock()
+
+    def take(self, wanted: float) -> float:
+        """Reserve up to `wanted` seconds. Returns what was granted, possibly 0."""
+        with self._lock:
+            granted = max(0.0, min(float(wanted), self.seconds - self.waited_s))
+            if granted > 0:
+                self.waited_s += granted
+                self.waits += 1
+            else:
+                self.refused += 1
+            return granted
+
+    def summary(self) -> Dict[str, float]:
+        with self._lock:
+            return {
+                "waits": self.waits,
+                "waited_s": round(self.waited_s, 1),
+                "allowance_s": self.seconds,
+                "refused": self.refused,
+            }
+
+
 def ask(
     spec: ModelSpec,
     task_id: str,
@@ -714,12 +801,17 @@ def ask(
     timeout: float = 90.0,
     use_mock: bool = False,
     max_retries: int = 2,
+    rate_limits: Optional[RateLimitAllowance] = None,
 ) -> Observation:
     """Ask one model one question and return an Observation.
 
     Never raises for provider trouble -- failures come back as an Observation
     with `error` populated. The panel must record that a model was asked and did
     not usefully answer; that is data, not an absence of data.
+
+    `rate_limits` is the run's allowance for waiting out a 429 (see
+    RATE_LIMIT_WAITS_S). Without one, a rate limit is retried like any other
+    failure, which is what every caller outside the daily run still gets.
     """
     provider_name = "mock" if use_mock else spec.provider
     provider = PROVIDERS.get(provider_name)
@@ -754,15 +846,30 @@ def ask(
 
     started = time.time()
     last_error = ""
+    calls = retries = waits = 0
 
-    for attempt in range(max_retries + 1):
+    while True:
+        calls += 1
         try:
             result = provider.complete(spec, prompt, max_tokens, timeout)
         except (ProviderError, httpx.RequestError) as exc:
             last_error = f"{type(exc).__name__}: {exc}"
-            if attempt < max_retries:
-                time.sleep(2.0 * (attempt + 1))
-            continue
+            # A rate limit is waited out first, on the run's shared allowance
+            # (see RATE_LIMIT_WAITS_S). A wait does not use up a retry.
+            if (rate_limits is not None and waits < len(RATE_LIMIT_WAITS_S)
+                    and _rate_limited(exc)):
+                granted = rate_limits.take(RATE_LIMIT_WAITS_S[waits])
+                if granted > 0:
+                    waits += 1
+                    time.sleep(granted)
+                    continue
+            # Everything else, and a rate limit the allowance can no longer
+            # cover, gets the ordinary retries exactly as before.
+            if retries < max_retries:
+                retries += 1
+                time.sleep(2.0 * retries)
+                continue
+            break
 
         text = result.text
         input_tokens = result.input_tokens
@@ -862,6 +969,7 @@ def ask(
             obs.error = (obs.error or "") + " | missing probability"
         return obs
 
-    obs.error = f"failed after {max_retries + 1} attempts: {last_error}"
+    waited = f", {waits} of them after waiting out a rate limit" if waits else ""
+    obs.error = f"failed after {calls} attempts{waited}: {last_error}"
     obs.latency_ms = int((time.time() - started) * 1000)
     return obs
