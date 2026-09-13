@@ -32,9 +32,10 @@ your own words.
 
 ## Evidence in the repository
 
-Up to 2026-09-13 the repository has 62 commits. 40 carry `Co-Authored-By: Claude`,
-14 are the automated daily data commits (`neff-collector`), and 8 carry no AI
-trailer. A missing trailer does not prove a commit had no AI assistance.
+Up to the daily data commit of 2026-09-13 (`21ceb22`) the repository has 62
+commits. 40 carry `Co-Authored-By: Claude`, 14 are the automated daily data
+commits (`neff-collector`), and 8 carry no AI trailer. A missing trailer does not
+prove a commit had no AI assistance. The counts below are for those 62.
 
 Commits touching each file, and how many of those carry the Claude trailer
 (automated data commits excluded):
@@ -59,7 +60,10 @@ Commits touching each file, and how many of those carry the Claude trailer
 Everything added on 2026-09-13 -- `neff/h1.py`, `neff/report.py`, `neff/surprise.py`,
 `neff/prediction.py`, `scripts/analyze.py`, `scripts/release_surprise.py`,
 `scripts/week5_prediction.py`, `scripts/snapshot_kalshi_ladders.py`, their tests,
-§11 deviations 13-18, and this file -- was written by Claude Code in one session.
+§11 deviations 13-18, and this file -- was written by Claude Code in one session
+and committed that evening as `eff412d`. A second session that evening added
+`40270a5`, which holds the H3 variant arm to its registered start date. Both
+carry the Claude trailer.
 
 The 8 commits without a trailer, for you to check against your own memory:
 
@@ -78,7 +82,7 @@ The 8 commits without a trailer, for you to check against your own memory:
 
 ## The prompt log
 
-Claude Code keeps a transcript of every session. On this Mac there are 22 of them
+Claude Code keeps a transcript of every session. On this Mac there are 23 of them
 in `~/.claude/projects/-Users-rajankhiani-r1/`, from 19 Aug to 13 Sep 2026. **They
 are not in this repository.** Copy that folder somewhere safe now, and again after
 each working session, and keep it with your research notebook: it is the prompt
@@ -94,7 +98,9 @@ log the rules require. Sessions before 19 Aug, if any, are not on this machine.
 2. Read every paper you cite, and check every citation yourself.
 3. Interpret the results yourself, and be ready to explain every method and every
    deviation in a judging interview.
-4. **Before you register, ask the Region 6 fair's Scientific Review Committee in
-   writing** whether this use of AI is acceptable under their rules, describing
-   it plainly: AI-written code and analysis, an AI-drafted pre-registration, and
-   AI models as the object of study. Keep their answer.
+4. **Keep the fair's answer on AI use in writing.** On 2026-09-13 you told Claude
+   that you had already asked the fair about this use of AI and that they said it
+   is fine. If the answer came by email, save it with your research notebook. If
+   it was given in person or on a call, email them to confirm it, describing the
+   use plainly: AI-written code and analysis, an AI-drafted pre-registration, and
+   AI models as the object of study. Keep their reply.
