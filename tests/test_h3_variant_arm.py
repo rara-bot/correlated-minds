@@ -91,12 +91,12 @@ def sandbox(tmp_path, monkeypatch):
     return mock_sandbox(tmp_path / "observations.jsonl")
 
 
-def _run(h3=H3_VARIANT_MODEL, models=None, dry_run=False):
+def _run(h3=H3_VARIANT_MODEL, models=None, dry_run=False, as_of=date(2026, 9, 14)):
     return collect.run_day(
         config=RunConfig(arm="pilot", tasks_per_day=3, replicates_per_day=0,
                          model_keys=models or [H3_VARIANT_MODEL, "claude_haiku"],
                          h3_variant_model=h3, dry_run=dry_run),
-        as_of=date(2026, 9, 14),
+        as_of=as_of,
         use_mock=True,
     )
 
@@ -147,6 +147,13 @@ class TestTheArmCollectsOneModelsVariants:
 
     def test_off_means_off(self, sandbox):
         _run(h3=None)
+        assert {r["prompt_variant"] for r in _rows(sandbox)} == {0}
+
+    def test_nothing_before_the_registered_start(self, sandbox):
+        """Deviation 14 registers the arm from 2026-09-14. The evening re-run of
+        the 13th runs whatever code has landed by then, and must add no variant."""
+        summary = _run(as_of=date(2026, 9, 13))
+        assert summary["observations"] == 6          # variant 0, both models
         assert {r["prompt_variant"] for r in _rows(sandbox)} == {0}
 
     def test_a_model_outside_the_roster_skips_the_arm_not_the_day(self, sandbox):

@@ -476,6 +476,10 @@ REPLICATES_PER_DAY = 2
 # Variants 1-4 only -- variant 0 is already the primary panel's observation.
 H3_VARIANT_MODEL = "gpt_mid"
 H3_VARIANTS = 5
+# The first day the arm is asked, as deviation 14 registers it. A date, not
+# "whenever the code lands": the evening re-run of the day before, or a manual
+# run, would otherwise add variants to a day the registered text says has none.
+H3_VARIANT_START = "2026-09-14"
 
 # Measured, not assumed: gpt_mid cost $0.0854 across its 356 primary-arm calls,
 # 2026-09-01 to 2026-09-13, or $0.00024 a call. Four variants of 25 tasks is

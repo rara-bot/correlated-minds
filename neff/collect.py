@@ -35,6 +35,7 @@ from .config import (
     ARM_CAPS_USD,
     BUDGET_USD,
     H3_VARIANT_MODEL,
+    H3_VARIANT_START,
     LEDGER_PATH,
     PRIMARY_ARM,
     ROOT,
@@ -218,7 +219,10 @@ def run_day(
     # Asked on every task of the day, so the arm is measured on exactly the
     # questions the panel answered, and priced by a dry run like everything else.
     h3_spec = None
-    if config.h3_variant_model:
+    if config.h3_variant_model and today.isoformat() < H3_VARIANT_START:
+        _log(f"H3 variants: the arm starts {H3_VARIANT_START} (deviation 14) "
+             f"-- none collected for {today}")
+    elif config.h3_variant_model:
         h3_spec = next((m for m in models if m.key == config.h3_variant_model), None)
         if h3_spec is None:
             _log(f"!! H3 variant model {config.h3_variant_model!r} is not in this "
