@@ -1,7 +1,13 @@
 # The Illusion of Many Minds — plain-language explainer
 
-Written to be read by someone with no background in AI or finance. Use it for the abstract, for
-explaining the project to a teacher or mentor, and as the elevator pitch.
+Written to be read by someone with no background in AI or finance, for explaining the project to
+a teacher or mentor.
+
+> **Not for competition use as written.** The ISEF rules do not allow AI to write the research
+> plan, abstract, paper or poster, and this explainer was drafted with an AI assistant (see
+> AI-USE-LOG.md). Use it to understand the project, then write your own abstract and pitch. It was
+> also drafted before the design was final; the factual points below were corrected on 13 Sep 2026
+> to match the registered plan in PREREGISTRATION.md.
 
 ---
 
@@ -24,8 +30,8 @@ can genuinely disagree.
 But when the evidence is *murky* — a confusing economic report, an unprecedented event, a real
 crisis — a model has less to reason from, and falls back on the assumptions it absorbed during
 training. **And those assumptions are shared.** If that's right, then in exactly the situations that
-matter most, seven different AI systems stop being seven different opinions and start being one
-opinion wearing seven hats.
+matter most, nine different AI systems stop being nine different opinions and start being one
+opinion wearing nine hats.
 
 **Why that's dangerous:** markets only function because people disagree. A market needs someone
 willing to buy when someone else is selling. If every AI-driven fund reaches the same conclusion at
@@ -50,9 +56,10 @@ and measure.
 
 ## How we'll actually do it
 
-Every day for fifteen weeks, we ask seven different AI systems the same set of real financial
-questions about things that **haven't happened yet** — what will next month's inflation number be,
-will this company beat its earnings estimate, how will the market read this Federal Reserve statement.
+Every day for fifteen weeks, we ask nine different AI systems the same set of real financial
+questions about things that **haven't happened yet** — will next month's inflation print come in
+above a threshold, will this company's next reported revenue beat its own trend, will the Fed cut
+rates.
 
 Then we wait for reality to settle it, and we score them.
 
@@ -78,7 +85,10 @@ Three of the world's financial regulators — the Financial Stability Board, the
 the IMF — have each publicly named "many institutions running similar AI models" as a top-tier threat
 to financial stability. Academic papers model what happens *if* AI systems are highly correlated.
 
-Every single one of them has to **assume** a number, because nobody has measured it. We'd measure it.
+A handful of recent studies have measured how often AI models are wrong together — but on questions
+that had already been answered, in simulation, or outside finance. None has measured it on live
+financial questions, against human professionals, while asking whether it gets worse under stress.
+That is what we measure.
 
 **2. Everyone else treats it as a fixed constant. We think it's a variable.**
 The handful of studies that measure AI agreement produce one number — an average. Our claim is that
@@ -87,15 +97,16 @@ possible direction: it gets worse under stress. That's the difference between "A
 somewhat redundant" and "AI ensembles fail when you need them."
 
 **3. We predict it before it happens.**
-We calibrate on the first five weeks, then publicly post a timestamped, specific numerical prediction
-about the next big market surprise — and test it against events that didn't exist when we wrote it
+We calibrate on the first five weeks, then on 2 October publicly post a timestamped, specific
+numerical prediction about the next big macro surprise — and test it against events that didn't exist when we wrote it
 down. Almost nobody in this field does this. It's the difference between explaining the past and
 forecasting the future.
 
-**4. We look inside the models for the cause.**
-For the open-source models we can inspect internal states and ask whether systems that *represent* a
-situation similarly are the ones that fail together. The leading theory paper in this area builds its
-whole argument on that distinction — and never actually measures it. We can.
+**4. Later, we look inside the models for the cause.** *(Planned for Year 2, not part of this
+year's registered study.)*
+For the open-source models we could inspect internal states and ask whether systems that *represent*
+a situation similarly are the ones that fail together. The leading theory paper in this area builds
+its whole argument on that distinction — and never actually measures it.
 
 ---
 
@@ -106,9 +117,9 @@ whole argument on that distinction — and never actually measures it. We can.
 | **It can be proven wrong** | We state in advance what result would refute us. Judges and reviewers trust a study that can lose |
 | **The stakes are real and named** | Not a hypothetical harm — three central institutions have said this in public documents |
 | **It's honest about what's borrowed** | The core metric already exists. We cite it prominently and claim none of it. What's ours is applying it to finance, conditionally, and predicting forward |
-| **It's cheap and self-contained** | ~$200, all public data, no lab, no institutional database, no human subjects |
+| **It's cheap and self-contained** | about $25 of API calls (capped at $200), all public data, no lab, no institutional database, no human subjects |
 | **It survives a bad outcome** | Three independent findings. If the main hypothesis fails, two others still stand — plus a confirmed null is itself a real result |
-| **It can be shown, not just described** | A live meter where you watch AI independence collapse as a scenario gets murkier |
+| **It can be shown, not just described** | A live meter where you watch AI independence collapse as a scenario gets murkier (planned) |
 | **It leaves something behind** | An open dataset nobody can rebuild, and an open-source tool anyone can use on their own AI systems |
 
 ---
@@ -131,7 +142,7 @@ The load is not flat across the project:
 | **Write** | 16–19 (Dec 7–31) | 15–18 | Paper, figures, poster, open-source release |
 
 **Two dates that matter:**
-- **~6 October** — the pre-registered prediction is posted publicly. After this it cannot be edited.
+- **2 October** — the pre-registered prediction is posted publicly. After this it cannot be edited.
 - **11 December** — data freeze. Collection stops, nothing more is added, analysis is final.
 
 **One thing cannot be rescheduled:** the fifteen-week collection window. Every other task can move.
@@ -176,10 +187,10 @@ more than folding it in late.
 > precisely when the market most needs someone to disagree.
 >
 > Regulators in three countries have called this one of the biggest emerging risks to the financial
-> system. Nobody has measured it.
+> system. Nobody has measured it on live financial questions.
 >
 > I'm measuring it — by asking nine AI systems to forecast real financial events every day for
 > fifteen weeks, scoring not whether they agree but whether they're **wrong in the same way at the
 > same time**, and testing whether that gets worse under stress. I'll predict it in advance and
-> check the prediction against events that hadn't happened yet, look inside the models to find the
-> cause, and build the instrument that measures it.
+> check the prediction against events that hadn't happened yet, and build the instrument that
+> measures it.

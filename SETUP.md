@@ -1,5 +1,10 @@
 # Setup — exactly what to do, in order
 
+> **Historical.** This was the setup guide, and it is kept as the record of how
+> the study was set up. Collection began on 1 Sep 2026. For the current state of
+> the study see README.md, and for every change since registration see
+> PREREGISTRATION.md §11.
+
 **Total time: about 45 minutes.** Most of it is waiting for signup emails.
 
 Split up front, so there is no ambiguity:

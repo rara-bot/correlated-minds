@@ -80,6 +80,45 @@ REVENUE_TAGS = (
 # 32-161 days and JPM sat at 4,269.
 MAX_REPORTING_GAP_DAYS = 200
 
+# THE NEXT QUARTER MUST NOT ALREADY BE PAST ITS FILING DEADLINE.
+#
+# MAX_REPORTING_GAP_DAYS catches a series that died years ago. It cannot catch
+# one that stopped a single quarter ago, and on 2026-09-13 one had. ExxonMobil
+# filed its Q2 2026 10-Q on 2026-08-03, but no revenue fact in its company facts
+# is a three-month figure ending 2026-06-30, so the freshest XOM quarter visible
+# here stayed 2026-03-31. Every XOM task from 2026-09-01 asked the panel about a
+# quarter whose figure was already filed -- the property "contamination-proof by
+# construction" rests on -- and the resolver would have scored those questions
+# against Q3 instead (PREREGISTRATION.md 11, deviation 16).
+#
+# The SEC sets the edge, so no threshold is tuned to the data. A fiscal quarter
+# is at most 14 weeks. Large accelerated filers -- all of DEFAULT_UNIVERSE --
+# must file a 10-Q within 40 days of quarter end and a 10-K within 60 days of
+# year end. A question about the quarter after the latest visible one, asked
+# later than that, is about a figure that is, or by law already had to be,
+# public.
+MAX_QUARTER_DAYS = 98
+TEN_Q_DEADLINE_DAYS = 40
+TEN_K_DEADLINE_DAYS = 60
+
+# PREREGISTRATION.md 3.3: "at least 8 usable point-in-time quarters of history".
+# The builder checked 6. Every company in the universe has far more, so enforcing
+# the registered figure changes no task; it makes the code say what the plan says.
+MIN_HISTORY_QUARTERS = 8
+
+
+def filing_deadline_gap(last_fp: Optional[str]) -> int:
+    """Days after the last visible period end by which the NEXT quarter must be filed.
+
+    The next quarter is a fiscal Q4, reported in the 10-K, only when the last
+    visible one is Q3. An unrecognised label takes the longer 10-K allowance, so
+    an unfamiliar label can only keep a task, never wrongly refuse one.
+    """
+    fp = (last_fp or "").strip().upper()
+    if fp in ("Q1", "Q2", "Q4", "Q4D", "FY"):
+        return MAX_QUARTER_DAYS + TEN_Q_DEADLINE_DAYS
+    return MAX_QUARTER_DAYS + TEN_K_DEADLINE_DAYS
+
 # Large, liquid, reliably quarterly filers across several sectors. Sector spread
 # matters: a panel of only mega-cap tech would confound "model agreement" with
 # "these companies are unusually easy to forecast".
@@ -96,6 +135,15 @@ DEFAULT_UNIVERSE: Tuple[Tuple[str, int], ...] = (
     ("CAT", 18230),
     ("UNH", 731766),
     ("HD", 354950),
+    # Added 2026-09-13 (PREREGISTRATION.md 11, deviation 16), LAST, so that no
+    # company above changes place in the build order. KO has never built a task
+    # (no quarterly series under any tag read here), JPM is refused as a dead
+    # series (deviation 3), and XOM is refused while its latest visible quarter
+    # is past its filing deadline -- which left nine companies for ten daily
+    # slots and would have moved the registered 60/40 mix. Chevron replaces the
+    # universe's only energy filer with another, so the sector spread above
+    # survives.
+    ("CVX", 93410),
 )
 
 
@@ -373,7 +421,7 @@ def build_filing_task(
         return None
 
     history = visible_history(all_facts, as_of)
-    if len(history) < 6:
+    if len(history) < MIN_HISTORY_QUARTERS:
         return None
 
     # STALENESS GUARD. A dead series produces a question whose answer is already
@@ -381,6 +429,11 @@ def build_filing_task(
     # path, same prompt. It has to be refused at the point of construction,
     # because nothing downstream can tell the difference.
     if (as_of - history[-1].end).days > MAX_REPORTING_GAP_DAYS:
+        return None
+
+    # DEADLINE GUARD -- the same failure one quarter deep instead of ten years.
+    # See `filing_deadline_gap`.
+    if (as_of - history[-1].end).days > filing_deadline_gap(history[-1].fp):
         return None
 
     picked = next_period_threshold(history)
@@ -420,19 +473,32 @@ def build_filing_task(
         "threshold": threshold,
         "threshold_label": threshold_label,
         "last_reported_end": latest.end.isoformat(),
+        "last_reported_fp": latest.fp,
         "last_reported_value": latest.value,
         "last_filed": latest.filed.isoformat(),
         "source_ref": f"edgar:{cik}:{latest.end.isoformat()}",
     }
 
 
-def resolve_filing_task(
+def resolve_filing_task_details(
     cik: int, last_reported_end: str, threshold: float
-) -> Optional[float]:
-    """1.0 / 0.0 once the next quarter is filed, else None.
+) -> Optional[Dict[str, Any]]:
+    """The outcome and the filed figure behind it, once the next quarter is filed.
 
     Strictly point-in-time: we look for a period that ENDS after the one the
     forecaster could see, and only count it once it has actually been filed.
+
+    AND ONLY THE QUARTER THAT WAS ASKED ABOUT. The question is about "the quarter
+    following" the last visible one. This used to take the earliest later
+    quarter of any kind, so a filer whose next quarter never becomes visible
+    under a tag read here -- ExxonMobil's Q2 2026 (deviation 16) -- would have
+    been scored against the quarter after it. A quarter ending more than
+    MAX_QUARTER_DAYS + 14 days after the cutoff is not the next one, and the task
+    stays unresolved rather than being settled against the wrong figure.
+
+    The details travel with the resolution, because PREREGISTRATION.md 3.3
+    registers a sensitivity excluding derived quarters, and a resolution that
+    does not say whether its figure was derived cannot be sorted afterwards.
     """
     try:
         facts = fetch_quarterly_revenue(cik)
@@ -448,7 +514,26 @@ def resolve_filing_task(
         return None
 
     nxt = min(later, key=lambda f: f.end)
-    return 1.0 if nxt.value > threshold else 0.0
+    if (nxt.end - cutoff).days > MAX_QUARTER_DAYS + 14:
+        return None
+    return {
+        "outcome": 1.0 if nxt.value > threshold else 0.0,
+        "period_end": nxt.end.isoformat(),
+        "value": nxt.value,
+        "threshold": threshold,
+        "filed": nxt.filed.isoformat(),
+        "fp": nxt.fp,
+        "derived": nxt.fp == "Q4D",
+        "accession": nxt.accession,
+    }
+
+
+def resolve_filing_task(
+    cik: int, last_reported_end: str, threshold: float
+) -> Optional[float]:
+    """1.0 / 0.0 once the next quarter is filed, else None."""
+    details = resolve_filing_task_details(cik, last_reported_end, threshold)
+    return None if details is None else float(details["outcome"])
 
 
 def build_universe_tasks(

@@ -54,6 +54,37 @@ PROMPT_VARIANTS = [
 ]
 
 
+def variant_prompt(prompt: str, variant: int) -> str:
+    """The prompt registered H3 variant `variant` sends, built from a stored prompt.
+
+    A stored task prompt IS variant 0: `build_prompt` puts the empty prefix
+    `PROMPT_VARIANTS[0]` in front of the response instructions. Variant v puts
+    `PROMPT_VARIANTS[v]` there instead and changes nothing else, so all five ask
+    the identical question -- same resolution text, same dates, same market
+    context -- under a different framing, which is the contrast H3 registers.
+
+    Built from the stored prompt rather than rebuilt from the source, because the
+    stored prompt is what the panel was actually asked. A question rebuilt from a
+    live source hours later could carry different market context, and the
+    variants would then differ in more than their framing.
+
+    Raises ValueError rather than guessing: an unregistered variant, or a prompt
+    that does not open with the variant-0 instructions, has no defined variant.
+    """
+    if variant == 0:
+        return prompt
+    if not 0 < variant < len(PROMPT_VARIANTS):
+        raise ValueError(
+            f"no registered prompt variant {variant} (0-{len(PROMPT_VARIANTS) - 1})"
+        )
+    if not prompt.startswith(RESPONSE_INSTRUCTIONS):
+        raise ValueError(
+            "stored prompt does not open with the variant-0 response instructions; "
+            "there is no defined place for a variant's framing"
+        )
+    return PROMPT_VARIANTS[variant] + prompt
+
+
 def _task_id(source_ref: str, as_of: date) -> str:
     """Stable per-day id, so re-running a day is idempotent."""
     raw = f"{source_ref}|{as_of.isoformat()}"
@@ -207,6 +238,19 @@ def build_daily_tasks(
                     days_out=candidate.get("days_out"),
                     series=candidate.get("series_ticker"),
                     strike=candidate.get("strike"),
+                    # Recorded beside the state and never in the prompt, which
+                    # was built above from the market-state snapshot alone
+                    # (PREREGISTRATION.md 11, deviation 15). The quote is the
+                    # market's own probability when the panel was asked. The
+                    # ladder fields describe the question's own Kalshi event,
+                    # which `ladder_distance` -- pooled across a series' expiries
+                    # on the curated path -- does not.
+                    quote=candidate.get("quote"),
+                    strike_type=candidate.get("strike_type"),
+                    custom_strike=candidate.get("custom_strike"),
+                    kalshi_event=candidate.get("kalshi_event"),
+                    event_ladder_size=candidate.get("event_ladder_size"),
+                    event_ladder_distance=candidate.get("event_ladder_distance"),
                     asked_on=today.isoformat(),
                 ),
             )
@@ -244,6 +288,10 @@ def build_daily_tasks(
                         cik=candidate["cik"],
                         threshold=candidate["threshold"],
                         last_reported_end=candidate["last_reported_end"],
+                        # Which fiscal quarter that was, so the SEC-deadline
+                        # exclusion can be re-applied from the record alone
+                        # (deviation 16). Earlier rows carry it in the prompt.
+                        last_reported_fp=candidate.get("last_reported_fp"),
                         asked_on=today.isoformat(),
                     ),
                 )

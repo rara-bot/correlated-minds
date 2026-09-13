@@ -171,8 +171,14 @@ the Year-2 extension, not a different study.
 
 ## 5. Why the filing task is well-designed
 
-**Contamination-proof by construction.** The forecast target is a quarter that
-has not been filed. No amount of pretraining can contain it.
+**Contamination-proof by construction** — provided the freshest quarter the study
+can see really is the company's latest. The forecast target is a quarter that has
+not been filed, and no amount of pretraining can contain it. That failed once:
+ExxonMobil's Q2 2026 revenue is not a machine-readable quarterly figure in its XBRL
+filing, so from 1 to 13 Sep 2026 its questions asked about a quarter it had already
+filed on 3 Aug. Those 13 task-days are excluded, and the generator now refuses any
+question asked after its target quarter's SEC filing deadline (PREREGISTRATION.md
+§11, deviation 16).
 
 **Unambiguous ground truth.** The outcome is a number the company reports itself,
 in a structured XBRL field, with a filing date. No judgement call from us.
@@ -279,6 +285,36 @@ All four are covered by tests (`tests/test_edgar.py`).
    real pre-outcome forecasts after the fact is a worse failure than the
    imbalance. **Day-level analyses should weight by task count rather than
    assume a constant 25.**
+
+7. **Weekend market state repeats, and every task's state is the previous close.**
+   FRED publishes a close the next business day and the job runs hours after
+   13:10 UTC, so each task carries the latest close published when it was asked;
+   Saturday and Sunday repeat Friday's task state (§11, deviations 6 and 13). This
+   thins the stress leg of H1 without biasing it, and leaves the ambiguity leg
+   untouched.
+
+8. **One model may leave the primary panel.** qwen lost two days to a routing
+   fault and most of a third to rate limits (§11, deviations 4 and 11). If its
+   coverage on the resolved panel stays under 80%, §5.6 removes it and M becomes 8;
+   the human benchmark is then recomputed at M = 8 (deviation 17).
+
+9. **Logprobs arrive for some hosts only.** Most hosts serving deepseek send none,
+   so the §5.4(a) logprob sensitivity rests on a minority of its rows and on no
+   rows before 9 Sep (deviations 10 and 12).
+
+10. **The H3 prompt-variant arm starts on 14 Sep.** It was never collected before
+    (deviation 14), so the intra-model contrast rests on the later task-days only.
+
+11. **The ambiguity variable is undefined for some questions.** Fed and foreign
+    central-bank decisions and single-market events have no numeric strike ladder,
+    and the stored `ladder_distance` pools a series' expiries. The analysis treats
+    no-ladder questions as undefined and reports a per-event sensitivity
+    (deviations 15 and 17).
+
+12. **Late filing questions cannot resolve in time.** From late October each
+    company's next target quarter is due after the 11 Dec freeze, so the resolved
+    filing sample rests on questions asked before each company's autumn filing
+    (deviation 17).
 ---
 
 ## 8. The one-sentence answer for a judge
@@ -296,8 +332,9 @@ And if the judge presses on the models rather than the tasks:
 > two, so if we find that shared training makes them fail together, a two-vendor
 > firm has strictly less protection than our panel, not more.
 
-**Sources:** Bank of England / FCA, *Artificial Intelligence in UK Financial
-Services* (2024) · *2026 Global AI in Financial Services Report* (Cambridge
+**Sources** (the 2026 industry figures in §1 and the CCAF/WEF report title need to
+be checked against the primary source before they are cited): Bank of England / FCA,
+*Artificial Intelligence in UK Financial Services* (2024) · *2026 Global AI in Financial Services Report* (Cambridge
 Centre for Alternative Finance / WEF) · 2026 hedge-fund AI adoption data ·
 *A Review of Large Language Models for Stock Price Forecasting from a Hedge-Fund
 Perspective*, IEEE CAI 2026 (arXiv 2605.05211)

@@ -25,6 +25,7 @@ import numpy as np
 from .panel import (
     Panel,
     apply_coverage_exclusion,
+    apply_filing_deadline_exclusion,
     apply_settled_question_exclusion,
     apply_stale_source_exclusion,
     load_panel,
@@ -83,6 +84,7 @@ def apply_registered_exclusions(panel: Panel) -> Tuple[Panel, Dict[str, object]]
     requires both halves: excluded from the primary panel AND reported separately.
     """
     panel = apply_stale_source_exclusion(panel)      # 11, deviation 3
+    panel = apply_filing_deadline_exclusion(panel)   # 11, deviation 16
     panel = apply_settled_question_exclusion(panel)  # 3.3
     panel, below_floor = apply_coverage_exclusion(panel)  # 5.6
     return panel, {"models_below_coverage_floor": below_floor}

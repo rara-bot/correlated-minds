@@ -224,23 +224,92 @@ def test_build_filing_task_refuses_a_dead_reporting_series():
     assert edgar.build_filing_task("JPM", 19617, date(2026, 9, 8), facts=series) is None
 
 
-def test_a_filer_deep_into_the_next_quarter_is_still_accepted():
+def test_a_filer_inside_its_filing_window_is_accepted():
     """The guard must not quietly shrink the universe.
 
-    An ordinary filer sits at 32-161 days between its last reported period end
-    and today; XOM was at 161 on 2026-09-08. A threshold that clipped that would
-    drop real companies and silently move the registered 60/40 task mix.
+    Ordinary filers sat 42-78 days past their last reported period end on
+    2026-09-13. The quarter after a Q1-labelled one is due in a 10-Q within
+    98 + 40 days, so a filer 120 days out is still legitimately waiting on it.
     """
-    series = quarterly_series(12)                     # ends 2024-12-26
-    as_of = date(2025, 6, 5)                          # 161 days later
-    assert (as_of - series[-1].end).days == 161
-    assert edgar.build_filing_task("XOM", 34088, as_of, facts=series) is not None
+    series = quarterly_series(12)                     # ends 2024-12-26, labelled Q1
+    as_of = date.fromordinal(series[-1].end.toordinal() + 120)
+    assert edgar.build_filing_task("T", 1, as_of, facts=series) is not None
 
 
-def test_the_boundary_is_the_documented_constant():
+def test_a_quarter_past_its_filing_deadline_is_refused():
+    """The XOM defect, 2026-09-13 (deviation 16).
+
+    This test used to assert the opposite: that a filer 161 days past its last
+    reported period end was ordinary, because XOM sat at 161 on 2026-09-08. XOM
+    was not ordinary. It had filed the quarter in question on 2026-08-03, and
+    only this module could not see the figure. 161 days is past the 138 the SEC
+    allows for the 10-Q that quarter was due in.
+    """
+    series = quarterly_series(12)
+    as_of = date.fromordinal(series[-1].end.toordinal() + 161)
+    assert edgar.build_filing_task("XOM", 34088, as_of, facts=series) is None
+
+
+def test_the_boundary_is_the_sec_deadline():
     series = quarterly_series(12)
     last = series[-1].end
-    ok = date.fromordinal(last.toordinal() + edgar.MAX_REPORTING_GAP_DAYS)
-    too_old = date.fromordinal(last.toordinal() + edgar.MAX_REPORTING_GAP_DAYS + 1)
+    gap = edgar.filing_deadline_gap(series[-1].fp)
+    assert gap == edgar.MAX_QUARTER_DAYS + edgar.TEN_Q_DEADLINE_DAYS == 138
+    ok = date.fromordinal(last.toordinal() + gap)
+    late = date.fromordinal(last.toordinal() + gap + 1)
     assert edgar.build_filing_task("T", 1, ok, facts=series) is not None
-    assert edgar.build_filing_task("T", 1, too_old, facts=series) is None
+    assert edgar.build_filing_task("T", 1, late, facts=series) is None
+
+
+def test_a_fiscal_q4_gets_the_10k_allowance():
+    """The quarter after a Q3 is reported in the 10-K, due 60 days after year end."""
+    assert edgar.filing_deadline_gap("Q3") == 98 + 60
+    for label in ("Q1", "Q2", "Q4D", "FY"):
+        assert edgar.filing_deadline_gap(label) == 98 + 40
+    assert edgar.filing_deadline_gap(None) == 98 + 60, \
+        "an unknown label must take the longer allowance, so it can only keep a task"
+
+
+def test_the_dead_series_threshold_is_unchanged_for_the_read_side_rule():
+    """Deviation 3's exclusion reads this constant on already-collected rows."""
+    assert edgar.MAX_REPORTING_GAP_DAYS == 200
+
+
+def test_the_registered_history_minimum_is_enforced():
+    """PREREGISTRATION.md 3.3: at least 8 usable point-in-time quarters."""
+    assert edgar.MIN_HISTORY_QUARTERS == 8
+    for n, builds in ((7, False), (8, True)):
+        series = quarterly_series(n)
+        as_of = date.fromordinal(series[-1].end.toordinal() + 45)
+        assert (edgar.build_filing_task("T", 1, as_of, facts=series) is not None) is builds
+
+
+def test_the_task_records_the_label_of_its_last_quarter():
+    series = quarterly_series(12)
+    as_of = date.fromordinal(series[-1].end.toordinal() + 45)
+    assert edgar.build_filing_task("T", 1, as_of, facts=series)["last_reported_fp"] == "Q1"
+
+
+def test_resolution_uses_only_the_quarter_that_was_asked_about(monkeypatch):
+    """Never the quarter after it. A skipped quarter leaves the task unresolved."""
+    series = quarterly_series(12)
+    cutoff = series[-3].end.isoformat()
+    skipped = series[:-2] + [series[-1]]
+    monkeypatch.setattr(edgar, "fetch_quarterly_revenue", lambda cik: skipped)
+    assert edgar.resolve_filing_task_details(1, cutoff, 50.0) is None
+    assert edgar.resolve_filing_task(1, cutoff, 50.0) is None
+
+    monkeypatch.setattr(edgar, "fetch_quarterly_revenue", lambda cik: series)
+    details = edgar.resolve_filing_task_details(1, cutoff, 50.0)
+    assert details["period_end"] == series[-2].end.isoformat()
+    assert details["outcome"] == 1.0 and details["derived"] is False
+    assert edgar.resolve_filing_task(1, cutoff, 50.0) == 1.0
+
+
+def test_the_universe_only_ever_grows_at_the_end():
+    """Build order decides which companies fill the ten daily filing slots, so an
+    addition anywhere but the end would swap companies mid-panel."""
+    keys = [ticker for ticker, _ in edgar.DEFAULT_UNIVERSE]
+    assert keys[:12] == ["AAPL", "MSFT", "NVDA", "JPM", "WMT", "XOM",
+                         "JNJ", "PG", "KO", "CAT", "UNH", "HD"]
+    assert keys[12:] == ["CVX"]

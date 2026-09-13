@@ -34,7 +34,9 @@ from typing import Dict, List, Optional
 from .config import (
     ARM_CAPS_USD,
     BUDGET_USD,
+    H3_VARIANT_MODEL,
     LEDGER_PATH,
+    PRIMARY_ARM,
     ROOT,
     OBS_PATH,
     RESOLUTIONS_PATH,
@@ -46,7 +48,7 @@ from .config import (
 from .ledger import Ledger
 from .providers import PROVIDERS, RATE_LIMIT_ALLOWANCE_S, RateLimitAllowance, ask
 from .store import JsonlStore, Observation, Resolution, Task, observation_id
-from .tasks import build_daily_tasks, summarize
+from .tasks import build_daily_tasks, summarize, variant_prompt
 
 
 def _log(message: str) -> None:
@@ -181,15 +183,64 @@ def run_day(
             task_store.append_many(new_tasks)
         _log(f"registered {len(new_tasks)} new tasks ({len(tasks) - len(new_tasks)} already known)")
 
-    # 2. Work out what still needs asking.
+    # 2. Work out what still needs asking. Each entry carries the exact prompt it
+    #    will send, because a registered variant is a different prompt.
     done = obs_store.existing_ids("obs_id")
     pending = []
+    unbuildable: List[str] = []
+
+    def _prompt(task, variant):
+        # A variant that cannot be built costs that variant's rows, never the day.
+        try:
+            return variant_prompt(task.prompt, variant)
+        except ValueError:
+            unbuildable.append(f"{task.task_id}/v{variant}")
+            return None
+
     for task in tasks:
         for variant in range(max(1, config.prompt_variants)):
+            prompt = _prompt(task, variant)
+            if prompt is None:
+                continue
             for spec in models:
                 obs_id = observation_id(task.task_id, spec.key, variant)
                 if obs_id not in done:
-                    pending.append((task, spec, variant))
+                    pending.append((task, spec, variant, prompt))
+
+    # 2a. H3's INTRA-MODEL ARM: one model, the registered variants 1-4.
+    #
+    # PREREGISTRATION.md 4 H3 (a) compares N_eff for "one model under 5 prompt
+    # variants" with cross-family diversity. Until 2026-09-14 nothing asked any
+    # variant but 0, and `--variants` above re-sent the variant-0 prompt under a
+    # new label -- a replicate wearing a variant's id. `config.H3_VARIANT_MODEL`
+    # says which model and why (deviation 14).
+    #
+    # Asked on every task of the day, so the arm is measured on exactly the
+    # questions the panel answered, and priced by a dry run like everything else.
+    h3_spec = None
+    if config.h3_variant_model:
+        h3_spec = next((m for m in models if m.key == config.h3_variant_model), None)
+        if h3_spec is None:
+            _log(f"!! H3 variant model {config.h3_variant_model!r} is not in this "
+                 f"run's roster -- the variant arm is skipped today")
+    if h3_spec is not None:
+        queued = {(t.task_id, s.key, v) for t, s, v, _ in pending}
+        added = 0
+        for task in tasks:
+            for variant in range(1, max(1, config.h3_variants)):
+                key = (task.task_id, h3_spec.key, variant)
+                if key in queued or observation_id(*key) in done:
+                    continue
+                prompt = _prompt(task, variant)
+                if prompt is None:
+                    continue
+                pending.append((task, h3_spec, variant, prompt))
+                added += 1
+        _log(f"H3 variants: {h3_spec.key} x variants 1-{config.h3_variants - 1} "
+             f"on {len(tasks)} task(s), {added} to collect")
+    if unbuildable:
+        _log(f"!! {len(unbuildable)} prompt variant(s) could not be built and were "
+             f"skipped: {unbuildable[:5]}")
 
     # 2b. TEST-RETEST REPLICATES.
     #
@@ -226,7 +277,7 @@ def run_day(
             for spec in models:
                 obs_id = observation_id(task.task_id, spec.key, REPLICATE_VARIANT)
                 if obs_id not in done:
-                    pending.append((task, spec, REPLICATE_VARIANT))
+                    pending.append((task, spec, REPLICATE_VARIANT, task.prompt))
         _log(f"test-retest: {len(chosen)} task(s) re-asked to all {len(models)} models")
 
     if not pending:
@@ -237,8 +288,8 @@ def run_day(
 
     if config.dry_run:
         estimated = sum(
-            spec.price.estimate(len(task.prompt) // 4 + 200, 300)
-            for task, spec, _ in pending
+            spec.price.estimate(len(prompt) // 4 + 200, 300)
+            for _, spec, _, prompt in pending
         )
         _log(f"DRY RUN -- would spend about ${estimated:.4f}")
         return {
@@ -264,14 +315,14 @@ def run_day(
                 ask,
                 spec=spec,
                 task_id=task.task_id,
-                prompt=task.prompt,
+                prompt=prompt,
                 ledger=ledger,
                 arm=config.arm,
                 prompt_variant=variant,
                 use_mock=use_mock,
                 rate_limits=rate_limits,
             ): (task, spec, variant)
-            for task, spec, variant in pending
+            for task, spec, variant, prompt in pending
         }
 
         for future in as_completed(futures):
@@ -432,6 +483,9 @@ def run_day(
         "routing": routing,
         "rate_limit_waits": waited,
         "logprobs": logprobs,
+        "h3_variants": sum(
+            1 for o in collected if 0 < o.prompt_variant < REPLICATE_VARIANT
+        ),
     }
 
 
@@ -475,6 +529,7 @@ def resolve_outcomes(use_mock: bool = False) -> Dict[str, object]:
     new: List[Resolution] = []
 
     for ref, group in by_ref.items():
+        note = "settled"
         if ref.startswith("edgar:"):
             # edgar:<cik>:<last_reported_period_end>
             try:
@@ -492,9 +547,22 @@ def resolve_outcomes(use_mock: bool = False) -> Dict[str, object]:
                 continue
             if threshold is None:
                 continue
-            outcome = edgar.resolve_filing_task(int(cik_s), last_end, threshold)
+            details = edgar.resolve_filing_task_details(int(cik_s), last_end, threshold)
+            outcome = None if details is None else details["outcome"]
+            # The ref already says where it came from. Every resolution used to
+            # be labelled `kalshi:`, EDGAR ones included (`kalshi:edgar:...`); the
+            # four written that way are pilot rows and are left as they are.
+            source = ref
+            if details is not None:
+                # The filed figure behind the outcome, including whether it was
+                # derived, which the 3.3 sensitivity needs (deviation 16).
+                note = "settled " + json.dumps(
+                    {k: v for k, v in details.items() if k != "outcome"},
+                    sort_keys=True,
+                )
         else:
             outcome = kalshi.fetch_settlement(ref)
+            source = f"kalshi:{ref}"
 
         if outcome is None:
             continue
@@ -503,8 +571,8 @@ def resolve_outcomes(use_mock: bool = False) -> Dict[str, object]:
                 Resolution(
                     task_id=str(task["task_id"]),
                     outcome=float(outcome),
-                    source=f"kalshi:{ref}",
-                    note="settled",
+                    source=source,
+                    note=note,
                 )
             )
 
@@ -611,6 +679,30 @@ def require_osf_before_real_collection(arm: str, dry_run: bool, use_mock: bool) 
     )
 
 
+def config_from_args(args) -> RunConfig:
+    """The run configuration a command line asks for.
+
+    Separate from `main` so the one setting that differs by arm can be tested
+    without running a day: H3's variant arm is on for the primary arm -- which is
+    what the daily workflow runs -- and off for every other arm (deviation 14).
+    """
+    config = RunConfig(
+        arm=args.arm,
+        dry_run=args.dry_run,
+        concurrency=args.concurrency,
+        prompt_variants=args.variants,
+        model_keys=args.models.split(",") if args.models else None,
+        h3_variant_model=(
+            H3_VARIANT_MODEL
+            if args.arm == PRIMARY_ARM and not getattr(args, "no_h3", False)
+            else None
+        ),
+    )
+    if args.tasks is not None:
+        config.tasks_per_day = args.tasks
+    return config
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="neff daily collection")
     parser.add_argument("--dry-run", action="store_true", help="price the day, ask nothing")
@@ -621,17 +713,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--variants", type=int, default=1)
     parser.add_argument("--models", default=None, help="comma-separated model keys")
     parser.add_argument("--no-resolve", action="store_true")
+    parser.add_argument(
+        "--no-h3", action="store_true",
+        help="skip H3's intra-model prompt-variant arm on the primary arm",
+    )
     args = parser.parse_args(argv)
 
-    config = RunConfig(
-        arm=args.arm,
-        dry_run=args.dry_run,
-        concurrency=args.concurrency,
-        prompt_variants=args.variants,
-        model_keys=args.models.split(",") if args.models else None,
-    )
-    if args.tasks is not None:
-        config.tasks_per_day = args.tasks
+    config = config_from_args(args)
 
     require_osf_before_real_collection(
         arm=args.arm, dry_run=args.dry_run, use_mock=args.mock

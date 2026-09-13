@@ -1,5 +1,10 @@
 # Go-Live — from "instrument built" to "collecting"
 
+> **Historical.** This was the launch checklist, and it is kept as the record of how
+> the study was set up. Collection began on 1 Sep 2026. For the current state of
+> the study see README.md, and for every change since registration see
+> PREREGISTRATION.md §11.
+
 **Hard deadline: Monday 29 Aug 2026, 13:10 UTC.** That is when the first
 scheduled collection run fires. Everything below has to be done before it.
 

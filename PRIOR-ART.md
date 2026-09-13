@@ -182,3 +182,23 @@ Stooq returned 200 with a challenge page. Never trust the status code alone.
 ISEF rule note: generative AI **may not** write the research plan, abstract, poster, or citations;
 it may be used as a research resource with citation. Using LLMs as the *object of study* is fine.
 No human subjects in any candidate → no IRB.
+
+---
+
+## E. Verification log, 13 Sep 2026
+
+The five papers PREREGISTRATION.md §1 and §4 rely on were opened on arXiv and their
+abstracts checked. All five exist and their headline numbers match. Three details
+matter for anything quoted from them:
+
+| arXiv | Title and authors (as listed) | Checked | Take care |
+|---|---|---|---|
+| 2506.07962 | *Correlated Errors in Large Language Models* — Elliot Kim, Avi Garg, Kenny Peng, Nikhil Garg (ICML 2025) | 350+ models; agree 60% of the time when both err; larger, more accurate models have more correlated errors | — |
+| 2605.00844 | *The Oracle's Fingerprint: Correlated AI Forecasting Errors and the Limits of Bias Transmission* — Theodor Spiro | 568 resolved binary questions; mean pairwise error r = 0.77, 0.78 without likely-leaked questions; GPT-4o, Claude, Gemini | The exact phrase is "epistemic monoculture that is built but not yet activated". The "0.1–0.3 for humans" in row A7 is not in the abstract: verify in the full text or drop it |
+| 2606.26583 | *Preference Optimization Drives Monoculture in LLM Prediction Markets* — Begin, Gho, Muppavarapu, Tsay, Mohan, Shaik, Li, Sharma, Vaidheeswaran | rho = 0.70; ten agents ≈ 1.4 independent forecasters; cross-model diversity 0.68 → 0.40; 8B and 70B | — |
+| 2605.29800 | *Nine Judges, Two Effective Votes: Correlated Errors Undermine LLM Evaluation Panels* — Guneet Kohli | 9 frontier LLMs from 7 families ≈ two independent votes; about 75% of independence lost | — |
+| 2607.20768 | *Are Diversity Metrics Measuring Diversity? A Capability-Controlled Audit of Majority-Vote Gain in LLM Ensembles* — Donghwan Kim | 31,900 subsets of 30 LLMs; voting beats the best member in 9.98% of size-3 subsets | The +0.99 Spearman is between one metric, *strict diversity*, and one minus mean accuracy, not "diversity metrics" in general. The sentence quoted in PREREGISTRATION.md §4 H6 is not in the abstract |
+
+Every other [S] row above is still unverified. Under the ISEF rules a citation must
+be read and checked by the student, not supplied by an AI assistant.
+

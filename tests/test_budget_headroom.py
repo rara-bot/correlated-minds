@@ -36,8 +36,16 @@ class TestProjection:
         spend."""
         bare = config.MEASURED_DAILY_USD * config.collection_days()
         assert config.projected_ws1_usd() > bare
-        expected = bare * (1 + config.REPLICATES_PER_DAY / config.TASKS_PER_DAY)
+        expected = bare * (1 + config.REPLICATES_PER_DAY / config.TASKS_PER_DAY) \
+            + config.H3_MEASURED_DAILY_USD * config.collection_days()
         assert config.projected_ws1_usd() == pytest.approx(expected)
+
+    def test_projection_includes_the_h3_variant_arm(self):
+        """Deviation 14 put real calls on this arm. A projection that left them
+        out would be the stale-figure failure again, one arm over."""
+        without = config.MEASURED_DAILY_USD * config.collection_days() * (
+            1 + config.REPLICATES_PER_DAY / config.TASKS_PER_DAY)
+        assert config.projected_ws1_usd() > without
 
     def test_daily_cost_is_a_measured_figure_not_a_placeholder(self):
         """A round number here would mean nobody priced a real day. The value

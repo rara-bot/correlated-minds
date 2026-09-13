@@ -20,6 +20,7 @@ rather than incidental:
 """
 
 import json
+import re
 import warnings
 from dataclasses import dataclass
 from datetime import date
@@ -36,7 +37,7 @@ from .config import (
     TASKS_PATH,
     primary_panel,
 )
-from .sources.edgar import MAX_REPORTING_GAP_DAYS
+from .sources.edgar import MAX_REPORTING_GAP_DAYS, filing_deadline_gap
 from .store import JsonlStore
 
 
@@ -48,6 +49,35 @@ def _is_mock(record: Dict) -> bool:
     if str(record.get("provider", "")).lower() == "mock":
         return True
     return str(record.get("model_id_returned", "")).endswith("-mock")
+
+
+# One row of the revenue table a filing prompt shows the panel:
+#     "  2026 Q1  quarter ending 2026-03-31  revenue $85.14B (reported 2026-05-04)"
+_HISTORY_ROW = re.compile(
+    r"^\s*\d{4} (\S+)\s+quarter ending (\d{4}-\d{2}-\d{2})\b", re.MULTILINE
+)
+
+
+def _state_with_reported_fp(record: Dict) -> Dict:
+    """A task's state, carrying the fiscal label of its last visible quarter.
+
+    The SEC-deadline exclusion (deviation 16) needs to know whether the quarter
+    asked about is reported in a 10-Q or a 10-K, and that depends on the label.
+    Rows from 2026-09-14 carry it as `last_reported_fp`. Earlier rows do not, but
+    the prompt the panel was shown lists every visible quarter with its label,
+    so it is read from there -- on read, in memory, never written back.
+    """
+    state = dict(record.get("state") or {})
+    end = state.get("last_reported_end")
+    if not end or state.get("last_reported_fp"):
+        return state
+    labels = [
+        fp for fp, row_end in _HISTORY_ROW.findall(str(record.get("prompt") or ""))
+        if row_end == end
+    ]
+    if labels:
+        state["last_reported_fp"] = labels[-1]
+    return state
 
 
 @dataclass
@@ -199,7 +229,7 @@ def load_panel(
                 str(task_id),
                 {
                     "market_implied": record.get("market_implied"),
-                    "state": record.get("state") or {},
+                    "state": _state_with_reported_fp(record),
                     "source_ref": record.get("source_ref") or "",
                     "asked_on": (record.get("state") or {}).get("asked_on") or "",
                 },
@@ -398,6 +428,58 @@ def apply_stale_source_exclusion(
             keep.append(i)
 
     idx = np.asarray(keep, dtype=int)
+    return Panel(
+        forecasts=panel.forecasts[idx],
+        outcomes=panel.outcomes[idx],
+        errors=panel.errors[idx],
+        task_ids=[panel.task_ids[i] for i in keep],
+        model_keys=list(panel.model_keys),
+        market_implied=panel.market_implied[idx],
+        state=[panel.state[i] for i in keep],
+        question_ids=[panel.question_ids[i] for i in keep],
+        asked_on=[panel.asked_on[i] for i in keep],
+    )
+
+
+def apply_filing_deadline_exclusion(panel: Panel) -> Panel:
+    """Drop filing tasks asked after their target quarter's SEC deadline. DEVIATION 16.
+
+    The read-side twin of the guard in `edgar.build_filing_task`, as deviation 3
+    is of the staleness guard: the same rule, stated once in
+    `edgar.filing_deadline_gap`, applied to rows collected before the guard
+    existed. ExxonMobil filed its Q2 2026 10-Q on 2026-08-03, and no three-month
+    revenue figure in it is visible under a tag this study reads, so every XOM
+    question from 2026-09-01 asked about a quarter that had already been filed.
+
+    MECHANICAL AND OUTCOME-BLIND. It reads `last_reported_end`, `asked_on` and the
+    fiscal label, never an outcome. None of the affected tasks had resolved when
+    it was written, and none could have: the resolver cannot see their target
+    quarter either.
+
+    Macro tasks carry no `last_reported_end` and are never touched; neither are
+    rows whose dates cannot be read, as in `apply_stale_source_exclusion`.
+    """
+    keep: List[int] = []
+    for i, st in enumerate(panel.state):
+        st = st or {}
+        end = st.get("last_reported_end")
+        asked = st.get("asked_on") or panel.asked_on[i]
+        if not end or not asked:
+            keep.append(i)
+            continue
+        try:
+            gap = (date.fromisoformat(str(asked)) - date.fromisoformat(str(end))).days
+        except ValueError:
+            keep.append(i)
+            continue
+        if gap <= filing_deadline_gap(st.get("last_reported_fp")):
+            keep.append(i)
+    return _rows(panel, keep)
+
+
+def _rows(panel: Panel, keep: Sequence[int]) -> Panel:
+    """The panel restricted to the given rows, every aligned field with it."""
+    idx = np.asarray(list(keep), dtype=int)
     return Panel(
         forecasts=panel.forecasts[idx],
         outcomes=panel.outcomes[idx],

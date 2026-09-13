@@ -101,8 +101,10 @@ class TestEveryPathPopulatesLadderDistance:
         assert len({m["ladder_distance"] for m in broadened}) >= 3
 
     def test_event_without_a_usable_ladder_gets_the_registered_default(self, stub):
-        """Fewer than three strikes is not a ladder; the registered convention
-        is 0.0 rather than missing."""
+        """Fewer than three strikes is not a ladder. Collection writes 0.0 rather
+        than missing -- the convention the code carried at registration, which
+        the plan never states; the analysis treats it as undefined (deviation
+        17), and `event_ladder_distance` records it as None."""
         stub({kalshi.PRIORITY_SERIES[0]: _ladder("EV", [1.0, 2.0])})
         sel = kalshi.select_tasks(max_tasks=5, min_days_out=1, max_days_out=90)
         assert sel

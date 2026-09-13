@@ -109,6 +109,18 @@ jobs:
             ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }} \
             | tee run-summary.json
 
+      - name: Record the market surprise of any release that has settled
+        # PREREGISTRATION.md 11, deviation 18. Once every market in a listed macro
+        # release has settled, its surprise -- the Kalshi market's Brier score a day
+        # before the print -- is computed and appended, then never rewritten, so
+        # each value is public within about a day and before any analysis reads
+        # it. Reads market prices and settlements, never a forecast. It cannot fail
+        # the run: a release missed today is simply picked up tomorrow.
+        if: always() && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python scripts/release_surprise.py --study
+
       - name: Budget guard
         # Fail loudly well before the cap so there is time to react. A silent
         # drift to $200 discovered in December would end the study.

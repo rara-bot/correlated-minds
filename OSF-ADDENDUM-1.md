@@ -1,34 +1,29 @@
-# OSF addendum 1 — ready to paste
+# OSF addendum 1 — ready to post
 
-**Three steps. Two pastes and one upload. Roughly twenty minutes.**
+**Three steps, about 25 minutes.** Do them in this order, on the same day.
 
 | Step | Where | What |
 |---|---|---|
-| 1 | Zenodo — DOI `10.5281/zenodo.22220263` → **New version** | **Upload** `OSF-ADDENDUM-1.md` (this file) and `PREREGISTRATION.md`, then Publish |
-| 2 | Your OSF **project** (not the frozen registration) | **Upload** the same two files, then **paste** the wiki entry at the end of this file |
-| 3 | osf.io/x6kqg — only if it offers an update option | **Paste** the title and body below |
+| 1 | **Zenodo** — open DOI `10.5281/zenodo.22220263` → **New version** | Upload `PREREGISTRATION.md` (the current one, with §11) and `OSF-ADDENDUM-1.md` (this file). Set version to `1.1-addendum-1`. Publish |
+| 2 | **Your OSF project** (osf.io/965dz — the project, *not* the frozen registration) | Upload the same two files. Then **Wiki** → new page titled `Addendum 1 — 2026-09-13` → paste the wiki entry at the end of this file |
+| 3 | **osf.io/x6kqg** (the registration) | Only if it offers a way to attach a note or comment without changing any registered answer: paste the title and body below. If the only option is "Update" of the registered answers, **skip this step** |
 
-**Do not withdraw the registration.** Its immutability is the asset. Steps 1 and
-2 put the record beside it; they do not touch it.
-
-This reports a specification error we found in our own registered analysis plan,
-and what we are doing about it. It does **not** revise the registered analysis.
+**Do not withdraw or edit the registration.** Its immutability is the asset. Steps
+1 and 2 put the record beside it; they change nothing in it.
 
 | | |
 |---|---|
 | Registration | osf.io/x6kqg, registered 2026-08-29 14:44 UTC |
 | Plan frozen | 2026-08-29 03:54 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
-| Addendum date | 2026-09-09 |
-| Also recorded at | PREREGISTRATION.md §11, deviations 5 and 6 |
+| Addendum date | 2026-09-13 |
+| Recorded at | PREREGISTRATION.md §11, deviations 1-18 |
 
-**Why now:** posting this while the outcomes it could affect do not yet exist is
-the whole of its value. Eight collection days exist and five resolved task-days
-enter the primary panel. The code that computes the primary estimate
-(`neff/analysis.py`) did not exist before 2026-09-09 and is blind by default, so
-that it has only ever been run on permuted outcomes is checkable in the commit
-history rather than asserted. In November the same disclosure would be
-unfalsifiable.
+**Why post it before 2 Oct:** its value is that it is public while the outcomes it
+could affect are still unknown. On 2026-09-13, 13 collection days exist, 21
+task-days in the primary panel have an outcome, and every analysis in the
+repository has been run only on permuted outcomes. The Week-5 prediction is made
+on 2 Oct; this addendum fixes the rules it will be made under.
 
 ---
 
@@ -37,204 +32,234 @@ unfalsifiable.
 ### Title of update
 
 ```
-Addendum 1: a specification error in the §5.2 event-clustered interval, and a qualification to the §6 stress-leg power rationale — both found before any primary estimate was computed
+Addendum 1 (13 Sep 2026): eighteen dated deviations and disclosures, all recorded before any primary estimate was computed on real outcomes
 ```
 
 ### Body
 
 ```
-WHAT WE FOUND
+WHAT THIS IS
 
-Section 5.2 of the registered plan requires two confidence intervals for every
-primary estimate, reported together: a day-blocked moving-block bootstrap, and a
-cluster bootstrap over resolution events. It designates the second as the
-conservative bound and states that where the two disagree materially, the
-event-clustered interval governs the claim.
+Section 11 of the registered plan requires every change after the freeze to be
+logged as a dated, numbered deviation. By 13 September 2026 there were eighteen.
+This addendum summarises all of them in one public place. The full text of each is
+in PREREGISTRATION.md section 11 in the repository and in the Zenodo deposit.
 
-Section 5.2 justifies that second interval as follows:
+None of them changes a hypothesis, a falsification clause, the model roster, the
+sampling temperature, the task mix, the primary outcome or the multiple-testing
+correction. Every analysis choice below was fixed while the analysis code had only
+ever been run on permuted outcomes.
 
-    "Many questions share one underlying resolution event -- every strike on a
-    CPI ladder settles against a single print and therefore shares a single
-    surprise"
+A. THE REGISTRATION RECORD ITSELF (deviation 13)
 
-and then operationalises it as "all task-days of all questions sharing a
-source_ref".
+1. The PREREGISTRATION.md file attached to this OSF registration is the 23 August
+   freeze (hash 2189f8c6...), not the plan registered on 29 August (hash
+   90a7e7de...). The plan was re-frozen on 29 August to move the collection window
+   five days later, and the copy in the OSF project was not replaced before
+   registering. The two files differ in seven lines, all of them dates:
+   collection start 24 Aug -> 29 Aug, calibration end 27 Sep -> 2 Oct, data freeze
+   6 Dec -> 11 Dec, in the header, section 3.3, section 5.3 and section 5.4(b). The
+   text of this registration form carries the 29 August dates and cites
+   90a7e7de...; the Zenodo deposit and the repository hold the 29 August file.
 
-Those two are not the same grouping, and we did not notice at freeze time.
+2. The registered hash is computed over the plan with its three stamp lines
+   (Status, Frozen on, SHA-256 of frozen version) removed and no final newline,
+   because a document cannot contain its own hash. A plain SHA-256 of the file
+   gives a different number. The repository README gives a one-line check that
+   needs none of the project's own code.
 
-A Kalshi ticker has the form SERIES-EXPIRY-STRIKE. The source_ref therefore
-CONTAINS the strike. Grouping on it splits the very ladder the justifying
-sentence names back into one cluster per rung -- the opposite of what the
-sentence describes.
+3. Collection began on 1 September 2026, not 29 August: the registration awaited
+   approval, and collection is locked in code until it is on record. The window
+   is 102 days, not 105.
 
-Measured on the 241 tasks collected through 2026-09-08: 80 distinct source_refs
-against 40 distinct settlements. A concrete instance already in the public
-record: the five KXAAAGASWNJ-26SEP07 rungs at thresholds 4.15 through 4.19 are
-five separate clusters under the registered grouping, and all five resolved to
-1.0 on 2026-09-07 against a single AAA gas price print. They are one surprise
-observed five times.
+4. Section 3.5 says the ledger held 228 pre-registration entries; it held 208.
+   Twenty further task rows dated 17 August belong to a mock rehearsal whose
+   fabricated observations were archived separately. A verification run on
+   2 September booked ten more calls (about $0.002) to the pilot arm. None of these
+   rows can enter any analysis.
 
-The consequence is that the interval we registered as the conservative bound,
-and which our own plan says governs the claim, treats roughly twice as many
-clusters as independent as actually exist. It understates uncertainty in exactly
-the way it was registered to prevent.
+5. Two quotations in section 1 and section 4 (H6) are not exact: arXiv 2605.00844
+   reads "epistemic monoculture that is built but not yet activated", and the
+   sentence attributed to arXiv 2607.20768 is not in its abstract.
+
+B. CHANGES TO THE INSTRUMENT DURING COLLECTION
+
+Each is transport or record-keeping unless stated. No change alters the question a
+model is asked or how it is asked, except where a registered arm was missing.
+
+- Dev 1 (3 Sep): the output-token ceiling was raised from 400 to 1000 after one
+  model was cut off before finishing its answer on 7 of 54 calls.
+- Dev 2 (3 Sep): a backup run added 5 questions to one day (30 instead of 25); a
+  rerun now finishes a day and can no longer extend it.
+- Dev 4 (9 Sep): OpenRouter routing excludes one host that rejected every qwen
+  call on two days.
+- Dev 7 (9 Sep): the upstream host that serves each open-weight model is recorded.
+- Dev 10 (9 Sep): logprobs, which section 5.4(a) relies on, had never been
+  requested; they are requested from 9 September.
+- Dev 11 (13 Sep): a rate-limited call is waited out, within a fixed time
+  allowance, instead of being lost.
+- Dev 14 (13 Sep): H3's intra-model arm -- one model under five prompt variants
+  -- had never been collected. From 14 September gpt-4.1-mini answers every
+  question under the four registered alternative framings. The first 13 days have
+  no variant data; H3(a) is estimated from 14 September.
+- Dev 15 (13 Sep): Kalshi prices are public (the API renamed its fields, and the
+  code read the old names). Each question now records the market's price when it
+  is asked, never shown to a model, and the shape of its strike ladder.
+- Dev 16 (13 Sep): 13 filing questions about ExxonMobil asked about a quarter the
+  company had already filed, because its second-quarter figure is not
+  machine-readable where the study reads it. They are excluded; any question
+  asked after its target quarter's SEC filing deadline is now refused and
+  excluded; the resolver scores only the quarter asked about; Chevron replaces
+  ExxonMobil so the registered 60/40 mix holds.
+
+C. ANALYSES THAT WERE MISSING, IMPLEMENTED BLIND
+
+- Dev 3 (8 Sep): filing questions built on a reporting series that ended years ago
+  (JPMorgan, 2014) are excluded; they asked about a quarter the models could recall.
+- Dev 5 (9 Sep): the section 5.2 event-clustered interval is operationalised on
+  source_ref, which splits one release's strike ladder into one cluster per
+  strike. It is computed as registered; an interval clustered on the actual
+  settlement is reported beside it, and where they disagree the weaker claim is
+  reported.
+- Dev 8 (9 Sep): the three analysis-time state variables were defined.
+- Dev 9 (9 Sep): the section 5.6 coverage floor had never been applied; it is now.
+  On current data it removes qwen (M falls from 9 to 8), recomputed on every run.
+- Dev 17 (13 Sep): H1 and every quantity the plan says is "reported always" had
+  no implementation. They are implemented, with every open choice fixed: the
+  pairwise error-product regression (standardisation, clustering on the question,
+  BH over all seven variables with any untestable variable counted at p = 1); the
+  tercile rules; what is reported beside every headroom; H4 recomputed at the
+  surviving panel size if a model is removed; and ladder_distance treated as
+  undefined for questions with no numeric strike ladder (49 of 200 event
+  task-days, such as Fed decisions). Because a blind run on 14 question clusters
+  called three variables significant on permuted outcomes, every verdict from
+  fewer than 30 questions or 10 settlements is labelled provisional, and the claim
+  is the weaker of two clusterings.
+
+D. DISCLOSURES
+
+- Dev 6 (9 Sep), corrected by dev 13: weekend and holiday tasks repeat the last
+  published market state. The repeated VIX value of 5-7 September was Thursday
+  3 September's close, not Friday's as first stated; the count is unchanged. The
+  stress leg still clears its registered sample requirement.
+- Dev 12 (13 Sep): most deepseek rows arrive without logprobs because most hosts
+  that serve it send none; routing was deliberately not changed mid-panel.
+- Dev 13: the market state on each task is the latest value published when the
+  question was asked (the previous trading day's close or older), and jobs start
+  hours after the scheduled 13:10 UTC. Section 10's limitation 1 (Kalshi prices
+  not public) is wrong. "20-day realised volatility" is the volatility of the VIX
+  itself, as implemented at registration.
+- Dev 17: from late October each company's next target quarter falls due after
+  the freeze, so late-window filing questions cannot resolve and are excluded by
+  section 3.3; the 60/40 mix is kept at collection.
+
+E. THE WEEK-5 PREDICTION (deviation 18)
+
+Section 5.3 registers the date (2 Oct 2026), the fit (H1 on weeks 1-5) and the form
+of the sentence, and left open every choice that decides whether it can be
+tested. They are fixed now:
+
+- A macro release is a Kalshi event in one of nine series settled by a scheduled
+  US official statistic: CPI and core CPI year on year, PPI month on month and
+  year on year, the unemployment rate (two contract styles), nonfarm payrolls,
+  advance GDP, and housing starts.
+- Its surprise is the Brier score of the market against the print: for each
+  strike the market was unsure about (price between 0.05 and 0.95 a day before
+  the close, quoted no more than 20 cents wide), the squared difference between
+  the settlement and that price, averaged. It uses market prices and settlements
+  only, never a model's forecast. This also replaces the earlier definition of the
+  H1 state variable |macro surprise|, which had no working consensus source.
+- The 80th percentile is fixed now as a number: 0.2425625, over all 66 listed
+  releases that closed in the twelve months before collection began.
+- X and Y are the medians of headroom and rho_bar over the eligible releases that
+  settle by 2 October; a fit on surprise may make them stricter, never easier.
+- The prediction is published on or after 2 October 2026 20:00 UTC by a script
+  that refuses to run earlier or twice, committed to the repository and deposited
+  on Zenodo the same day with its SHA-256.
+- The holdout uses only questions asked from 3 October. The first release after
+  2 October with a surprise of at least 0.2425625 decides it: HIT if headroom is
+  below X and rho_bar above Y, otherwise MISS. If no such release settles by
+  11 December, the prediction is reported as untested.
 
 WHAT WE ARE NOT DOING
 
-We are not revising the registered analysis. Section 9 of the plan lists the
-researcher degrees of freedom we gave up, and it names "the block-bootstrap
-parameters, including the event-clustered interval reported alongside the
-day-blocked one (5.2)". That commitment stands. Both registered intervals will
-be computed exactly as registered, and the registered event-clustered interval
-still governs the claim wherever the plan says it does.
+We are not revising any hypothesis, falsification condition, registered interval,
+or the model roster. Where a registered operationalisation turned out to be
+flawed (the event-clustered interval of section 5.2), it is still computed exactly
+as registered, and the flaw is reported beside it rather than repaired in place.
+Where data was lost -- days without logprobs, days without the H3 arm -- nothing is
+reconstructed; the gap is stated.
 
-We are aware that we could argue the intent of 5.2 supports regrouping. We are
-not making that argument. A pre-registration whose operationalisations can be
-corrected after the fact by appeal to their own stated intent is not a
-pre-registration, and the correction would be indistinguishable from the many
-other post-hoc choices that a frozen plan exists to rule out.
+HOW THIS WAS FOUND
 
-WHAT WE ARE DOING
-
-A third interval, clustered on actual settlements rather than on source_ref, is
-computed alongside the two registered ones and reported with them. It is
-labelled unregistered wherever it appears. Because it groups strictly more
-task-days into each cluster, it can only widen an interval relative to the
-registered one; it cannot narrow a claim or manufacture a result.
-
-If the registered and settlement-clustered intervals agree, nothing turns on
-this. If they disagree, we will report both and the weaker claim.
-
-HOW THIS WAS FOUND, AND WHAT WE COULD SEE WHEN WE FOUND IT
-
-It was found by running the registered analysis end to end for the first time,
-on the data collected so far, with OUTCOMES PERMUTED. The code that does so was
-written on 2026-09-09 and committed publicly the same day; it has never been run
-against real outcomes, which the commit history shows. The analysis driver
-(neff/analysis.py) is blind by default: it shuffles outcomes unless explicitly
-told not to, so the pipeline can be exercised without the effect being seen.
-Every analytic choice is already fixed by the registered plan, so there is
-nothing legitimate to gain by looking early, and a pipeline whose bugs are found
-by their effect on the answer is a pipeline that has been tuned to the answer.
-
-The same first blind run also surfaced two reporting hazards, now guarded: at
-the five resolved task-days then available the estimator returned N_eff = 17.6
-against a nine-model panel, and a bootstrap upper bound of 1.1e12. Neither is an
-estimator error -- mean pairwise error correlation can be negative at that
-sample size, and our N_eff implementation clamps at the -1/(M-1) floor exactly
-as documented -- but both are values that would have printed. The driver now
-refuses to report an N_eff sitting on that clamp, flags N_eff exceeding the
-panel size, and names a panel whose rows all trace to a single settlement.
-
-A SECOND, SMALLER DISCLOSURE
-
-The same review found that 29.4% of our collection days carry a market state
-that is not their own. Markets are shut at our 13:10 UTC collection time on
-weekends and holidays, so FRED and the VIX return the prior close and that day's
-questions are stamped with it. Observed directly: 2026-09-05 (Saturday),
-2026-09-06 (Sunday) and 2026-09-07 (Labor Day) all carry VIX 14.32, which is
-Friday 2026-09-04's value. Eight collection days produced five distinct market
-states. Across the full 2026-09-01 to 2026-12-11 window this is 30 of 102 days.
-
-This biases nothing -- the duplicated state is the correct state, because no
-trading occurred -- and it is confined to the stress leg of H1. Of the seven
-registered state variables, three are market-derived and go stale (VIX level,
-20-day realised volatility, |macro surprise|); the other four do not. Ladder
-distance is set per question, cross-model dispersion is computed from that day's
-own forecasts, days-to-resolution decrements daily, and novelty grows with the
-corpus. The ambiguity leg of H1, which is the experimentally varied one, is
-untouched.
-
-The stress leg still clears its registered requirement. Section 6 requires
-roughly 300 task-days per stress tercile and about 600 remain informative. What
-is narrower than the sentence in section 6 implies is the margin, not the power:
-about 2x the requirement rather than the ~2.9x a reader would compute from the
-raw task-day count. We are stating this before the terciles are formed rather
-than defending it afterwards.
-
-We are changing nothing in response to it. Collecting seven days a week remains
-correct: the forecasts themselves are not stale, only the market covariates are,
-and dropping weekend days would break the continuity of the daily public record
-that makes our timestamps checkable.
+By running the registered analysis end to end on permuted outcomes, and by
+auditing every registered commitment -- hypotheses, state variables, arms, sample
+requirements, citations and the registration files themselves -- against the code,
+the data and the public record. Every analysis in the repository is blind by
+default: it shuffles outcomes unless explicitly told not to, and has never been
+run otherwise.
 
 VERIFICATION
 
-Everything above is checkable without taking our word for it.
+  Repository:  https://github.com/rara-bot/correlated-minds
+  Recorded at: PREREGISTRATION.md section 11, deviations 1-18
+  Zenodo:      10.5281/zenodo.22220263 (latest version)
 
-  Repository:   https://github.com/rara-bot/correlated-minds
-  Recorded at:  PREREGISTRATION.md section 11, deviations 5 and 6
-  Code:         neff/analysis.py, tests/test_analysis_driver.py
-
-The registered plan is unchanged outside section 11, which the plan itself
-requires deviations to be written into. This is verifiable independently of us:
+The plan outside section 11 is unchanged since registration:
 
   ./.venv/bin/python scripts/freeze_prereg.py --check
 
-It reports "intact outside section 11" and prints the registered hash above. The
-text as registered is public at commit a300cb58b593 if you would rather diff it
-than trust the check.
-
-Data, tasks and resolutions are committed daily to that public repository as
-append-only JSONL, so the claim that no outcome existed for the affected
-questions when this was written is checkable against the commit history rather
-than asserted.
+reports "intact outside section 11" and the registered hash. The text as registered
+is public at commit a300cb58b593. Data, tasks and resolutions are committed daily as
+append-only files, so what existed on any date is checkable from the commit history.
 ```
 
 ---
 
 ## Step 2 — paste this as the OSF project wiki entry
 
-Title the wiki page **`Addendum 1 — 2026-09-09`**, then paste:
+Title the page **`Addendum 1 — 2026-09-13`**, then paste:
 
 ```
-ADDENDUM 1 -- 9 September 2026
+ADDENDUM 1 -- 13 September 2026
 
-Two disclosures about the registered plan, both found before any primary
-estimate had been computed on real outcomes.
+Eighteen dated deviations and disclosures, all logged in PREREGISTRATION.md
+section 11 before any primary estimate was computed on real outcomes. No
+hypothesis, falsification clause, model, temperature, task mix, primary outcome or
+multiple-testing correction has changed.
 
-1. A SPECIFICATION ERROR IN THE SECTION 5.2 EVENT-CLUSTERED INTERVAL.
+THE REGISTRATION RECORD
+- The file attached to the registration is the 23 Aug freeze; the registered plan
+  is the 29 Aug freeze. They differ only in the dates of the five-day window slip.
+  The form's text and the Zenodo deposit carry the 29 Aug plan and its hash.
+- The registered hash excludes the three stamp lines; see the README for a
+  one-line check.
+- Collection began 1 Sep, not 29 Aug.
 
-Section 5.2 justifies its cluster bootstrap by noting that every strike on a
-ladder settles against a single print, then operationalises the clustering on
-`source_ref`. A Kalshi ticker is SERIES-EXPIRY-STRIKE, so `source_ref` contains
-the strike and splits the very ladder the justification names. Measured on the
-241 tasks collected through 8 September: 80 distinct source_refs against 40
-distinct settlements.
+INSTRUMENT (all from the dates stated)
+- 3 Sep: output-token ceiling 400 -> 1000; a rerun can no longer add questions.
+- 9 Sep: OpenRouter host filter; upstream host recorded; logprobs requested.
+- 13 Sep: rate limits waited out; H3 prompt-variant arm collected (it never had
+  been); Kalshi prices recorded (they were public under renamed fields);
+  questions past their SEC filing deadline refused and excluded (13 ExxonMobil
+  task-days); Chevron replaces ExxonMobil to keep the 60/40 mix.
 
-The interval registered as the conservative bound -- the one section 5.2 says
-governs the claim -- therefore treats about twice as many clusters as
-independent as exist.
+ANALYSIS, FIXED BLIND
+- Missing implementations added: the 5.6 coverage floor, the derived state
+  variables, H1's regression and tercile contrasts, and every quantity reported
+  always. Choices left open by the plan are fixed in deviation 17, including a
+  provisional label and a weaker-of-two-clusterings rule for small samples.
 
-We are NOT revising it. Section 9 gives up the right to, and that commitment
-stands. A settlement-clustered interval is computed alongside and reported with
-it, always labelled unregistered. Because it groups strictly more task-days per
-cluster it can only widen an interval, never narrow a claim.
-
-2. STALE MARKET STATE ON NON-TRADING DAYS.
-
-Markets are shut at our 13:10 UTC collection time on weekends and holidays, so
-29.4% of collection days (30 of 102) carry the prior close. It biases nothing --
-the duplicated state is the correct state -- and it is confined to the stress
-leg. The stress leg still clears its registered requirement; the margin is
-narrower than the sentence in section 6 implies.
-
-HOW THESE WERE FOUND
-
-By running the registered analysis end to end for the first time with OUTCOMES
-PERMUTED. The analysis driver is blind by default and has never been run against
-real outcomes, which the public commit history shows.
+THE 2 OCT PREDICTION (deviation 18)
+- Macro release: one of nine Kalshi series settled by US official statistics.
+- Surprise: the market's Brier score against the print, from prices a day before.
+- 80th percentile, fixed now: 0.2425625 (66 releases, Sep 2025 - Aug 2026).
+- X, Y: medians over releases settling by 2 Oct, tightened but never loosened by
+  a fit. Holdout: questions asked from 3 Oct; first release at or above the
+  threshold decides; untested if none by 11 Dec.
 
 VERIFICATION
-
   Repository:  https://github.com/rara-bot/correlated-minds
-  Recorded at: PREREGISTRATION.md section 11, deviations 5 and 6
-  Zenodo:      10.5281/zenodo.22220263 (see the latest version)
-
-The registered plan is unchanged outside section 11, which the plan itself
-requires deviations to be written into:
-
-  ./.venv/bin/python scripts/freeze_prereg.py --check
-
-reports "intact outside section 11" and prints the registered hash. The text as
-registered is public at commit a300cb58b593.
+  Zenodo:      10.5281/zenodo.22220263 (latest version)
+  ./.venv/bin/python scripts/freeze_prereg.py --check  ->  "intact outside section 11"
 ```

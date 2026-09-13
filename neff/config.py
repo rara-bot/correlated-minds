@@ -66,13 +66,14 @@ def collection_days() -> int:
 def projected_ws1_usd() -> float:
     """What the 15-week prospective panel is actually expected to cost.
 
-    Includes the test-retest replicates of PREREGISTRATION.md 5.4(d). They are
-    real calls on the same arm, so excluding them would understate the projection
-    the arm cap is set against -- the exact way the previous $25 figure went
-    stale and left a hard stop sitting two thirds of the way up the real spend.
+    Includes the test-retest replicates of PREREGISTRATION.md 5.4(d) and the H3
+    prompt-variant arm (PREREGISTRATION.md 11, deviation 14). Both are real calls on the same arm,
+    so excluding either would understate the projection the arm cap is set
+    against -- the exact way the previous $25 figure went stale and left a hard
+    stop sitting two thirds of the way up the real spend.
     """
     per_day = MEASURED_DAILY_USD * (1.0 + REPLICATES_PER_DAY / TASKS_PER_DAY)
-    return per_day * collection_days()
+    return (per_day + H3_MEASURED_DAILY_USD) * collection_days()
 
 
 # Sub-caps per workstream, so one arm cannot quietly consume the whole budget.
@@ -457,6 +458,30 @@ TASKS_PER_DAY = 25
 REPLICATE_VARIANT = 99
 REPLICATES_PER_DAY = 2
 
+# --- H3: one model under five prompt variants ------------------------------
+# PREREGISTRATION.md 4, H3 (a): "N_eff for one model under 5 prompt variants".
+# The five framings have been in `tasks.PROMPT_VARIANTS` since before the
+# freeze, and nothing collected them. The daily run asked variant 0 only, and
+# the generic `--variants` path would have re-sent the variant-0 prompt under a
+# new label -- a replicate wearing a variant's id. The intra-model arm of a
+# registered hypothesis had no data for the first 13 collection days
+# (PREREGISTRATION.md 11, deviation 14), and those days cannot be recovered.
+#
+# ONE model, chosen before any data from this arm existed and for reasons that
+# say nothing about results: `gpt_mid` returned identical answers on every
+# repetition of an identical prompt on 22 Aug (the 5.4(d) table), so a spread
+# across its variants is the framing rather than sampling noise; its vendor
+# serves it directly, so no router moves underneath it; it has held 100%
+# coverage; and it is the cheapest of the models that were deterministic.
+# Variants 1-4 only -- variant 0 is already the primary panel's observation.
+H3_VARIANT_MODEL = "gpt_mid"
+H3_VARIANTS = 5
+
+# Measured, not assumed: gpt_mid cost $0.0854 across its 356 primary-arm calls,
+# 2026-09-01 to 2026-09-13, or $0.00024 a call. Four variants of 25 tasks is
+# 100 calls a day.
+H3_MEASURED_DAILY_USD = 0.024
+
 COLLECTION_START = "2026-08-29"
 CALIBRATION_END = "2026-10-02"   # end of Week 5: prediction is frozen after this
 DATA_FREEZE = "2026-12-11"
@@ -520,6 +545,11 @@ class RunConfig:
     prompt_variants: int = 1
     replicates_per_day: int = REPLICATES_PER_DAY
     model_keys: Optional[List[str]] = field(default=None)
+    # H3's intra-model arm (H3_VARIANT_MODEL). None switches it off, which is the
+    # default for programmatic callers and for every test; `neff.collect` turns
+    # it on for the primary arm, which is how the daily workflow runs.
+    h3_variant_model: Optional[str] = None
+    h3_variants: int = H3_VARIANTS
 
     def models(self) -> List[ModelSpec]:
         panel = enabled_panel()

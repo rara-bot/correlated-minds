@@ -9,30 +9,38 @@ against human professional forecasters.
 
 **Pre-registered:** [osf.io/x6kqg](https://osf.io/x6kqg/) · registered 2026-08-29 14:44 UTC
 · mirror [10.5281/zenodo.22220263](https://doi.org/10.5281/zenodo.22220263)
-· SHA-256 `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009`
+· plan hash `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009`
 
-The analysis plan was frozen and hashed before any study data existed, and the
-same document is recorded in three independent places: registered on OSF
-Registries at the link above, timestamped 29 Aug 2026 — **three days before the
-first observation was collected on 1 Sep**; committed publicly to this
-repository at `a300cb58b593` on 29 Aug 2026; and deposited on Zenodo with the
-DOI above on 1 Sep 2026. The three records describe one document, and the
-ordering of plan and data is checkable against all of them independently.
-Verify the plan has not changed since freezing with:
+The analysis plan was frozen and hashed on 29 Aug 2026 at 03:54 UTC, before any
+study data existed. It was registered on OSF the same day, three days before the
+first observation was collected on 1 Sep; it is public in this repository at
+commit `a300cb58b593`; and it was deposited on Zenodo on 1 Sep.
+
+Two details a careful reader will find, both recorded in the plan's own deviation
+log (PREREGISTRATION.md §11, deviation 13):
+
+- **The file attached to the OSF registration is the 23 Aug freeze**, which the
+  29 Aug freeze replaced before registering. The two differ in seven lines, all of
+  them dates, from slipping the collection window by five days. The registration
+  form's own text carries the 29 Aug dates and cites the hash above, and the
+  Zenodo deposit and git both hold the 29 Aug file.
+- **The hash is not `shasum` of the file.** A document cannot contain its own
+  hash, so it is taken with the three stamp lines removed. On the file downloaded
+  from Zenodo, this reproduces it without trusting any code in this repository:
+
+```bash
+grep -v -e '^\*\*Frozen on:\*\*' -e '^\*\*SHA-256 of frozen version:\*\*' -e '^\*\*Status:\*\*' PREREGISTRATION.md | perl -pe 'chomp if eof' | shasum -a 256
+```
+
+The copy in this repository also carries the deviation log: the plan requires
+every change after the freeze to be written into §11 as a dated row. To check that
+nothing outside that table has changed since registration:
 
 ```bash
 ./.venv/bin/python scripts/freeze_prereg.py --check
 ```
 
-Before any deviation was logged this printed `status : intact, matches recorded
-hash`. It now prints `status : intact outside section 11`, and lists the
-deviations, because the plan **requires** post-freeze changes to be written into
-§11 and writing one necessarily changes the file. The registered hash above is
-still the hash of the document as registered; what the check now also verifies
-is that everything outside the §11 table is byte-identical to it. Prose appended
-anywhere, a row added to any other table, or a single character altered
-elsewhere all still fail. The frozen text is public at commit `a300cb58b593` if
-you would rather diff it yourself than trust the check.
+It prints `status : intact outside section 11` and lists every deviation.
 
 ---
 
@@ -47,8 +55,11 @@ disagree. This study measures how much genuine independence is actually there,
 and whether it disappears under stress.
 
 The Financial Stability Board, the Bank of England and the IMF have each named
-this a systemic risk. Every existing paper *assumes* a number for how correlated
-AI systems are. **This measures it.**
+this a systemic risk. A handful of recent papers have measured how often language
+models err together — on questions that had already been answered, in simulation,
+or outside finance (PREREGISTRATION.md §1). **None has measured it prospectively
+on financial questions, against human professionals, while asking whether it
+rises under stress.** That is this study.
 
 ---
 
@@ -66,7 +77,8 @@ N_eff = M. At `rho_bar = 1`, N_eff = 1.
 **We correlate errors, not forecasts.** Two forecasters who are both right agree
 strongly but are not redundant — the question simply had a knowable answer.
 Correlating errors isolates *shared wrongness*, which is the only kind that
-creates systemic risk.
+creates systemic risk. Because Pearson correlation cannot see a bias every model
+shares, the plan also reports the model-free `n_eff_mse` beside it (§4.2).
 
 ---
 
@@ -74,37 +86,51 @@ creates systemic risk.
 
 Every day, automatically:
 
-1. Pull open event contracts from Kalshi (economics, financials) that resolve
-   **before the 11 Dec data freeze**.
-2. Ask all ten models the same questions, at temperature 0, with a fixed JSON
-   schema. Nine are the registered primary panel; the tenth is a second
-   frontier model, collected daily and excluded from every primary estimate
-   (PREREGISTRATION.md §3.1).
-3. Append every answer to a public, timestamped, append-only record.
-4. Check which past questions have settled and score them.
+1. Build the day's 25 questions: Kalshi event contracts (economics, financials)
+   that resolve before the **11 Dec data freeze**, and questions about companies'
+   next, not-yet-filed quarterly revenue from their SEC filings — 60% and 40%.
+2. Ask all ten models the same questions at temperature 0, with a fixed JSON
+   schema. Nine are the registered primary panel; the tenth, a second frontier
+   model, is collected and excluded from every primary estimate (§3.1). One model
+   also answers every question under four more registered prompt framings, for H3.
+3. Record the market's own price for each Kalshi question when it is asked. It is
+   stored beside the question and never shown to a model.
+4. Append every answer to a public, timestamped, append-only record, and commit it.
+5. Score the questions that have settled, and record how much each settled macro
+   release surprised the market.
 
 **Every question is registered before its outcome exists.** That is the study's
-core defence: an LLM cannot recall an event that has not happened. The daily
-git commit makes the timestamp externally checkable rather than merely asserted.
+core defence: an LLM cannot recall an event that has not happened, and the daily
+commit makes the timestamp checkable rather than merely asserted. The one place
+this failed was found and excluded: 13 questions about ExxonMobil asked about a
+quarter it had already filed, which the study's data source could not see
+(deviation 16). The generator now refuses any question asked after its target
+quarter's SEC filing deadline.
 
 ---
 
 ## Status
 
-**Instrument built and registered; daily collection begins at the next 13:10 UTC run.** Registration cleared 1 Sep after a registry delay, so collection starts three days into the registered 29 Aug – 11 Dec window; the window itself is unchanged.
+**Collecting daily since 1 Sep 2026.** Next: the pre-registered out-of-sample
+prediction on **2 Oct 2026**. Data freeze: **11 Dec 2026**. Every change to the
+instrument or the analysis since registration is a dated row in
+PREREGISTRATION.md §11.
 
 | Component | Status |
 |---|---|
-| N_eff estimator, block bootstrap, BH correction | ✅ tested |
-| Cost ledger, hard $200 cap | ✅ tested (concurrency, restart, torn writes) |
-| Append-only store | ✅ tested (crash-safe, idempotent) |
-| Kalshi tasks + settlement | ✅ live |
-| FRED outcomes + market state | ✅ live, no API key required |
-| SPF human baseline | ✅ live |
-| Multi-provider LLM client | ✅ built, mock-tested |
-| Panel assembly → analysis | ✅ end-to-end verified |
-| Pre-registration | ✅ frozen, hashed, publicly registered (Zenodo DOI) |
-| Daily automation | ✅ workflow written |
+| Daily collection: 10 models, 25 questions, test-retest replicates | ✅ running (GitHub Actions) |
+| H3 prompt-variant arm; Kalshi prices on every question | ✅ from the first run after 13 Sep (deviations 14, 15) |
+| Estimators: N_eff, block and cluster bootstrap, Benjamini-Hochberg | ✅ tested |
+| Registered exclusions (§3.3, §5.6, deviations 3 and 16) | ✅ applied by the analysis |
+| Primary estimate and every quantity "reported always" | ✅ built; run blind with `scripts/analyze.py` |
+| H1 regression and tercile contrasts | ✅ built; run blind (`neff/h1.py`, deviation 17) |
+| Week-5 prediction | ✅ built and registered (deviation 18); published 2 Oct |
+| H2, H3, H4, H6 tests and the H5 interval | ⏳ to build before the freeze |
+| SPF human baseline | ✅ reproduced to four decimals on 13 Sep |
+
+The analysis is **blind**: until the registered looks — the Week-5 fit on 2 Oct and
+the final analysis after 11 Dec — every analysis run permutes the outcomes, so the
+code is exercised on real shapes without anyone seeing the effect.
 
 ---
 
@@ -123,39 +149,33 @@ record, and `data/mock/` is gitignored:
 ./.venv/bin/python -m neff.collect --mock --tasks 8 --arm pilot
 ```
 
-Price a real day without spending:
+Price a real day without spending (it prices every call at 300 output tokens, so
+it reads about twice the real cost):
 
 ```bash
 ./.venv/bin/python -m neff.collect --dry-run --tasks 25
 ```
 
-Then copy `.env.example` to `.env`, add keys, and drop `--mock`.
+Run the registered analysis, blind:
+
+```bash
+./.venv/bin/python scripts/analyze.py
+```
 
 ---
 
 ## What things cost
 
-**Every data source is free.** Kalshi, FRED, the Philadelphia Fed SPF,
-Polymarket, SEC EDGAR, GitHub Actions — no keys, no fees, no subscriptions. FRED
-needs no API key at all via its CSV endpoint.
+**Every data source is free.** Kalshi, FRED, the Philadelphia Fed SPF, SEC EDGAR
+and GitHub Actions need no keys and no fees. The budget goes to one thing: paying
+the models to answer.
 
-The entire budget goes to one thing: paying the models to answer.
-
-| | Measured cost |
+| | Cost |
 |---|---|
-| One day, 25 tasks × 10 models | **$0.44** |
-| Full 15-week panel (105 days) | **$47** |
-| Panel + replicates, i.e. what the arm cap covers | **$50** |
-| + test-retest replicates (§5.4d) | **$4** |
-| 5 prompt variants of one model (the H3 arm) | **$3** |
+| Actually spent, 1–13 Sep (13 collection days) | **$2.82**, about $0.22 a day |
+| Projected to the 11 Dec freeze, with replicates and the H3 arm | about **$25** in total |
 | `ws1_prospective` arm cap, enforced in code | $110 |
 | Budget cap, enforced in code | $200 |
-
-Priced on 21 Aug 2026 by `neff.collect --dry-run --tasks 25` against the live
-task battery and the real ten-model roster. The figure this replaces, $0.24/day
-for $25 total, was for a nine-model panel and understated the true cost by about
-half — which mattered, because the arm cap it was set against is a hard stop that
-would have ended collection in November rather than warning about it.
 
 ---
 
@@ -175,8 +195,8 @@ horizons, because errors are dominated by the common surprise nobody saw coming.
 
 **Consequence:** a naive "AI is more correlated than humans" hypothesis is
 untestable at short horizons — the metric saturates and leaves no room. So the
-primary outcome is now **diversification headroom, `N_eff - 1`**, and task
-selection excludes near-settled questions.
+primary outcome is **diversification headroom, `N_eff - 1`**, and task selection
+excludes near-settled questions.
 
 (An intermediate fix — correlating residuals after removing the panel's mean
 error, "excess correlation over the common component" — was itself found to be
@@ -184,31 +204,42 @@ broken and dropped: residuals sum to zero by construction, so their pairwise
 correlation is exactly `-1/(M-1)` whatever the truth is. §2.3 records it.) See
 [PREREGISTRATION.md](PREREGISTRATION.md) §2.
 
-Finding this in Week 0, rather than in November after 15 weeks of collection, is
-exactly why a calibration phase exists.
-
 ---
 
 ## Layout
 
 ```
 neff/
-  stats.py       N_eff, block bootstrap, BH correction, signal/error decomposition
-  ledger.py      cost accounting with a hard, code-enforced cap
-  store.py       append-only JSONL: tasks, observations, resolutions
-  config.py      the pinned model roster and run constants
-  providers.py   multi-provider LLM client (+ offline mock)
-  tasks.py       daily task battery construction
-  collect.py     the daily runner
-  panel.py       observations -> matrices for analysis
-  analysis.py    the registered analysis, composed; blind by default
-  state.py       the three state variables derived at analysis time
+  stats.py         N_eff, block bootstrap, BH correction, uncentred estimators
+  metrics.py       variance reduction, MSE-scale N_eff, the human-vs-AI statistic
+  ledger.py        cost accounting with a hard, code-enforced cap
+  store.py         append-only JSONL: tasks, observations, resolutions
+  config.py        the pinned model roster and run constants
+  providers.py     multi-provider LLM client (+ offline mock)
+  tasks.py         daily task battery construction, prompt variants
+  collect.py       the daily runner
+  panel.py         observations -> matrices; the registered exclusions
+  analysis.py      the primary estimate, composed; blind by default
+  report.py        everything the plan reports always
+  h1.py            the primary hypothesis: regression and tercile contrasts
+  state.py         the three state variables derived at analysis time
+  surprise.py      how much a macro release surprised the market
+  prediction.py    the Week-5 out-of-sample prediction
+  verify.py        live pre-flight check of every pinned model
   sources/
-    kalshi.py    questions + ground-truth settlement
-    fred.py      realized outcomes + market state
-    spf.py       the human baseline
-    http.py      retries, backoff, body verification
-tests/           504 tests
+    kalshi.py      questions, prices, strike ladders, settlement
+    edgar.py       SEC filing questions and their resolution
+    fred.py        market state
+    spf.py         the human baseline
+    http.py        retries, backoff, body verification
+scripts/
+  freeze_prereg.py        freeze and check the plan
+  check_days.py           is the daily record unbroken?
+  analyze.py              run the registered analysis, blind
+  week5_prediction.py     rehearse, publish or evaluate the 2 Oct prediction
+  release_surprise.py     market surprise of settled macro releases
+  snapshot_kalshi_ladders.py  strike structure of questions asked before 14 Sep
+tests/             about 720 tests, run before every collection
 ```
 
 ---
@@ -217,23 +248,28 @@ tests/           504 tests
 
 | File | What it is |
 |---|---|
-| [GO-LIVE.md](GO-LIVE.md) | **The launch checklist — read this first if collection has not started** |
-| [EXPLAINER.md](EXPLAINER.md) | Plain-language version — start here |
-| [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment |
+| [EXPLAINER.md](EXPLAINER.md) | Plain-language version — not for use as an abstract |
+| [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment, with its deviation log |
+| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-18, ready to post |
+| [VALIDITY.md](VALIDITY.md) | Do the tasks match how AI is used in finance? Limitations |
+| [AI-USE-LOG.md](AI-USE-LOG.md) | Which parts were written with an AI assistant, for the ISEF rules |
+| [AUDIT.md](AUDIT.md) | 28 defects found before collection, and how |
+| [PRIOR-ART.md](PRIOR-ART.md) | What is already claimed, with verification flags |
 | [RESEARCH-DOSSIER.md](RESEARCH-DOSSIER.md) | Full program spec |
-| [PRIOR-ART.md](PRIOR-ART.md) | What is already claimed, with confidence flags |
 | [ELEVATION.md](ELEVATION.md) | How this becomes a discovery, not a measurement |
 | [STRATEGY.md](STRATEGY.md) | The four-year arc |
-| [BUDGET.md](BUDGET.md) | Cost model |
-| [AUDIT.md](AUDIT.md) | 27 defects found before collection, and how |
 | [SUBMISSION-TARGETS.md](SUBMISSION-TARGETS.md) | Competitions and conferences |
+| [BUDGET.md](BUDGET.md) | Cost model, as planned in August |
+| [GO-LIVE.md](GO-LIVE.md), [SETUP.md](SETUP.md) | Historical: how collection was set up |
 
 ---
 
 ## A note on verification
 
-Three sources in this project return **HTTP 200 with a body that is not the data
+Two sources in this project return **HTTP 200 with a body that is not the data
 you asked for**: Stooq serves a JavaScript challenge, and the Philadelphia Fed's
-per-variable SPF URLs serve HTML. Status codes were checked *and* bodies
-inspected for every source here. `sources/http.py` enforces this, because a
-source that fails silently is worse than one that fails loudly.
+per-variable SPF URLs serve HTML. A third changed shape silently: Kalshi renamed
+its price fields, and for two weeks the code read the missing old names as
+"quotes are not public" (deviation 15). Status codes were checked *and* bodies
+inspected for every source here, and `sources/http.py` enforces the first half of
+that, because a source that fails silently is worse than one that fails loudly.

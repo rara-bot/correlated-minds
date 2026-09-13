@@ -9,14 +9,23 @@ VERIFIED 17 Aug 2026, and one finding shaped this module:
     A settled market reports result='yes'/'no' with status='finalized', which is
     unambiguous ground truth requiring no judgement call from us.
 
-  - QUOTES ARE NOT PUBLIC. yes_bid / yes_ask / last_price / volume come back null
-    on every economics series, including on individual market fetch. So Kalshi
-    cannot supply the market-implied human benchmark; Polymarket does that job
-    instead (see polymarket.py), and the Philadelphia Fed SPF is the primary
-    human baseline regardless.
+  - Quotes appeared not to be public: yes_bid / yes_ask / last_price / volume
+    came back null on every economics series, including on individual market
+    fetch.
 
-Because we cannot see prices, we cannot filter out near-certain contracts by
-their implied probability. Instead we exploit Kalshi's strike-ladder structure:
+    CORRECTED 2026-09-13. The quotes were public; the field names had changed.
+    Kalshi serves prices as dollar strings (`yes_bid_dollars: "0.4100"`) and
+    sizes as fixed-point strings (`volume_fp`), and the old integer fields are
+    gone. Every market fetched on 2026-09-13 carried the new ones, and hourly
+    history is served by the candlesticks endpoint. They are recorded on the
+    task from 2026-09-14 (PREREGISTRATION.md 11, deviation 15); `market_implied`
+    was null on every task before that, and PREREGISTRATION.md 10 limitation 1
+    rests on the mistaken reading. (There is no polymarket.py.)
+
+Because we could not see prices, selection does not filter near-certain
+contracts by their implied probability -- and still does not, because selection
+is registered and a quote is recorded, never used to choose. Instead we exploit
+Kalshi's strike-ladder structure:
 a series like KXCPIYOY lists many thresholds for the same event, and the MIDDLE
 strikes are the genuinely uncertain ones while the extremes are near-foregone.
 Selecting median strikes per event gives informative questions without needing
@@ -26,6 +35,7 @@ Every task we register is drawn from OPEN markets only, so no outcome exists at
 the moment we ask.
 """
 
+import math
 import statistics
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -109,6 +119,127 @@ def _strike_of(market: Dict[str, Any]) -> Optional[float]:
         return None
 
 
+# --- the market's own price ----------------------------------------------------
+#
+# Kalshi serves prices as dollar strings and sizes as fixed-point strings. The
+# 17 Aug check read the integer fields these replaced (`yes_bid`, `last_price`),
+# found them null or absent, and concluded the quotes were not public. They were
+# (PREREGISTRATION.md 11, deviation 15).
+_QUOTE_FIELDS = (
+    ("yes_bid", "yes_bid_dollars"),
+    ("yes_ask", "yes_ask_dollars"),
+    ("last_price", "last_price_dollars"),
+    ("previous_price", "previous_price_dollars"),
+    ("volume", "volume_fp"),
+    ("volume_24h", "volume_24h_fp"),
+    ("open_interest", "open_interest_fp"),
+    ("liquidity", "liquidity_dollars"),
+)
+
+
+def _number(value: Any) -> Optional[float]:
+    """A finite float, or None. Never 0 for a field that is missing or malformed."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def market_quote(market: Dict[str, Any], observed_at: Optional[str] = None) -> Dict[str, Any]:
+    """The market's standing quote when the question was put to the panel.
+
+    Recorded on the task, NEVER in the prompt: `tasks.build_daily_tasks` builds
+    the prompt before attaching it. A price shown to the panel would change the
+    instrument and hand every model the same anchor.
+    """
+    quote: Dict[str, Any] = {
+        name: _number(market.get(field)) for name, field in _QUOTE_FIELDS
+    }
+    quote["observed_at"] = observed_at
+    return quote
+
+
+def implied_probability(quote: Optional[Dict[str, Any]]) -> Optional[float]:
+    """Midpoint of the standing yes bid and ask, or None when there is no quote.
+
+    Unfiltered on purpose. A 0-30 cent quote is recorded as the 15 cents it
+    implies; whether a quote that wide is informative is a judgement for the
+    analysis to state, not one for collection to make silently.
+    """
+    if not quote:
+        return None
+    bid, ask = quote.get("yes_bid"), quote.get("yes_ask")
+    if bid is None or ask is None or ask <= 0.0 or not (0.0 <= bid <= ask <= 1.0):
+        return None
+    return round((bid + ask) / 2.0, 4)
+
+
+# --- the shape of each question's own ladder ------------------------------------
+#
+# `assign_ladder_distance` positions a strike against the markets it is handed.
+# The curated path hands it a whole SERIES -- every open expiry at once -- and an
+# event with no numeric ladder gets 0.0, the value a real ladder's median strike
+# also gets. Both are kept exactly as the code ran at registration, because a
+# recorded variable that changes meaning mid-panel splits the record. These
+# fields describe the ladder a question actually sits on, so the analysis can
+# tell the cases apart (PREREGISTRATION.md 11, deviations 15 and 17).
+_NUMERIC_STRIKE_TYPES = {"greater", "greater_or_equal", "less", "less_or_equal", "between"}
+
+
+def _is_numeric_rung(market: Dict[str, Any]) -> bool:
+    """Is this market one rung of a numeric ladder, rather than a category?
+
+    Fed and central-bank decisions are served as `custom` strikes keyed `Cut`,
+    `Hike` or `Action`, and their tickers (`C26`, `H0`) parse as numbers without
+    being strikes. Exact-value buckets are `custom` strikes keyed `Value`, and
+    are rungs. A market with no `strike_type` at all is judged on its parsed
+    strike alone, which is how every market looked before the field was read.
+    """
+    if market.get("strike") is None:
+        return False
+    strike_type = market.get("strike_type")
+    if not strike_type:
+        return True
+    if strike_type in _NUMERIC_STRIKE_TYPES:
+        return True
+    custom = market.get("custom_strike")
+    if strike_type == "custom" and isinstance(custom, dict) and len(custom) == 1:
+        (key, value), = custom.items()
+        return str(key).strip().lower() == "value" and _number(value) is not None
+    return False
+
+
+def annotate_event_ladders(markets: List[Dict[str, Any]]) -> None:
+    """`event_ladder_size` and `event_ladder_distance`, per real Kalshi event.
+
+    The event is Kalshi's own `event_ticker`: one expiry of one series. The
+    distance is |strike - median| / span over that event's numeric rungs -- the
+    quantity PREREGISTRATION.md 4 describes as `ladder_distance` -- and it is
+    None, never 0.0, for a market that is not a rung or an event with fewer than
+    three of them.
+    """
+    by_event: Dict[str, List[Dict[str, Any]]] = {}
+    for market in markets:
+        key = str(market.get("kalshi_event") or market.get("event_ticker") or "")
+        by_event.setdefault(key, []).append(market)
+    for group in by_event.values():
+        rungs = sorted(m["strike"] for m in group if _is_numeric_rung(m))
+        size = len(rungs)
+        median = statistics.median(rungs) if rungs else None
+        span = (rungs[-1] - rungs[0]) if size >= 2 else 0.0
+        for market in group:
+            market["event_ladder_size"] = size
+            if size >= 3 and span > 0 and _is_numeric_rung(market):
+                market["event_ladder_distance"] = round(
+                    abs(market["strike"] - median) / span, 6
+                )
+            else:
+                market["event_ladder_distance"] = None
+
+
 def assign_ladder_distance(markets: List[Dict[str, Any]]) -> bool:
     """Populate `ladder_distance` for every market in ONE event's strike ladder.
 
@@ -158,7 +289,13 @@ def assign_ladder_distance(markets: List[Dict[str, Any]]) -> bool:
                 )
         return True
 
-    # No usable ladder: the registered convention is 0.0 rather than missing.
+    # No usable ladder: 0.0 rather than missing. This is the convention the code
+    # carried at registration; PREREGISTRATION.md never states it, and 0.0 is
+    # also what the MEDIAN strike of a real ladder records, so the stored value
+    # cannot tell the two apart. Collection keeps writing it, because a recorded
+    # variable must not change meaning mid-panel; the analysis treats it as
+    # undefined for an event without a numeric ladder (deviation 17), and
+    # `annotate_event_ladders` records the difference on every new row.
     for market in markets:
         market.setdefault("ladder_distance", 0.0)
     return False
@@ -206,23 +343,32 @@ def select_tasks(
             if not (min_days_out <= days_out <= max_days_out):
                 continue
 
+            # NB: this strips the EXPIRY from Kalshi's event ticker, so the group
+            # below is a series, not an event -- every open expiry shares one
+            # ladder median. Kept as registered; see `annotate_event_ladders`.
             event_ticker = str(market.get("event_ticker") or market.get("ticker", "")).rsplit("-", 1)[0]
+            quote = market_quote(market, observed_at=now.isoformat())
             record = {
                 "ticker": str(market.get("ticker", "")),
                 "event_ticker": event_ticker,
+                "kalshi_event": str(market.get("event_ticker") or ""),
                 "series_ticker": series_ticker,
                 "title": str(market.get("title") or market.get("subtitle") or ""),
                 "rules": str(market.get("rules_primary") or "")[:1200],
                 "close_time": market.get("close_time"),
                 "days_out": round(days_out, 2),
                 "strike": _strike_of(market),
-                "market_implied": None,   # not public on Kalshi; see module docstring
+                "strike_type": market.get("strike_type"),
+                "custom_strike": market.get("custom_strike"),
+                "quote": quote,
+                "market_implied": implied_probability(quote),
             }
             if record["ticker"] and record["title"]:
                 by_event.setdefault(event_ticker, []).append(record)
 
     selected: List[Dict[str, Any]] = []
     for event_ticker, markets in sorted(by_event.items()):
+        annotate_event_ladders(markets)
         if assign_ladder_distance(markets):
             ordered = sorted(
                 (m for m in markets if m["strike"] is not None),
@@ -284,22 +430,28 @@ def select_tasks(
                 title = str(market.get("title") or market.get("subtitle") or "")
                 if not title:
                     continue
+                quote = market_quote(market, observed_at=now.isoformat())
                 candidates.append({
                     "ticker": ticker,
                     "event_ticker": str(market.get("event_ticker") or ticker),
+                    "kalshi_event": str(market.get("event_ticker") or ""),
                     "series_ticker": series_ticker,
                     "title": title,
                     "rules": str(market.get("rules_primary") or "")[:1200],
                     "close_time": market.get("close_time"),
                     "days_out": round(days_out, 2),
                     "strike": _strike_of(market),
-                    "market_implied": None,
+                    "strike_type": market.get("strike_type"),
+                    "custom_strike": market.get("custom_strike"),
+                    "quote": quote,
+                    "market_implied": implied_probability(quote),
                 })
 
             by_extra_event: Dict[str, List[Dict[str, Any]]] = {}
             for market in candidates:
                 by_extra_event.setdefault(market["event_ticker"], []).append(market)
             for group in by_extra_event.values():
+                annotate_event_ladders(group)
                 assign_ladder_distance(group)
 
             for market in candidates:
