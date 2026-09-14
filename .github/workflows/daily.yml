@@ -121,6 +121,17 @@ jobs:
         timeout-minutes: 5
         run: python scripts/release_surprise.py --study
 
+      - name: Pin the base rate of any Kalshi series asked for the first time
+        # PREREGISTRATION.md 11, deviation 20. H2's category base rate is the share
+        # of a series' markets that settled YES in the twelve months before
+        # collection began, appended once per series and never rewritten. Reads
+        # pre-study settlements only, never a forecast. It cannot fail the run: a
+        # series missed today is picked up tomorrow.
+        if: always() && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: python scripts/category_base_rates.py
+
       - name: Budget guard
         # Fail loudly well before the cap so there is time to react. A silent
         # drift to $200 discovered in December would end the study.

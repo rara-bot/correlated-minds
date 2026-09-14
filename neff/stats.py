@@ -22,6 +22,8 @@ had a knowable answer. Correlating errors nets out the shared signal and isolate
 distinction the theory literature draws and never measures.
 """
 
+from collections import Counter
+from itertools import combinations
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -499,3 +501,74 @@ def noise_floor(first: Sequence[float], second: Sequence[float]) -> float:
     if a.size < 2:
         return float("nan")
     return float(np.sqrt(np.var(a - b, ddof=1) / 2.0))
+
+
+# --- exact permutation over family labels ----------------------------------------
+#
+# PREREGISTRATION.md 3.1 refuses the cluster-robust t-statistic for the family
+# contrast -- on synthetic data holding no family structure it returned +7.06 --
+# and registers an exact permutation over family labels with the family sizes
+# held fixed. A labeling matters only through which models share a family, so the
+# permutation runs over the distinct partitions of the panel into groups of the
+# observed sizes. At the registered nine, three two-model families and three
+# singletons, there are 9! / (2!^3 * 3! * 3!) = 1260 of them, and the smallest
+# p-value the test can return is 1/1260 (deviation 20).
+
+
+def family_partitions(labels: Sequence[str]) -> List[Tuple[int, ...]]:
+    """Every partition of the forecasters into groups of the sizes `labels` has.
+
+    One tuple per partition, giving each forecaster's group number; the observed
+    labeling is among them. Groups of equal size are interchangeable, so each
+    partition appears exactly once: the lowest unplaced forecaster always opens
+    the next group, and only that group's size and other members vary.
+    """
+    n = len(labels)
+    sizes_left: Dict[int, int] = dict(Counter(Counter(labels).values()))
+    assignment = [-1] * n
+    out: List[Tuple[int, ...]] = []
+
+    def place(group: int) -> None:
+        free = [i for i in range(n) if assignment[i] < 0]
+        if not free:
+            out.append(tuple(assignment))
+            return
+        first, rest = free[0], free[1:]
+        for size in sorted(s for s, left in sizes_left.items() if left > 0):
+            sizes_left[size] -= 1
+            for others in combinations(rest, size - 1):
+                members = (first,) + others
+                for i in members:
+                    assignment[i] = group
+                place(group + 1)
+                for i in members:
+                    assignment[i] = -1
+            sizes_left[size] += 1
+
+    place(0)
+    return out
+
+
+__all__ += ["family_partitions"]
+
+
+def pair_correlation(errors: np.ndarray, i: int, j: int, min_overlap: int = 3) -> float:
+    """One pair's error correlation, as `pairwise_error_correlations` computes it.
+
+    NaN exactly where that function omits the pair: fewer than `min_overlap`
+    task-days both answered, or a leg with no variation. H3 and H6 read single
+    pairs thousands of times, and recomputing every pair each time would not
+    change a digit.
+    """
+    arr = np.asarray(errors, dtype=float)
+    a, b = arr[:, i], arr[:, j]
+    mask = ~np.isnan(a) & ~np.isnan(b)
+    if int(mask.sum()) < min_overlap:
+        return float("nan")
+    av, bv = a[mask], b[mask]
+    if np.std(av) == 0.0 or np.std(bv) == 0.0:
+        return float("nan")
+    return float(np.corrcoef(av, bv)[0, 1])
+
+
+__all__ += ["pair_correlation"]

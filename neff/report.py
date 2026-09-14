@@ -4,7 +4,8 @@
   4.2     `n_eff_mse` -- "the primary for the systemic-risk claim" -- beside the
           Pearson headroom, and the gap between the two
   5.4(a)  the distribution of emitted values, the exact-tie rate, and the estimate
-          re-run without exact ties
+          re-run without exact ties and on logprob-derived probabilities
+          (deviations 19 and 20)
   5.4(b)  every primary estimate stratified by horizon band (Type A; Type B is one
           unbanded stratum)
   5.4(d)  `rho_bar` raw and disattenuated, with every model's reliability
@@ -174,12 +175,70 @@ def strata(panel: Panel, n_boot: int = N_BOOT) -> Dict[str, object]:
     return out
 
 
+def logprob_leg(panel: Panel, derived: np.ndarray, n_boot: int = N_BOOT,
+                seed: int = 0) -> Dict[str, object]:
+    """5.4(a): the estimate re-run on logprob-derived probabilities, beside the emitted ones.
+
+    Deviation 19 decides which cells have a derived probability
+    (`logprobs.derived_forecasts`). Deviation 20 fixes the comparison: only the
+    models with at least one such cell, and only those cells -- a cell without one
+    is left out of BOTH estimates, so the two differ in the probabilities and in
+    nothing else -- on the task-days where at least two of those models have one.
+    `rho_bar`, Pearson headroom at the leg's own M and MSE headroom are reported for
+    each, and derived minus emitted with 5.2's intervals from one resample.
+    """
+    derived = np.asarray(derived, dtype=float)
+    has = np.isfinite(derived)
+    cols = [j for j in range(panel.n_models) if has[:, j].any()]
+    out: Dict[str, object] = {"models": [panel.model_keys[j] for j in cols],
+                              "cells": int(has[:, cols].sum()) if cols else 0}
+    if len(cols) < 2:
+        out["why_not"] = f"{len(cols)} model(s) with a logprob-derived probability"
+        return out
+    rows = np.nonzero(has[:, cols].sum(axis=1) >= 2)[0]
+    if rows.size < 3:
+        out["why_not"] = f"{rows.size} task-day(s) on which two such models have one"
+        return out
+    sub = _rows(panel, rows)
+    cells = np.ix_(rows, cols)
+    mask = has[cells]
+    emitted = np.where(mask, panel.forecasts[cells], np.nan) - sub.outcomes[:, None]
+    logprob = np.where(mask, derived[cells], np.nan) - sub.outcomes[:, None]
+    m = len(cols)
+    names = ("rho_bar", "headroom_pearson", "headroom_mse")
+
+    def measures(errors: np.ndarray):
+        if errors.shape[0] < 3:
+            return [math.nan] * 3
+        rho = mean_pairwise_correlation(errors)
+        mse = n_eff_mse(errors)
+        return [rho, n_eff(rho, m) - 1.0 if np.isfinite(rho) else math.nan,
+                mse - 1.0 if np.isfinite(mse) else math.nan]
+
+    emitted_point, derived_point = measures(emitted), measures(logprob)
+    draws = analysis.resampled(
+        sub, lambda idx: np.subtract(measures(logprob[idx]), measures(emitted[idx])), n_boot, seed)
+    out.update(
+        task_days=int(rows.size),
+        emitted={k: _finite(v) for k, v in zip(names, emitted_point)},
+        derived={k: _finite(v) for k, v in zip(names, derived_point)},
+        mean_abs_shift=_finite(float(np.mean(np.abs(logprob - emitted)[mask]))),
+        derived_minus_emitted={
+            k: {"point": _finite(d - e), "intervals": analysis.intervals(draws, n)}
+            for n, (k, d, e) in enumerate(zip(names, derived_point, emitted_point))},
+    )
+    return out
+
+
 def registered_report(panel: Panel, n_boot: int = N_BOOT,
-                      reliabilities: Optional[Dict[str, Dict[str, float]]] = None) -> Dict[str, object]:
+                      reliabilities: Optional[Dict[str, Dict[str, float]]] = None,
+                      derived: Optional[np.ndarray] = None) -> Dict[str, object]:
     """Every always-reported quantity for one (already excluded, possibly permuted) panel."""
     return {
         "co_primary": co_primary(panel, n_boot),
         "emitted_values": emitted_values(panel),
+        "logprob_leg": (logprob_leg(panel, derived, n_boot) if derived is not None
+                        else {"why_not": "no logprob-derived probabilities were passed"}),
         "disattenuation": disattenuated_rho(panel, reliabilities or {}),
         "strata": strata(panel, n_boot),
     }
