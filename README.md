@@ -126,7 +126,7 @@ PREREGISTRATION.md §11.
 | H1 regression and tercile contrasts | ✅ built; run blind (`neff/h1.py`, deviation 17) |
 | Week-5 prediction | ✅ built and registered (deviation 18); published 2 Oct |
 | H2, H3, H4, H6 tests and the H5 interval | ⏳ to build before the freeze |
-| SPF human baseline | ✅ reproduced to four decimals on 13 Sep |
+| SPF human baseline | ✅ read from pinned inputs; reproduces the registered table exactly (deviation 19) |
 
 The analysis is **blind**: until the registered looks — the Week-5 fit on 2 Oct and
 the final analysis after 11 Dec — every analysis run permutes the outcomes, so the
@@ -225,12 +225,13 @@ neff/
   state.py         the three state variables derived at analysis time
   surprise.py      how much a macro release surprised the market
   prediction.py    the Week-5 out-of-sample prediction
+  logprobs.py      which stored logprobs are valid, and the probability they imply
   verify.py        live pre-flight check of every pinned model
   sources/
     kalshi.py      questions, prices, strike ladders, settlement
     edgar.py       SEC filing questions and their resolution
     fred.py        market state
-    spf.py         the human baseline
+    spf.py         the human baseline, from pinned inputs in data/spf/
     http.py        retries, backoff, body verification
 scripts/
   freeze_prereg.py        freeze and check the plan
@@ -239,7 +240,8 @@ scripts/
   week5_prediction.py     rehearse, publish or evaluate the 2 Oct prediction
   release_surprise.py     market surprise of settled macro releases
   snapshot_kalshi_ladders.py  strike structure of questions asked before 14 Sep
-tests/             about 720 tests, run before every collection
+  pin_spf_inputs.py       the human benchmark's inputs, pinned once
+tests/             about 765 tests, run before every collection
 ```
 
 ---
@@ -250,7 +252,7 @@ tests/             about 720 tests, run before every collection
 |---|---|
 | [EXPLAINER.md](EXPLAINER.md) | Plain-language version — not for use as an abstract |
 | [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment, with its deviation log |
-| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-18, ready to post |
+| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-19, ready to post |
 | [VALIDITY.md](VALIDITY.md) | Do the tasks match how AI is used in finance? Limitations |
 | [AI-USE-LOG.md](AI-USE-LOG.md) | Which parts were written with an AI assistant, for the ISEF rules |
 | [AUDIT.md](AUDIT.md) | 28 defects found before collection, and how |

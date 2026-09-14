@@ -17,7 +17,7 @@
 | Plan frozen | 2026-08-29 03:54 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
 | Addendum date | 2026-09-13 |
-| Recorded at | PREREGISTRATION.md §11, deviations 1-18 |
+| Recorded at | PREREGISTRATION.md §11, deviations 1-19 |
 
 **Why post it before 2 Oct:** its value is that it is public while the outcomes it
 could affect are still unknown. On 2026-09-13, 13 collection days exist, 21
@@ -32,7 +32,7 @@ on 2 Oct; this addendum fixes the rules it will be made under.
 ### Title of update
 
 ```
-Addendum 1 (13 Sep 2026): eighteen dated deviations and disclosures, all recorded before any primary estimate was computed on real outcomes
+Addendum 1 (13 Sep 2026): nineteen dated deviations and disclosures, all recorded before any primary estimate was computed on real outcomes
 ```
 
 ### Body
@@ -41,7 +41,7 @@ Addendum 1 (13 Sep 2026): eighteen dated deviations and disclosures, all recorde
 WHAT THIS IS
 
 Section 11 of the registered plan requires every change after the freeze to be
-logged as a dated, numbered deviation. By 13 September 2026 there were eighteen.
+logged as a dated, numbered deviation. By 13 September 2026 there were nineteen.
 This addendum summarises all of them in one public place. The full text of each is
 in PREREGISTRATION.md section 11 in the repository and in the Zenodo deposit.
 
@@ -135,6 +135,16 @@ C. ANALYSES THAT WERE MISSING, IMPLEMENTED BLIND
   called three variables significant on permuted outcomes, every verdict from
   fewer than 30 questions or 10 settlements is labelled provisional, and the claim
   is the weaker of two clusterings.
+- Dev 19 (13 Sep): the human benchmark is computed from pinned copies of its
+  inputs -- the SPF workbook of 17 August, and FRED as served at 01:58 UTC on
+  14 September -- and on them the registered SPF RECESS table reproduces
+  exactly. A quarter is averaged only once all three of its months are
+  published, which moves the secondary point-forecast baselines of section 2.1
+  (their band, 0.083-0.192, becomes 0.086-0.200). The benchmark at M = 8 is
+  fixed now, in case section 5.6 keeps a model out. The section 5.4(a) logprob
+  leg gets a validity rule (a model-and-host source counts only if, on every
+  row, the token emitted is the likeliest one listed) and a definition of the
+  logprob-derived probability.
 
 D. DISCLOSURES
 
@@ -152,6 +162,10 @@ D. DISCLOSURES
 - Dev 17: from late October each company's next target quarter falls due after
   the freeze, so late-window filing questions cannot resolve and are excluded by
   section 3.3; the 60/40 mix is kept at collection.
+- Dev 19: deepseek's logprobs fail that rule on both hosts that send any (one
+  lists alternatives that belong to a different token), so the logprob
+  sensitivity rests on three models -- gpt-4.1-mini, gpt-4.1-nano and Llama --
+  not the four section 5.4(a) names.
 
 E. THE WEEK-5 PREDICTION (deviation 18)
 
@@ -202,7 +216,7 @@ run otherwise.
 VERIFICATION
 
   Repository:  https://github.com/rara-bot/correlated-minds
-  Recorded at: PREREGISTRATION.md section 11, deviations 1-18
+  Recorded at: PREREGISTRATION.md section 11, deviations 1-19
   Zenodo:      10.5281/zenodo.22220263 (latest version)
 
 The plan outside section 11 is unchanged since registration:
@@ -223,7 +237,7 @@ Title the page **`Addendum 1 — 2026-09-13`**, then paste:
 ```
 ADDENDUM 1 -- 13 September 2026
 
-Eighteen dated deviations and disclosures, all logged in PREREGISTRATION.md
+Nineteen dated deviations and disclosures, all logged in PREREGISTRATION.md
 section 11 before any primary estimate was computed on real outcomes. No
 hypothesis, falsification clause, model, temperature, task mix, primary outcome or
 multiple-testing correction has changed.
@@ -249,6 +263,10 @@ ANALYSIS, FIXED BLIND
   variables, H1's regression and tercile contrasts, and every quantity reported
   always. Choices left open by the plan are fixed in deviation 17, including a
   provisional label and a weaker-of-two-clusterings rule for small samples.
+- Deviation 19: the human benchmark reads pinned copies of its inputs and
+  reproduces the registered SPF table exactly; a quarter is averaged only when
+  complete, which moves the secondary SPF baselines slightly; deepseek's
+  logprobs fail a validity check, so the logprob sensitivity uses three models.
 
 THE 2 OCT PREDICTION (deviation 18)
 - Macro release: one of nine Kalshi series settled by US official statistics.

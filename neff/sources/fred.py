@@ -48,8 +48,16 @@ def fetch_series(series_id: str) -> List[Tuple[date, Optional[float]]]:
     those become None rather than being silently dropped, so a caller asking for
     "the value on date d" gets an explicit gap instead of the previous value.
     """
-    text = get_text(CSV_URL, params={"id": series_id})
+    return parse_series_csv(get_text(CSV_URL, params={"id": series_id}), series_id)
 
+
+def parse_series_csv(text: str, series_id: str) -> List[Tuple[date, Optional[float]]]:
+    """FRED's CSV body as (date, value) pairs, for a live fetch or a pinned copy.
+
+    The human benchmark reads FRED from files pinned in data/spf/
+    (PREREGISTRATION.md 11, deviation 19), and they must parse exactly as a live
+    response does.
+    """
     # Guard against the 200-with-HTML failure mode that both Stooq and the
     # Philadelphia Fed asset paths exhibit.
     stripped = text.lstrip()
@@ -121,16 +129,24 @@ def quarterly_average(
     The SPF forecasts quarterly averages of monthly series (unemployment, for
     example), so comparing an SPF forecast to a single month's print would
     manufacture error that the forecaster never made.
+
+    A quarter still being published has no average yet. Averaging the months
+    that are out scored a forecast of the whole quarter against one or two months
+    of it -- the same manufactured error -- and moved the registered point-forecast
+    baselines of PREREGISTRATION.md 2.1 each time a month was released
+    (deviation 19). A month FRED lists without a value is published as missing,
+    not pending: October 2025 was never collected during the federal shutdown, and
+    that quarter is averaged over the two months that exist.
     """
     data = series if series is not None else fetch_series(series_id)
     start_month = 3 * (quarter - 1) + 1
     months = {start_month, start_month + 1, start_month + 2}
 
-    values = [
-        value
-        for observed, value in data
-        if observed.year == year and observed.month in months and value is not None
-    ]
+    rows = [(observed, value) for observed, value in data
+            if observed.year == year and observed.month in months]
+    if {observed.month for observed, _ in rows} != months:
+        return None
+    values = [value for _, value in rows if value is not None]
     if not values:
         return None
     return sum(values) / len(values)

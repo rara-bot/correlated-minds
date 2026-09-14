@@ -33,8 +33,23 @@ So we report two things:
 
 Reporting only (2) without (1) would invite the objection that the result is a
 panel-size artifact. Reporting both closes it.
+
+PINNED INPUTS (PREREGISTRATION.md 11, deviation 19):
+
+The benchmark is computed from data/spf/, never from a fresh download. The
+Philadelphia Fed replaces SPFmicrodata.xlsx with every quarterly survey and FRED
+serves only the latest vintage of a series, so a benchmark recomputed later -- at
+the surviving panel size, on the squared-error scale, at matched accuracy -- would
+silently rest on different data from the numbers registered in 2.3. The pin holds
+the five sheets this module reads (rows from 2000) and FRED's CSV for the four
+series they are scored against, written by scripts/pin_spf_inputs.py;
+PROVENANCE.json records where each came from and its SHA-256, and
+`pinned_problems()` checks them. `source="live"` reads the workbook and FRED
+instead, for comparison only.
 """
 
+import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -42,9 +57,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ..config import DATA_DIR
+from ..config import DATA_DIR, primary_panel
 from ..stats import mean_pairwise_correlation, n_eff
-from .http import FetchError, get_text
+from .http import FetchError
 
 MICRODATA_URL = (
     "https://www.philadelphiafed.org/-/media/FRBP/Assets/Surveys-And-Data/"
@@ -52,6 +67,11 @@ MICRODATA_URL = (
 )
 
 CACHE_PATH = DATA_DIR / "spf_raw" / "SPFmicrodata.xlsx"
+
+PINNED_DIR = DATA_DIR / "spf"
+PROVENANCE_PATH = PINNED_DIR / "PROVENANCE.json"
+PINNED_MIN_YEAR = 2000
+SOURCES = ("pinned", "live")
 
 # SPF sheet -> (FRED series, how to aggregate, WHAT THE SPF COLUMN ACTUALLY IS)
 #
@@ -90,6 +110,16 @@ VARIABLE_MAP = {
 RECESS_SHEET = "RECESS"
 RECESS_OUTCOME_SERIES = "GDPC1"
 
+# What the pin holds: every sheet this module reads, with the columns it reads,
+# and every FRED series those sheets are scored against.
+PINNED_SHEETS = {
+    RECESS_SHEET: [f"{RECESS_SHEET}{h}" for h in range(1, 6)],
+    **{variable: [f"{variable}{h}" for h in range(1, 7)] for variable in VARIABLE_MAP},
+}
+PINNED_SERIES = sorted(
+    {series for series, _, _ in VARIABLE_MAP.values()} | {RECESS_OUTCOME_SERIES}
+)
+
 
 @dataclass
 class HumanBaseline:
@@ -104,6 +134,24 @@ class HumanBaseline:
     n_eff_matched: float          # subsampled to the AI panel size
     matched_panel_size: int
     n_eff_matched_ci: Tuple[float, float]
+
+
+@dataclass
+class HumanErrors:
+    """One sheet at one horizon, as the estimator sees it.
+
+    `errors` is rounds x forecasters, forecast minus outcome, NaN where a
+    forecaster did not answer. Only rounds with a published outcome are kept.
+    `rounds` labels the rows as (year, quarter); `ids` labels the columns.
+    """
+
+    variable: str
+    horizon: int
+    errors: np.ndarray
+    forecasts: np.ndarray
+    outcomes: np.ndarray
+    rounds: List[Tuple[int, int]]
+    ids: List[int]
 
 
 def download_microdata(force: bool = False) -> Path:
@@ -142,16 +190,76 @@ def download_microdata(force: bool = False) -> Path:
     return CACHE_PATH
 
 
-def load_variable(variable: str, path: Optional[Path] = None) -> pd.DataFrame:
-    """Load one SPF sheet as a tidy frame."""
-    source = Path(path) if path else download_microdata()
-    frame = pd.read_excel(source, sheet_name=variable)
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def pinned_problems() -> List[str]:
+    """Everything wrong with the pinned inputs. An empty list means intact."""
+    if not PROVENANCE_PATH.exists():
+        return [f"{PROVENANCE_PATH} is missing"]
+    record = json.loads(PROVENANCE_PATH.read_text(encoding="utf-8"))
+    entries = list(record.get("spf_sheets", {}).values()) + list(
+        record.get("fred_series", {}).values()
+    )
+    expected = {f"{sheet}.csv" for sheet in PINNED_SHEETS} | {
+        f"fred_{series}.csv" for series in PINNED_SERIES
+    }
+    problems: List[str] = []
+    if {entry["file"] for entry in entries} != expected:
+        problems.append("PROVENANCE.json does not list exactly the files this module reads")
+    for entry in entries:
+        path = PINNED_DIR / entry["file"]
+        if not path.exists():
+            problems.append(f"{entry['file']} is missing")
+        elif _sha256(path) != entry["sha256"]:
+            problems.append(f"{entry['file']} does not match its recorded SHA-256")
+    return problems
+
+
+def _check_source(source: str) -> None:
+    if source not in SOURCES:
+        raise ValueError(f"source must be one of {SOURCES}, not {source!r}")
+
+
+def load_variable(
+    variable: str, path: Optional[Path] = None, source: str = "pinned"
+) -> pd.DataFrame:
+    """Load one SPF sheet as a tidy frame: the pinned extract, or a workbook if live."""
+    _check_source(source)
+    if source == "pinned":
+        if path is not None:
+            raise ValueError("a workbook path is live data: pass source='live'")
+        frame = pd.read_csv(PINNED_DIR / f"{variable}.csv")
+    else:
+        frame = pd.read_excel(Path(path) if path else download_microdata(), sheet_name=variable)
     frame.columns = [str(c).strip().upper() for c in frame.columns]
     required = {"YEAR", "QUARTER", "ID"}
     missing = required - set(frame.columns)
     if missing:
         raise ValueError(f"SPF sheet {variable!r} missing columns: {sorted(missing)}")
     return frame
+
+
+def series_history(series_id: str, source: str = "pinned") -> List[Tuple]:
+    """A FRED series as (date, value) pairs: the pinned CSV, or FRED itself if live."""
+    from . import fred
+
+    _check_source(source)
+    if source == "live":
+        return fred.fetch_series(series_id)
+    text = (PINNED_DIR / f"fred_{series_id}.csv").read_text(encoding="utf-8")
+    return fred.parse_series_csv(text, series_id)
+
+
+def target_quarter(year: int, quarter: int, horizon: int) -> Tuple[int, int]:
+    """The quarter a forecast at `horizon` is about: h = 1 is the survey quarter.
+
+    Getting this offset wrong would manufacture error the forecasters never made
+    and inflate every correlation.
+    """
+    index = quarter + (horizon - 1)
+    return year + (index - 1) // 4, (index - 1) % 4 + 1
 
 
 def forecast_matrix(
@@ -196,18 +304,18 @@ def forecast_matrix(
 
 
 def realized_outcomes(
-    variable: str, rounds: List[Tuple[int, int]], horizon: int = 1
+    variable: str, rounds: List[Tuple[int, int]], horizon: int = 1, source: str = "pinned"
 ) -> np.ndarray:
     """Realized value each round was forecasting, from FRED.
 
-    Horizon h in the SPF means h-1 quarters ahead of the survey quarter, so we
-    advance the target quarter accordingly. Getting this offset wrong would
-    manufacture error the forecasters never made and inflate every correlation.
+    Horizon h in the SPF means h-1 quarters ahead of the survey quarter
+    (`target_quarter`). A quarter whose months are not all published yet has no
+    outcome (`fred.quarterly_average`).
     """
     from . import fred
 
     series_id, mode, units = VARIABLE_MAP[variable]
-    history = fred.fetch_series(series_id)
+    history = series_history(series_id, source)
 
     def _value(year: int, quarter: int) -> Optional[float]:
         if mode == "quarterly_mean":
@@ -224,9 +332,7 @@ def realized_outcomes(
 
     outcomes = np.full(len(rounds), np.nan, dtype=float)
     for i, (year, quarter) in enumerate(rounds):
-        target_q = quarter + (horizon - 1)
-        target_y = year + (target_q - 1) // 4
-        target_q = ((target_q - 1) % 4) + 1
+        target_y, target_q = target_quarter(year, quarter, horizon)
 
         if units == "level":
             value = _value(target_y, target_q)
@@ -286,76 +392,116 @@ def growth_matrix(
     return pivot.to_numpy(dtype=float), rounds, [int(i) for i in pivot.columns]
 
 
+def human_errors(
+    variable: str,
+    horizon: int = 1,
+    min_year: int = 2000,
+    min_forecasters: int = 8,
+    source: str = "pinned",
+    path: Optional[Path] = None,
+) -> HumanErrors:
+    """The error matrix behind every human number: each forecast minus what happened.
+
+    For RECESS the forecasts are probabilities and the outcomes 0 or 1, the object
+    the models produce. H4 needs the matrix, not only the summary `measure_binary`
+    returns: 5.5 makes the headline a difference in variance reduction on the
+    squared-error scale, and H4's confirmatory form matches the panels on accuracy.
+    """
+    if source == "pinned" and min_year < PINNED_MIN_YEAR:
+        raise ValueError(f"the pinned extract starts in {PINNED_MIN_YEAR}")
+    frame = load_variable(variable, path=path, source=source)
+    if variable == RECESS_SHEET:
+        forecasts, rounds, ids = recess_matrix(frame, horizon, min_year, min_forecasters)
+        outcomes = decline_outcomes(
+            rounds, horizon, series_history(RECESS_OUTCOME_SERIES, source)
+        )
+    else:
+        build = growth_matrix if VARIABLE_MAP[variable][2] == "growth" else forecast_matrix
+        forecasts, rounds, ids = build(
+            frame, variable, horizon=horizon, min_year=min_year, min_forecasters=min_forecasters
+        )
+        outcomes = realized_outcomes(variable, rounds, horizon=horizon, source=source)
+
+    usable = ~np.isnan(outcomes)
+    forecasts, outcomes = forecasts[usable], outcomes[usable]
+    return HumanErrors(
+        variable=variable,
+        horizon=horizon,
+        errors=forecasts - outcomes[:, None],
+        forecasts=forecasts,
+        outcomes=outcomes,
+        rounds=[r for r, keep in zip(rounds, usable) if keep],
+        ids=ids,
+    )
+
+
+def _matched(
+    errors: np.ndarray, panel_size: int, n_subsamples: int, seed: int
+) -> Tuple[float, Tuple[float, float]]:
+    """Mean N_eff over random panels of `panel_size` forecasters, and its 95% range.
+
+    Like-for-like: the human number is not inflated by panel size alone.
+    """
+    full_n = int(errors.shape[1])
+    rng = np.random.default_rng(seed)
+    draws: List[float] = []
+    if full_n >= panel_size:
+        for _ in range(n_subsamples):
+            picks = rng.choice(full_n, size=panel_size, replace=False)
+            sub_rho = mean_pairwise_correlation(errors[:, picks], min_overlap=6)
+            if np.isfinite(sub_rho):
+                draws.append(n_eff(sub_rho, panel_size))
+    if not draws:
+        return float("nan"), (float("nan"), float("nan"))
+    return float(np.mean(draws)), (
+        float(np.percentile(draws, 2.5)),
+        float(np.percentile(draws, 97.5)),
+    )
+
+
+def _baseline(
+    human: HumanErrors, panel_size: int, n_subsamples: int, seed: int
+) -> HumanBaseline:
+    errors = human.errors
+    if errors.shape[0] < 8:
+        raise ValueError(
+            f"only {errors.shape[0]} usable rounds for {human.variable} h{human.horizon}"
+        )
+    rho_bar = mean_pairwise_correlation(errors, min_overlap=6)
+    matched, ci = _matched(errors, panel_size, n_subsamples, seed)
+    return HumanBaseline(
+        variable=human.variable,
+        horizon=human.horizon,
+        n_rounds=int(errors.shape[0]),
+        n_forecasters_median=float(np.median(np.sum(~np.isnan(human.forecasts), axis=1))),
+        rho_bar=float(rho_bar),
+        n_eff_full_panel=float(n_eff(rho_bar, int(errors.shape[1]))),
+        n_eff_matched=matched,
+        matched_panel_size=panel_size,
+        n_eff_matched_ci=ci,
+    )
+
+
 def measure(
     variable: str = "UNEMP",
     horizon: int = 1,
     min_year: int = 2000,
-    matched_panel_size: int = 7,
+    matched_panel_size: Optional[int] = None,
     n_subsamples: int = 500,
     seed: int = 0,
+    source: str = "pinned",
     path: Optional[Path] = None,
 ) -> HumanBaseline:
     """Measure effective independence among human professional forecasters.
 
     Uses the identical estimator applied to the AI panel, so the two numbers are
-    directly comparable by construction rather than by argument.
+    directly comparable by construction rather than by argument. The matched
+    panel defaults to the registered primary panel's size; H4 passes the surviving
+    M instead if 5.6 removes a model (deviation 17).
     """
-    frame = load_variable(variable, path=path)
-    units = VARIABLE_MAP[variable][2]
-    if units == "growth":
-        forecasts, rounds, ids = growth_matrix(
-            frame, variable, horizon=horizon, min_year=min_year
-        )
-    else:
-        forecasts, rounds, ids = forecast_matrix(
-            frame, variable, horizon=horizon, min_year=min_year
-        )
-    outcomes = realized_outcomes(variable, rounds, horizon=horizon)
-
-    usable = ~np.isnan(outcomes)
-    forecasts, outcomes = forecasts[usable], outcomes[usable]
-    if forecasts.shape[0] < 8:
-        raise ValueError(
-            f"only {forecasts.shape[0]} usable rounds for {variable} h{horizon}"
-        )
-
-    errors = forecasts - outcomes[:, None]
-
-    rho_bar = mean_pairwise_correlation(errors, min_overlap=6)
-    full_n = int(errors.shape[1])
-    n_eff_full = n_eff(rho_bar, full_n)
-
-    # Like-for-like: repeatedly draw `matched_panel_size` forecasters at random
-    # and recompute, so the human number is not inflated by panel size alone.
-    rng = np.random.default_rng(seed)
-    draws: List[float] = []
-    if full_n >= matched_panel_size:
-        for _ in range(n_subsamples):
-            picks = rng.choice(full_n, size=matched_panel_size, replace=False)
-            subset = errors[:, picks]
-            sub_rho = mean_pairwise_correlation(subset, min_overlap=6)
-            if np.isfinite(sub_rho):
-                draws.append(n_eff(sub_rho, matched_panel_size))
-
-    if draws:
-        matched = float(np.mean(draws))
-        ci = (float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5)))
-    else:
-        matched, ci = float("nan"), (float("nan"), float("nan"))
-
-    per_round = np.sum(~np.isnan(forecasts), axis=1)
-
-    return HumanBaseline(
-        variable=variable,
-        horizon=horizon,
-        n_rounds=int(forecasts.shape[0]),
-        n_forecasters_median=float(np.median(per_round)),
-        rho_bar=float(rho_bar),
-        n_eff_full_panel=float(n_eff_full),
-        n_eff_matched=matched,
-        matched_panel_size=matched_panel_size,
-        n_eff_matched_ci=ci,
-    )
+    panel_size = matched_panel_size or len(primary_panel())
+    human = human_errors(variable, horizon, min_year, source=source, path=path)
+    return _baseline(human, panel_size, n_subsamples, seed)
 
 
 def measure_all(
@@ -390,9 +536,11 @@ def measure_all(
 # level, resolved by the national accounts: the same object our models produce,
 # scored the same way, by the professionals they are said to replace.
 #
-# Measured on 2000+ (106 rounds, 79 forecasters, 13% base rate):
-#     h=1  rho_bar 0.8417   headroom@M=7 0.1702
-#     h=4  rho_bar 0.8906   headroom@M=7 0.1153
+# Registered in PREREGISTRATION.md 2.3 (2000+, 106 rounds at h=1, 13% base rate)
+# and reproduced to every printed digit from the pinned inputs by
+# tests/test_spf.py:
+#     h=1  rho_bar 0.8417   headroom@M=9 0.1710   [0.076, 0.356]
+#     h=4  rho_bar 0.8906   headroom@M=9 0.1222   [0.028, 0.311]
 # ---------------------------------------------------------------------------
 
 
@@ -406,27 +554,10 @@ def _gdp_declined(series: List[Tuple], year: int, quarter: int) -> Optional[floa
     return float(current < previous)
 
 
-def measure_binary(
-    horizon: int = 1,
-    min_year: int = 2000,
-    matched_panel_size: int = 7,
-    n_subsamples: int = 500,
-    seed: int = 0,
-    path: Optional[Path] = None,
-    min_forecasters: int = 8,
-) -> HumanBaseline:
-    """Human independence on PROBABILITY forecasts of a BINARY event (SPF RECESS).
-
-    This is the primary human benchmark for H4, because it is the only public
-    human panel that produces the same kind of object our models produce.
-
-    horizon: 1 = probability of decline in the survey quarter ... 5 = four
-        quarters ahead.
-    """
-    source = Path(path) if path else download_microdata()
-    frame = pd.read_excel(source, sheet_name=RECESS_SHEET)
-    frame.columns = [str(c).strip().upper() for c in frame.columns]
-
+def recess_matrix(
+    frame: pd.DataFrame, horizon: int = 1, min_year: int = 2000, min_forecasters: int = 8
+) -> Tuple[np.ndarray, List[Tuple[int, int]], List[int]]:
+    """(rounds x forecasters) matrix of RECESS probabilities, in [0, 1]."""
     column = f"{RECESS_SHEET}{horizon}"
     if column not in frame.columns:
         raise ValueError(f"column {column!r} not in RECESS sheet")
@@ -445,53 +576,39 @@ def measure_binary(
 
     rounds = [(int(y), int(q)) for y, q in pivot.index]
     # SPF records these as percentages; our models emit probabilities.
-    forecasts = pivot.to_numpy(dtype=float) / 100.0
+    return pivot.to_numpy(dtype=float) / 100.0, rounds, [int(i) for i in pivot.columns]
 
-    from . import fred
 
-    history = fred.fetch_series(RECESS_OUTCOME_SERIES)
+def decline_outcomes(
+    rounds: List[Tuple[int, int]], horizon: int, history: List[Tuple]
+) -> np.ndarray:
+    """1.0 where real GDP fell in the quarter a round forecast, NaN if unpublished."""
     outcomes = np.full(len(rounds), np.nan, dtype=float)
     for i, (year, quarter) in enumerate(rounds):
-        target_q = quarter + (horizon - 1)
-        target_y = year + (target_q - 1) // 4
-        target_q = ((target_q - 1) % 4) + 1
-        value = _gdp_declined(history, target_y, target_q)
+        value = _gdp_declined(history, *target_quarter(year, quarter, horizon))
         if value is not None:
             outcomes[i] = value
+    return outcomes
 
-    usable = ~np.isnan(outcomes)
-    forecasts, outcomes = forecasts[usable], outcomes[usable]
-    if forecasts.shape[0] < 8:
-        raise ValueError(f"only {forecasts.shape[0]} usable RECESS rounds")
 
-    errors = forecasts - outcomes[:, None]
+def measure_binary(
+    horizon: int = 1,
+    min_year: int = 2000,
+    matched_panel_size: Optional[int] = None,
+    n_subsamples: int = 500,
+    seed: int = 0,
+    source: str = "pinned",
+    path: Optional[Path] = None,
+    min_forecasters: int = 8,
+) -> HumanBaseline:
+    """Human independence on PROBABILITY forecasts of a BINARY event (SPF RECESS).
 
-    rho_bar = mean_pairwise_correlation(errors, min_overlap=6)
-    full_n = int(errors.shape[1])
+    This is the primary human benchmark for H4, because it is the only public
+    human panel that produces the same kind of object our models produce.
 
-    rng = np.random.default_rng(seed)
-    draws: List[float] = []
-    if full_n >= matched_panel_size:
-        for _ in range(n_subsamples):
-            picks = rng.choice(full_n, size=matched_panel_size, replace=False)
-            sub_rho = mean_pairwise_correlation(errors[:, picks], min_overlap=6)
-            if np.isfinite(sub_rho):
-                draws.append(n_eff(sub_rho, matched_panel_size))
-
-    if draws:
-        matched = float(np.mean(draws))
-        ci = (float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5)))
-    else:
-        matched, ci = float("nan"), (float("nan"), float("nan"))
-
-    return HumanBaseline(
-        variable="RECESS",
-        horizon=horizon,
-        n_rounds=int(forecasts.shape[0]),
-        n_forecasters_median=float(np.median(np.sum(~np.isnan(forecasts), axis=1))),
-        rho_bar=float(rho_bar),
-        n_eff_full_panel=float(n_eff(rho_bar, full_n)),
-        n_eff_matched=matched,
-        matched_panel_size=matched_panel_size,
-        n_eff_matched_ci=ci,
-    )
+    horizon: 1 = probability of decline in the survey quarter ... 5 = four
+        quarters ahead.
+    """
+    panel_size = matched_panel_size or len(primary_panel())
+    human = human_errors(RECESS_SHEET, horizon, min_year, min_forecasters, source=source, path=path)
+    return _baseline(human, panel_size, n_subsamples, seed)

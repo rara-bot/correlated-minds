@@ -298,9 +298,10 @@ All four are covered by tests (`tests/test_edgar.py`).
    coverage on the resolved panel stays under 80%, §5.6 removes it and M becomes 8;
    the human benchmark is then recomputed at M = 8 (deviation 17).
 
-9. **Logprobs arrive for some hosts only.** Most hosts serving deepseek send none,
-   so the §5.4(a) logprob sensitivity rests on a minority of its rows and on no
-   rows before 9 Sep (deviations 10 and 12).
+9. **Logprobs are usable for three models.** Most hosts serving deepseek send none,
+   and the two that send them list values that cannot describe the answers beside
+   them, so the §5.4(a) logprob sensitivity rests on gpt_mid, gpt_small and llama,
+   and on no rows before 9 Sep (deviations 10, 12 and 19).
 
 10. **The H3 prompt-variant arm starts on 14 Sep.** It was never collected before
     (deviation 14), so the intra-model contrast rests on the later task-days only.

@@ -63,7 +63,10 @@ Everything added on 2026-09-13 -- `neff/h1.py`, `neff/report.py`, `neff/surprise
 §11 deviations 13-18, and this file -- was written by Claude Code in one session
 and committed that evening as `eff412d`. A second session that evening added
 `40270a5`, which holds the H3 variant arm to its registered start date. Both
-carry the Claude trailer.
+carry the Claude trailer. A third session that night wrote §11 deviation 19:
+`neff/logprobs.py`, `scripts/pin_spf_inputs.py`, the pinned inputs in `data/spf/`,
+their tests, and changes to `neff/sources/spf.py` and `neff/sources/fred.py`. It
+carries the trailer too.
 
 The 8 commits without a trailer, for you to check against your own memory:
 

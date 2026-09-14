@@ -1,0 +1,72 @@
+{
+  "registered_in": "PREREGISTRATION.md 11, deviation 19",
+  "read_by": "neff/sources/spf.py",
+  "spf_workbook": {
+    "url": "https://www.philadelphiafed.org/-/media/FRBP/Assets/Surveys-And-Data/survey-of-professional-forecasters/historical-data/SPFmicrodata.xlsx",
+    "file_modified": "2026-08-17T17:03:21Z",
+    "bytes": 24612638,
+    "sha256": "d45af2eaebe11e8c7a0635d3f868d5d85897e5bc5cc3d8cb477c243b31faa076",
+    "bytes_served_when_pinned": 24612638
+  },
+  "spf_sheets": {
+    "RECESS": {
+      "file": "RECESS.csv",
+      "rows": 4244,
+      "sha256": "bbdacd59816e11c3493b27f0107c5b1a18f0cbd6a4b82f030586ba9876e94d5c"
+    },
+    "UNEMP": {
+      "file": "UNEMP.csv",
+      "rows": 4244,
+      "sha256": "52e822292515fdb40887af923afbaf64b66b3156a47e38365d7de50700f54af9"
+    },
+    "CPI": {
+      "file": "CPI.csv",
+      "rows": 4244,
+      "sha256": "ef683446dc55ab1a3da475d177421ddc675f45bde3d2575569885c2b15be0b24"
+    },
+    "EMP": {
+      "file": "EMP.csv",
+      "rows": 4244,
+      "sha256": "6ce72f0e05b16b5ed84fabc0b831e1147496d59897a31df13035cc93cf57b75e"
+    },
+    "RGDP": {
+      "file": "RGDP.csv",
+      "rows": 4244,
+      "sha256": "9acf229593911526ae9d4edd503054bdca7e1c90cc397a7d8a53b4cd68913cff"
+    }
+  },
+  "fred_series": {
+    "CPIAUCSL": {
+      "file": "fred_CPIAUCSL.csv",
+      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL",
+      "fetched_at": "2026-09-14T01:58:51Z",
+      "rows": 956,
+      "last_observation": "2026-08-01",
+      "sha256": "f8ecddf53a9a9a74dda92c2c4204e6039466fcb744bc74171b73b5f6aac48119"
+    },
+    "GDPC1": {
+      "file": "fred_GDPC1.csv",
+      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GDPC1",
+      "fetched_at": "2026-09-14T01:58:51Z",
+      "rows": 318,
+      "last_observation": "2026-04-01",
+      "sha256": "519d65c05941022da119fdcbc95976d6865e94b9cc4a8248239e20d7b898e5fc"
+    },
+    "PAYEMS": {
+      "file": "fred_PAYEMS.csv",
+      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=PAYEMS",
+      "fetched_at": "2026-09-14T01:58:52Z",
+      "rows": 1052,
+      "last_observation": "2026-08-01",
+      "sha256": "bf5b48d21b9a84a0be71ece7268fad0cccb943cc89d863fdc01490bece8ab020"
+    },
+    "UNRATE": {
+      "file": "fred_UNRATE.csv",
+      "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=UNRATE",
+      "fetched_at": "2026-09-14T01:58:52Z",
+      "rows": 944,
+      "last_observation": "2026-08-01",
+      "sha256": "ffe86c903f6944ebc8281e5474a15fc4ceaac61059bc51ec86a7241391d8713d"
+    }
+  }
+}

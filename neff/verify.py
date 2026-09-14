@@ -103,12 +103,12 @@ def check_sources() -> List[Tuple[str, str, str]]:
         out.append((CROSS, "fred", f"{type(exc).__name__}: {exc}"))
 
     try:
-        from .sources.spf import CACHE_PATH
-        if CACHE_PATH.exists() and CACHE_PATH.stat().st_size > 1_000_000:
-            mb = CACHE_PATH.stat().st_size / 1e6
-            out.append((TICK, "spf baseline", f"cached, {mb:.0f} MB"))
+        from .sources import spf
+        problems = spf.pinned_problems()
+        if problems:
+            out.append((CROSS, "spf baseline", "; ".join(problems)))
         else:
-            out.append((WARN, "spf baseline", "not cached -- run spf.download_microdata()"))
+            out.append((TICK, "spf baseline", "pinned inputs intact (deviation 19)"))
     except Exception as exc:                                   # noqa: BLE001
         out.append((CROSS, "spf", f"{type(exc).__name__}: {exc}"))
 
