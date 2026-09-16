@@ -71,6 +71,16 @@ carries the trailer too. A fourth session, on 2026-09-14, wrote §11 deviation 2
 pinned in `data/category_base_rates.jsonl`, the logprob re-estimate in
 `neff/report.py` and `neff/logprobs.py`, a workflow step, and their tests.
 
+A fifth session, on 2026-09-15, merged deviation 20 to `main` after re-running the
+suite on CI's Python in a fresh clone, and added operational scaffolding only:
+`.github/workflows/tests.yml` (the suite now runs on every push, not just inside
+the daily job, so a regression cannot cost a collection day), `scripts/milestones.py`
+and `tests/test_milestones.py` (a reminder for the two dated commitments a person
+has to keep -- the Week-5 prediction and the freeze), and a step in `daily.yml` that
+surfaces them. **No deviation number was taken.** Nothing there reaches a model,
+enters the stored record, or moves a registered quantity; it is the same class of
+change as the stress-day notice and the durable alarm, neither of which is in §11.
+
 The 8 commits without a trailer, for you to check against your own memory:
 
 | Commit | Date | Message |

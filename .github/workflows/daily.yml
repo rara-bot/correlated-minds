@@ -294,6 +294,65 @@ jobs:
             gh issue create --title "$TITLE" --body "$BODY" || true
           fi
 
+      - name: Does anything need a person?
+        # Everything else in this job is automatic. These two are not: the Week-5
+        # prediction (PREREGISTRATION.md 5.3, deviation 18) and the 11 Dec freeze
+        # each happen once, on a fixed date, because someone runs a command.
+        #
+        # They are unrecoverable in the same way a missed collection day is. The
+        # publisher refuses before 2026-10-02 20:00 UTC and refuses to run twice,
+        # which is what makes the published file evidence -- but nothing made it
+        # happen, and a prediction published late is not the registered
+        # prediction. Until this step existed the repository alarmed loudly about
+        # a missing day and said nothing about the one calendar entry that cannot
+        # be re-run.
+        #
+        # Quiet until a week before the window opens, so it is not wallpaper by
+        # the time it matters. Exits 0 always: a milestone falling due is the
+        # study working, not a fault.
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python scripts/milestones.py --json
+          python - <<'PY' > milestone.txt || true
+          import json, pathlib
+          try:
+              m = json.loads(pathlib.Path("milestones.json").read_text())
+          except Exception:
+              m = {}
+          flagged = m.get("flagged") or []
+          if flagged:
+              for f in flagged:
+                  print(f"- **{f['title']}** -- {f['state'].replace('_', ' ')}, "
+                        f"window opens {f['opens']}")
+                  if f.get("detail"):
+                      print(f"  {f['detail']}")
+                  for line in f.get("how", []):
+                      print(f"      {line}")
+          PY
+          if [ ! -s milestone.txt ]; then
+            echo "nothing needs a person today"
+            exit 0
+          fi
+          # One issue per milestone window, reused as long as it stays open, so a
+          # thing that is due for three days does not file three alarms.
+          TITLE="needs a person: dated commitment due"
+          BODY="$(cat milestone.txt)
+
+          This is a notice, not a fault -- it means the study reached a date it
+          registered in advance.
+
+          Run: ${RUN_URL}"
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number' || true)"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" || true
+          else
+            gh issue create --title "$TITLE" --body "$BODY" || true
+          fi
+
       - name: Panel health
         run: |
           python - <<'PY'

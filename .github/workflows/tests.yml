@@ -1,0 +1,85 @@
+name: tests
+
+# WHY THIS EXISTS, SEPARATELY FROM daily.yml
+#
+# `daily.yml` runs the suite too, as the step named "Verify estimator before
+# spending anything". That step is a spending guard, and it is the right one:
+# if the statistics are broken, do not collect data against them.
+#
+# But until this file existed it was also the ONLY place the tests ran. The
+# daily job is `schedule:`-triggered, so a push never tested anything, and the
+# first thing a regression met was the 13:10 UTC collection -- which it would
+# fail, before any key was loaded, taking the whole day with it.
+#
+# That is the one failure this study cannot absorb. `neff.collect` exposes no
+# `--as-of` flag on purpose: a forecast collected today and stamped yesterday is
+# a fabricated observation, so a day that fails to collect is a permanent hole
+# in the evidence, and the evidence IS the continuity of the record. A commit
+# pushed at 23:00 that breaks a test would be discovered fourteen hours later by
+# losing a day of the study.
+#
+# So the suite runs here, on the push, while the mistake is still ten seconds old
+# and costs nothing to fix.
+#
+# This workflow reads no secret and writes no data. It cannot collect, cannot
+# spend, and cannot commit -- it only answers whether the code is sound.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push supersedes an older one on the same ref. Nothing here has a
+  # side effect, so cancelling an obsolete run is free.
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The same interpreter daily.yml collects on. A suite that passes on
+          # 3.9 locally and fails on 3.11 in CI is the exact regression this
+          # file is here to catch, so the version is pinned to match, not to
+          # whatever the runner defaults to.
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the suite
+        # No API keys in the environment, deliberately. The suite is hermetic --
+        # the SPF inputs are pinned (deviation 19) and the tests assert that the
+        # benchmark never reaches for the network -- and if some future test
+        # quietly starts depending on a live key or a live host, it should fail
+        # HERE, in the run that cannot pay for it, rather than pass here and
+        # cost a collection day later.
+        run: python -m pytest tests/ -q
+
+      - name: Is the daily record still unbroken?
+        # Cheap, reads only committed files, and answers on every push the one
+        # question the study is actually about. `check_days.py` exits 1 when
+        # today has not collected yet, which on a push at 09:00 UTC is normal
+        # and not this workflow's business -- so the report is printed and its
+        # status ignored.
+        run: python scripts/check_days.py || true
+
+      - name: Does anything need a person?
+        # The dated one-shot commitments: the Week-5 prediction and the freeze.
+        # Surfaced on every push as well as in the daily run, because the daily
+        # run's output is only read when something is already wrong.
+        run: python scripts/milestones.py

@@ -23,3 +23,6 @@ usaco/
 
 # scratch output of scripts/check_days.py --json
 continuity.json
+
+# scratch output of scripts/milestones.py --json
+milestones.json
