@@ -125,7 +125,7 @@ PREREGISTRATION.md §11.
 | Primary estimate and every quantity "reported always" | ✅ built; run blind with `scripts/analyze.py` |
 | H1 regression and tercile contrasts | ✅ built; run blind (`neff/h1.py`, deviation 17) |
 | Week-5 prediction | ✅ built and registered (deviation 18); published 2 Oct |
-| H2, H3, H4, H6 tests and the H5 interval | ⏳ to build before the freeze |
+| H2 to H6, and the §5.4(a) logprob re-estimate | ✅ built; run blind (`neff/h2.py` to `neff/h6.py`, deviation 20) |
 | SPF human baseline | ✅ read from pinned inputs; reproduces the registered table exactly (deviation 19) |
 
 The analysis is **blind**: until the registered looks — the Week-5 fit on 2 Oct and
@@ -222,6 +222,11 @@ neff/
   analysis.py      the primary estimate, composed; blind by default
   report.py        everything the plan reports always
   h1.py            the primary hypothesis: regression and tercile contrasts
+  h2.py            H2: does the panel converge on the base rate as ambiguity rises
+  h3.py            H3: one model's prompt variants against within- and cross-family pairs
+  h4.py            H4: AI against SPF RECESS forecasters, at matched accuracy
+  h5.py            H5: macro against filing tasks
+  h6.py            H6: lineage or capability, by exact permutation over family labels
   state.py         the three state variables derived at analysis time
   surprise.py      how much a macro release surprised the market
   prediction.py    the Week-5 out-of-sample prediction
@@ -239,6 +244,7 @@ scripts/
   analyze.py              run the registered analysis, blind
   week5_prediction.py     rehearse, publish or evaluate the 2 Oct prediction
   release_surprise.py     market surprise of settled macro releases
+  category_base_rates.py  H2's pre-study base rate for each Kalshi series
   snapshot_kalshi_ladders.py  strike structure of questions asked before 14 Sep
   pin_spf_inputs.py       the human benchmark's inputs, pinned once
 tests/             about 765 tests, run before every collection

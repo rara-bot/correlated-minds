@@ -300,3 +300,59 @@ def headroom_ratio(
         "n_boot_valid": len(draws),
         "n_boot_ratio_undefined": int(n_boot - len(draws)),
     }
+
+
+# --- accuracy, for the capability controls of H4 and H6 ------------------------------
+#
+# H4 matches the human panel to the AI panel's accuracy and H6 sets each pair's
+# accuracy beside its correlation. Both read it from here, so the two cannot mean
+# different things by "as accurate as" (PREREGISTRATION.md 11, deviation 20).
+
+
+def brier_skill(forecasts: np.ndarray, outcomes: np.ndarray) -> Dict[str, object]:
+    """Each forecaster's Brier score, and its Brier skill score against the sample base rate.
+
+        brier_i = mean of (f_ti - y_t)^2 over the rows forecaster i answered
+        skill_i = 1 - brier_i / (mean of (base - y_t)^2 over those same rows)
+        base    = the mean outcome over every row that has one
+
+    The reference is climatology scored on the forecaster's own rows, so one who
+    skipped the rounds that surprised everyone is set against a reference that
+    skipped them too. NaN where a forecaster answered nothing, or where its rows
+    leave climatology without error.
+    """
+    f = np.asarray(forecasts, dtype=float)
+    y = np.asarray(outcomes, dtype=float)
+    if f.ndim != 2 or f.shape[0] != y.shape[0]:
+        raise ValueError("forecasts must be (n_rows, n_forecasters) and match outcomes")
+    known = ~np.isnan(y)
+    base = float(np.mean(y[known])) if known.any() else float("nan")
+    brier = np.full(f.shape[1], np.nan)
+    skill = np.full(f.shape[1], np.nan)
+    rows = np.zeros(f.shape[1], dtype=int)
+    for j in range(f.shape[1]):
+        answered = known & ~np.isnan(f[:, j])
+        rows[j] = int(answered.sum())
+        if not rows[j]:
+            continue
+        brier[j] = float(np.mean((f[answered, j] - y[answered]) ** 2))
+        reference = float(np.mean((base - y[answered]) ** 2))
+        if reference > 0:
+            skill[j] = 1.0 - brier[j] / reference
+    return {"brier": brier, "skill": skill, "rows": rows, "base_rate": base}
+
+
+def mse_benefit(errors: np.ndarray, min_models: int = 2) -> float:
+    """Fraction of squared error removed by averaging the panel: max(0, 1 - 1/n_eff_mse).
+
+    PREREGISTRATION.md 5.5 makes the difference in this quantity between the human
+    and the AI panel H4's headline, bounded where the ratio of headroom runs away.
+    It is the benefit `headroom_ratio` and `effective_panel` already report.
+    """
+    value = mse_reduction(errors, min_models=min_models)
+    if not np.isfinite(value):
+        return float("nan")
+    return float(max(0.0, 1.0 - value))
+
+
+__all__ += ["brier_skill", "mse_benefit"]

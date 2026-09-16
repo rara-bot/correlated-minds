@@ -495,3 +495,15 @@ def run(blind: bool = True, seed: int = 0, n_boot: int = N_BOOT,
                         or n_settlements < PROVISIONAL_BELOW_SETTLEMENTS),
     }
     return result
+
+
+def sample_size(panel: Panel) -> Dict[str, object]:
+    """Distinct questions and settlements, and deviation 17 (3)'s provisional label.
+
+    Deviation 20 applies the same label to every verdict of H2 to H6.
+    """
+    questions = len(set(panel.question_ids))
+    settlements = len({resolution_event(q) for q in panel.question_ids})
+    return {"questions": questions, "settlements": settlements,
+            "provisional": (questions < PROVISIONAL_BELOW_QUESTIONS
+                            or settlements < PROVISIONAL_BELOW_SETTLEMENTS)}

@@ -18,7 +18,7 @@ looking early, and a pipeline that has only ever been run on the real numbers
 is one whose bugs were found by their effect on the answer.
 """
 
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -31,6 +31,7 @@ from .panel import (
     load_panel,
 )
 from .stats import (
+    _moving_block_indices,
     block_bootstrap_ci,
     mean_pairwise_correlation,
     n_eff_from_errors,
@@ -310,3 +311,85 @@ def run(
                 f"stable measurement of a 15-week panel."
             ))
     return result
+
+
+# --- resampling shared by the hypotheses built after H1 --------------------------------
+#
+# H2 to H6 each need 5.2's intervals on a statistic `estimate` does not compute.
+# They draw them here, so no two of them can mean different things by a resample
+# (PREREGISTRATION.md 11, deviation 20).
+
+RESAMPLINGS = ("day_blocked", "event_clustered_registered", "event_clustered_settlement")
+GOVERNING = "event_clustered_registered"
+
+
+def resampled(panel: Panel, statistic: Callable[[np.ndarray], object], n_boot: int = N_BOOT,
+              seed: int = 0) -> Dict[str, np.ndarray]:
+    """Bootstrap draws of any statistic of a panel's rows, under every interval 5.2 requires.
+
+    `statistic` receives the row indices of one resample and returns a number, or
+    a vector computed from that same resample. The resamplings are 5.2's two --
+    moving blocks of five task-days, and whole questions (`source_ref`, which
+    governs) -- and whole settlements, the sensitivity of deviation 5, run in that
+    order from one generator as `h1.tercile_contrast` runs them. Returns an
+    (n_boot,) or (n_boot, k) array for each, NaN where a draw was undefined.
+    """
+    rng = np.random.default_rng(seed)
+    groupings = (
+        ("day_blocked", panel.asked_on, BLOCK_DAYS),
+        ("event_clustered_registered", panel.question_ids, 1),
+        ("event_clustered_settlement", [resolution_event(q) for q in panel.question_ids], 1),
+    )
+    out: Dict[str, np.ndarray] = {}
+    for label, groups, block in groupings:
+        draws = [np.asarray(statistic(_moving_block_indices(panel.n_tasks, block, rng, groups)),
+                            dtype=float) for _ in range(n_boot)]
+        out[label] = np.array(draws, dtype=float)
+    return out
+
+
+def percentile_interval(draws: np.ndarray) -> Dict[str, Optional[float]]:
+    """The 95% percentile interval of the defined draws, and how many were undefined."""
+    values = np.asarray(draws, dtype=float).ravel()
+    finite = values[np.isfinite(values)]
+    if not finite.size:
+        return {"lo": None, "hi": None, "undefined_draws": int(values.size)}
+    return {
+        "lo": float(np.percentile(finite, 100 * ALPHA / 2)),
+        "hi": float(np.percentile(finite, 100 * (1 - ALPHA / 2))),
+        "undefined_draws": int(values.size - finite.size),
+    }
+
+
+def sign_of(interval: Optional[Dict[str, Optional[float]]]) -> Optional[int]:
+    """+1 if the interval lies above zero, -1 below it, 0 if it holds zero, None if undefined."""
+    lo, hi = (interval or {}).get("lo"), (interval or {}).get("hi")
+    if lo is None or hi is None:
+        return None
+    return 1 if lo > 0 else (-1 if hi < 0 else 0)
+
+
+def claimed_sign(intervals: Dict[str, Dict[str, Optional[float]]]) -> Optional[int]:
+    """The sign that may be claimed: the registered interval's, only where settlements agree.
+
+    Deviation 17 (3) makes the claim for H1 the weaker of its question- and
+    settlement-clustered verdicts; deviation 20 applies the same rule to every
+    interval H2 to H5 decide on. Undefined if either interval is.
+    """
+    registered = sign_of(intervals.get(GOVERNING))
+    settlement = sign_of(intervals.get("event_clustered_settlement"))
+    if registered is None or settlement is None:
+        return None
+    return registered if registered == settlement else 0
+
+
+def intervals(draws: Dict[str, np.ndarray], column: Optional[int] = None
+              ) -> Dict[str, Dict[str, Optional[float]]]:
+    """`percentile_interval` of each resampling's draws, or of one column of them."""
+    out: Dict[str, Dict[str, Optional[float]]] = {}
+    for label, values in draws.items():
+        values = np.asarray(values, dtype=float)
+        if column is not None and values.ndim == 2:
+            values = values[:, column]
+        out[label] = percentile_interval(values)
+    return out

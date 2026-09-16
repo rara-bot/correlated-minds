@@ -50,7 +50,14 @@ disagrees with the stored forecast.
 
 import math
 import re
-from typing import Any, Dict, Iterable, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
+
+import numpy as np
+
+from .config import OBS_PATH, PRIMARY_ARM
+from .panel import _is_mock
+from .store import JsonlStore
 
 # Stored logprobs are rounded to four decimals (providers._digit_logprobs), so an
 # alternative must beat the emitted token by more than rounding to count as more
@@ -158,4 +165,33 @@ def summary(rows: Iterable[Any]) -> Dict[str, Dict[str, Any]]:
         if verdict[(model, host)]:
             entry["usable"] += 1
             entry["derived"] += derived_probability(row) is not None
+    return out
+
+
+def derived_forecasts(task_ids: Sequence[str], model_keys: Sequence[str],
+                      obs_path: Path = OBS_PATH, arm: str = PRIMARY_ARM) -> np.ndarray:
+    """(tasks, models): the logprob-derived probability behind each forecast a panel holds.
+
+    A cell reads the row `panel.load_panel` keeps for it -- the arm's, prompt
+    variant 0, not mock, no error, the last such row for the task and model -- and
+    is NaN unless that row's source is usable and `derived_probability` defines a
+    value. A source is judged on every row it returned with logprobs in the arm,
+    replicates and H3's prompt variants included, as deviation 19 judges it.
+    """
+    rows = [r for r in JsonlStore(obs_path).read()
+            if str(r.get("arm") or "") == arm and not _is_mock(r)]
+    usable = usable_sources(rows)
+    kept: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for row in rows:
+        if int(row.get("prompt_variant", 0)) != 0 or row.get("forecast") is None or row.get("error"):
+            continue
+        kept[(str(row.get("task_id")), str(row.get("model_key")))] = row
+    column = {k: j for j, k in enumerate(model_keys)}
+    position = {t: i for i, t in enumerate(task_ids)}
+    out = np.full((len(task_ids), len(model_keys)), np.nan)
+    for (task, model), row in kept.items():
+        if task in position and model in column and usable.get(source(row)):
+            value = derived_probability(row)
+            if value is not None:
+                out[position[task], column[model]] = value
     return out

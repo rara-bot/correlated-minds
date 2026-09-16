@@ -66,7 +66,10 @@ and committed that evening as `eff412d`. A second session that evening added
 carry the Claude trailer. A third session that night wrote §11 deviation 19:
 `neff/logprobs.py`, `scripts/pin_spf_inputs.py`, the pinned inputs in `data/spf/`,
 their tests, and changes to `neff/sources/spf.py` and `neff/sources/fred.py`. It
-carries the trailer too.
+carries the trailer too. A fourth session, on 2026-09-14, wrote §11 deviation 20:
+`neff/h2.py` to `neff/h6.py`, `scripts/category_base_rates.py` and the base rates it
+pinned in `data/category_base_rates.jsonl`, the logprob re-estimate in
+`neff/report.py` and `neff/logprobs.py`, a workflow step, and their tests.
 
 The 8 commits without a trailer, for you to check against your own memory:
 
@@ -85,8 +88,8 @@ The 8 commits without a trailer, for you to check against your own memory:
 
 ## The prompt log
 
-Claude Code keeps a transcript of every session. On this Mac there are 23 of them
-in `~/.claude/projects/-Users-rajankhiani-r1/`, from 19 Aug to 13 Sep 2026. **They
+Claude Code keeps a transcript of every session. On this Mac there are 26 of them
+in `~/.claude/projects/-Users-rajankhiani-r1/`, from 19 Aug to 14 Sep 2026. **They
 are not in this repository.** Copy that folder somewhere safe now, and again after
 each working session, and keep it with your research notebook: it is the prompt
 log the rules require. Sessions before 19 Aug, if any, are not on this machine.

@@ -5,7 +5,7 @@
 | Step | Where | What |
 |---|---|---|
 | 1 | **Zenodo** — open DOI `10.5281/zenodo.22220263` → **New version** | Upload `PREREGISTRATION.md` (the current one, with §11) and `OSF-ADDENDUM-1.md` (this file). Set version to `1.1-addendum-1`. Publish |
-| 2 | **Your OSF project** (osf.io/965dz — the project, *not* the frozen registration) | Upload the same two files. Then **Wiki** → new page titled `Addendum 1 — 2026-09-13` → paste the wiki entry at the end of this file |
+| 2 | **Your OSF project** (osf.io/965dz — the project, *not* the frozen registration) | Upload the same two files. Then **Wiki** → new page titled `Addendum 1 — 2026-09-14` → paste the wiki entry at the end of this file |
 | 3 | **osf.io/x6kqg** (the registration) | Only if it offers a way to attach a note or comment without changing any registered answer: paste the title and body below. If the only option is "Update" of the registered answers, **skip this step** |
 
 **Do not withdraw or edit the registration.** Its immutability is the asset. Steps
@@ -16,8 +16,8 @@
 | Registration | osf.io/x6kqg, registered 2026-08-29 14:44 UTC |
 | Plan frozen | 2026-08-29 03:54 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
-| Addendum date | 2026-09-13 |
-| Recorded at | PREREGISTRATION.md §11, deviations 1-19 |
+| Addendum date | 2026-09-14 |
+| Recorded at | PREREGISTRATION.md §11, deviations 1-20 |
 
 **Why post it before 2 Oct:** its value is that it is public while the outcomes it
 could affect are still unknown. On 2026-09-13, 13 collection days exist, 21
@@ -32,7 +32,7 @@ on 2 Oct; this addendum fixes the rules it will be made under.
 ### Title of update
 
 ```
-Addendum 1 (13 Sep 2026): nineteen dated deviations and disclosures, all recorded before any primary estimate was computed on real outcomes
+Addendum 1 (14 Sep 2026): twenty dated deviations and disclosures, all recorded before any primary estimate was computed on real outcomes
 ```
 
 ### Body
@@ -41,7 +41,7 @@ Addendum 1 (13 Sep 2026): nineteen dated deviations and disclosures, all recorde
 WHAT THIS IS
 
 Section 11 of the registered plan requires every change after the freeze to be
-logged as a dated, numbered deviation. By 13 September 2026 there were nineteen.
+logged as a dated, numbered deviation. By 14 September 2026 there were twenty.
 This addendum summarises all of them in one public place. The full text of each is
 in PREREGISTRATION.md section 11 in the repository and in the Zenodo deposit.
 
@@ -145,6 +145,17 @@ C. ANALYSES THAT WERE MISSING, IMPLEMENTED BLIND
   leg gets a validity rule (a model-and-host source counts only if, on every
   row, the token emitted is the likeliest one listed) and a definition of the
   logprob-derived probability.
+- Dev 20 (14 Sep): H2 to H6 and the section 5.4(a) re-estimate on logprob-derived
+  probabilities had no implementation. They are implemented with every open
+  choice fixed. H2's category is the Kalshi series, and its base rate is the share
+  of that series' markets that settled YES in the twelve months before collection,
+  read from Kalshi and pinned. H3 compares its three arms at a panel size of two,
+  with an exact permutation over family labels (1260 labelings at nine models).
+  H4 is compared at all five SPF RECESS horizons and claimed only if it holds at
+  each, matched on Brier skill in three strata, and is uninformative where the
+  matched human headroom is below 0.01. H5 gets its interval. H6 is refitted under
+  every family labeling with the capability terms held fixed. The logprob
+  re-estimate compares derived and emitted probabilities on identical cells.
 
 D. DISCLOSURES
 
@@ -166,6 +177,11 @@ D. DISCLOSURES
   lists alternatives that belong to a different token), so the logprob
   sensitivity rests on three models -- gpt-4.1-mini, gpt-4.1-nano and Llama --
   not the four section 5.4(a) names.
+- Dev 20: on a strike ladder the most ambiguous strikes are those whose true
+  probability sits nearest a base rate near one half, so H2's registered contrast
+  can lean toward H2 for a mechanical reason. The same contrast measured against
+  the market's own distance from the base rate is reported beside it as a
+  sensitivity that cannot change the verdict.
 
 E. THE WEEK-5 PREDICTION (deviation 18)
 
@@ -216,7 +232,7 @@ run otherwise.
 VERIFICATION
 
   Repository:  https://github.com/rara-bot/correlated-minds
-  Recorded at: PREREGISTRATION.md section 11, deviations 1-19
+  Recorded at: PREREGISTRATION.md section 11, deviations 1-20
   Zenodo:      10.5281/zenodo.22220263 (latest version)
 
 The plan outside section 11 is unchanged since registration:
@@ -232,12 +248,12 @@ append-only files, so what existed on any date is checkable from the commit hist
 
 ## Step 2 — paste this as the OSF project wiki entry
 
-Title the page **`Addendum 1 — 2026-09-13`**, then paste:
+Title the page **`Addendum 1 — 2026-09-14`**, then paste:
 
 ```
-ADDENDUM 1 -- 13 September 2026
+ADDENDUM 1 -- 14 September 2026
 
-Nineteen dated deviations and disclosures, all logged in PREREGISTRATION.md
+Twenty dated deviations and disclosures, all logged in PREREGISTRATION.md
 section 11 before any primary estimate was computed on real outcomes. No
 hypothesis, falsification clause, model, temperature, task mix, primary outcome or
 multiple-testing correction has changed.
@@ -267,6 +283,9 @@ ANALYSIS, FIXED BLIND
   reproduces the registered SPF table exactly; a quarter is averaged only when
   complete, which moves the secondary SPF baselines slightly; deepseek's
   logprobs fail a validity check, so the logprob sensitivity uses three models.
+- Deviation 20: H2 to H6 and the logprob re-estimate implemented blind. H2's base
+  rate comes from Kalshi settlements before the study; H4 must hold at all five
+  SPF horizons; H3 and H6 use exact permutations over family labels.
 
 THE 2 OCT PREDICTION (deviation 18)
 - Macro release: one of nine Kalshi series settled by US official statistics.
