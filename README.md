@@ -247,7 +247,7 @@ scripts/
   category_base_rates.py  H2's pre-study base rate for each Kalshi series
   snapshot_kalshi_ladders.py  strike structure of questions asked before 14 Sep
   pin_spf_inputs.py       the human benchmark's inputs, pinned once
-tests/             about 765 tests, run before every collection
+tests/             about 845 tests, run on every push and before every collection
 ```
 
 ---

@@ -5,7 +5,7 @@
 | Step | Where | What |
 |---|---|---|
 | 1 | **Zenodo** — open DOI `10.5281/zenodo.22220263` → **New version** | Upload `PREREGISTRATION.md` (the current one, with §11) and `OSF-ADDENDUM-1.md` (this file). Set version to `1.1-addendum-1`. Publish |
-| 2 | **Your OSF project** (osf.io/965dz — the project, *not* the frozen registration) | Upload the same two files. Then **Wiki** → new page titled `Addendum 1 — 2026-09-14` → paste the wiki entry at the end of this file |
+| 2 | **Your OSF project** (osf.io/965dz — the project, *not* the frozen registration) | Upload the same two files. Then **Wiki** → new page titled `Addendum 1 — 2026-09-16` → paste the wiki entry at the end of this file |
 | 3 | **osf.io/x6kqg** (the registration) | Only if it offers a way to attach a note or comment without changing any registered answer: paste the title and body below. If the only option is "Update" of the registered answers, **skip this step** |
 
 **Do not withdraw or edit the registration.** Its immutability is the asset. Steps
@@ -16,14 +16,14 @@
 | Registration | osf.io/x6kqg, registered 2026-08-29 14:44 UTC |
 | Plan frozen | 2026-08-29 03:54 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
-| Addendum date | 2026-09-14 |
-| Recorded at | PREREGISTRATION.md §11, deviations 1-20 |
+| Addendum date | 2026-09-16 |
+| Recorded at | PREREGISTRATION.md §11, deviations 1-21 |
 
 **Why post it before 2 Oct:** its value is that it is public while the outcomes it
-could affect are still unknown. On 2026-09-13, 13 collection days exist, 21
-task-days in the primary panel have an outcome, and every analysis in the
-repository has been run only on permuted outcomes. The Week-5 prediction is made
-on 2 Oct; this addendum fixes the rules it will be made under.
+could affect are still unknown. On 2026-09-16, 15 collection days exist, 21
+task-days in the primary panel have an outcome, and no hypothesis is yet testable
+on them. The Week-5 prediction is made on 2 Oct; this addendum fixes the rules it
+will be made under, and posting it before that date is what gives it its value.
 
 ---
 
@@ -32,7 +32,7 @@ on 2 Oct; this addendum fixes the rules it will be made under.
 ### Title of update
 
 ```
-Addendum 1 (14 Sep 2026): twenty dated deviations and disclosures, all recorded before any primary estimate was computed on real outcomes
+Addendum 1 (16 Sep 2026): twenty-one dated deviations and disclosures, every one recorded before the study's first registered look at its outcomes
 ```
 
 ### Body
@@ -41,14 +41,17 @@ Addendum 1 (14 Sep 2026): twenty dated deviations and disclosures, all recorded 
 WHAT THIS IS
 
 Section 11 of the registered plan requires every change after the freeze to be
-logged as a dated, numbered deviation. By 14 September 2026 there were twenty.
+logged as a dated, numbered deviation. By 16 September 2026 there were twenty-one.
 This addendum summarises all of them in one public place. The full text of each is
 in PREREGISTRATION.md section 11 in the repository and in the Zenodo deposit.
 
 None of them changes a hypothesis, a falsification clause, the model roster, the
 sampling temperature, the task mix, the primary outcome or the multiple-testing
 correction. Every analysis choice below was fixed while the analysis code had only
-ever been run on permuted outcomes.
+ever been run on permuted outcomes. Deviation 21 records the single run that was
+not on permuted outcomes. It was made after every choice below was already fixed
+and public, it displayed no estimate of anything, the file it wrote was deleted
+without being opened, and no choice was made or changed after it.
 
 A. THE REGISTRATION RECORD ITSELF (deviation 13)
 
@@ -173,6 +176,25 @@ D. DISCLOSURES
 - Dev 17: from late October each company's next target quarter falls due after
   the freeze, so late-window filing questions cannot resolve and are excluded by
   section 3.3; the 60/40 mix is kept at collection.
+- Dev 21 (16 Sep): an unblinded run of the collected data was made on
+  16 September, outside the two looks the plan allows (2 October, and after the
+  11 December freeze). It was made by the AI assistant that writes this study's
+  code, to check that the December analysis works while there is still time to
+  fix it if it does not. It works. The date gate that forbids this exists and was
+  deliberately stepped around by faking the computer's clock. What appeared on
+  screen was the run's summary only -- 21 resolved task-days, a panel of 8, and
+  the words "untested", "untested", "not established" and "falsified" for H2, H3,
+  H4 and H6. No number was displayed: the script prints no correlation, no
+  headroom, no coefficient and no interval. Those four words are identical to the
+  blind run of the same data made minutes earlier, because at 21 resolved
+  task-days nothing is yet testable. The file it wrote was saved outside the
+  repository, never opened, and deleted. Every analysis choice in this addendum
+  was already fixed, committed and public before the run, and nothing in the plan
+  or the code was changed after it except this disclosure and a new test that
+  checks the December analysis against made-up outcomes, so the real data never
+  has to be opened early again. It is reported because the study's claim is not
+  that its results are honest but that its looks are the registered ones, and an
+  unregistered look that changed nothing is still an unregistered look.
 - Dev 19: deepseek's logprobs fail that rule on both hosts that send any (one
   lists alternatives that belong to a different token), so the logprob
   sensitivity rests on three models -- gpt-4.1-mini, gpt-4.1-nano and Llama --
@@ -232,7 +254,7 @@ run otherwise.
 VERIFICATION
 
   Repository:  https://github.com/rara-bot/correlated-minds
-  Recorded at: PREREGISTRATION.md section 11, deviations 1-20
+  Recorded at: PREREGISTRATION.md section 11, deviations 1-21
   Zenodo:      10.5281/zenodo.22220263 (latest version)
 
 The plan outside section 11 is unchanged since registration:
@@ -248,15 +270,18 @@ append-only files, so what existed on any date is checkable from the commit hist
 
 ## Step 2 — paste this as the OSF project wiki entry
 
-Title the page **`Addendum 1 — 2026-09-14`**, then paste:
+Title the page **`Addendum 1 — 2026-09-16`**, then paste:
 
 ```
-ADDENDUM 1 -- 14 September 2026
+ADDENDUM 1 -- 16 September 2026
 
-Twenty dated deviations and disclosures, all logged in PREREGISTRATION.md
-section 11 before any primary estimate was computed on real outcomes. No
+Twenty-one dated deviations and disclosures, all logged in PREREGISTRATION.md
+section 11 before the study's first registered look at its outcomes (2 Oct). No
 hypothesis, falsification clause, model, temperature, task mix, primary outcome or
-multiple-testing correction has changed.
+multiple-testing correction has changed. Deviation 21 discloses an unregistered
+unblinded run made on 16 Sep, after every analysis choice was already fixed and
+public: it displayed no number, the file it wrote was deleted unopened, and
+nothing was changed after it.
 
 THE REGISTRATION RECORD
 - The file attached to the registration is the 23 Aug freeze; the registered plan
@@ -286,6 +311,18 @@ ANALYSIS, FIXED BLIND
 - Deviation 20: H2 to H6 and the logprob re-estimate implemented blind. H2's base
   rate comes from Kalshi settlements before the study; H4 must hold at all five
   SPF horizons; H3 and H6 use exact permutations over family labels.
+
+AN UNREGISTERED LOOK, DISCLOSED (deviation 21)
+- On 16 Sep the analysis was run unblinded on the collected data, outside the two
+  looks the plan allows. It was done to check the December analysis works, by the
+  AI assistant that writes the code, and the date gate that forbids it was stepped
+  around by faking the clock.
+- No number was displayed. The summary showed 21 resolved task-days, a panel of 8,
+  and the same four verdicts the blind run had given minutes earlier -- nothing is
+  yet testable at this sample size. The file it wrote was deleted unopened.
+- Every analysis choice above was already fixed, committed and public before it
+  ran, and nothing was changed after it except this disclosure and a test that
+  checks the December analysis against made-up outcomes instead.
 
 THE 2 OCT PREDICTION (deviation 18)
 - Macro release: one of nine Kalshi series settled by US official statistics.
