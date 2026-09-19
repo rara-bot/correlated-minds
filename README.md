@@ -120,11 +120,12 @@ PREREGISTRATION.md §11.
 |---|---|
 | Daily collection: 10 models, 25 questions, test-retest replicates | ✅ running (GitHub Actions) |
 | H3 prompt-variant arm; Kalshi prices on every question | ✅ from the first run after 13 Sep (deviations 14, 15) |
+| `gpt_small` after OpenAI retires it on 23 Oct | ✅ asked through Azure's copy from that day; both routes asked from 20 Sep so the switch is measured first (deviation 23) |
 | Estimators: N_eff, block and cluster bootstrap, Benjamini-Hochberg | ✅ tested |
 | Registered exclusions (§3.3, §5.6, deviations 3 and 16) | ✅ applied by the analysis |
 | Primary estimate and every quantity "reported always" | ✅ built; run blind with `scripts/analyze.py` |
 | H1 regression and tercile contrasts | ✅ built; run blind (`neff/h1.py`, deviation 17) |
-| Week-5 prediction | ✅ built and registered (deviation 18); published 2 Oct |
+| Week-5 prediction | ✅ built and registered (deviations 18, 22); published on 2 Oct, after 20:00 UTC |
 | H2 to H6, and the §5.4(a) logprob re-estimate | ✅ built; run blind (`neff/h2.py` to `neff/h6.py`, deviation 20) |
 | SPF human baseline | ✅ read from pinned inputs; reproduces the registered table exactly (deviation 19) |
 
@@ -172,7 +173,7 @@ the models to answer.
 
 | | Cost |
 |---|---|
-| Actually spent, 1–13 Sep (13 collection days) | **$2.82**, about $0.22 a day |
+| Actually spent, 1–18 Sep (18 collection days) | **$4.05**, about $0.25 a day since the H3 arm began on 14 Sep |
 | Projected to the 11 Dec freeze, with replicates and the H3 arm | about **$25** in total |
 | `ws1_prospective` arm cap, enforced in code | $110 |
 | Budget cap, enforced in code | $200 |
@@ -242,12 +243,12 @@ scripts/
   freeze_prereg.py        freeze and check the plan
   check_days.py           is the daily record unbroken?
   analyze.py              run the registered analysis, blind
-  week5_prediction.py     rehearse, publish or evaluate the 2 Oct prediction
+  week5_prediction.py     rehearse, check, publish or evaluate the 2 Oct prediction
   release_surprise.py     market surprise of settled macro releases
   category_base_rates.py  H2's pre-study base rate for each Kalshi series
   snapshot_kalshi_ladders.py  strike structure of questions asked before 14 Sep
   pin_spf_inputs.py       the human benchmark's inputs, pinned once
-tests/             about 845 tests, run on every push and before every collection
+tests/             about 950 tests, run on every push and before every collection
 ```
 
 ---
@@ -258,7 +259,7 @@ tests/             about 845 tests, run on every push and before every collectio
 |---|---|
 | [EXPLAINER.md](EXPLAINER.md) | Plain-language version — not for use as an abstract |
 | [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment, with its deviation log |
-| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-19, ready to post |
+| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-23, ready to post |
 | [VALIDITY.md](VALIDITY.md) | Do the tasks match how AI is used in finance? Limitations |
 | [AI-USE-LOG.md](AI-USE-LOG.md) | Which parts were written with an AI assistant, for the ISEF rules |
 | [AUDIT.md](AUDIT.md) | 28 defects found before collection, and how |

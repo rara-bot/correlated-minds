@@ -477,19 +477,17 @@ def select_tasks(
     return chosen
 
 
-def fetch_settlement(ticker: str) -> Optional[float]:
-    """Resolved outcome: 1.0 (yes), 0.0 (no), or None if not yet settled.
+SETTLED_STATUSES = ("settled", "finalized", "closed")
 
-    Verified public: settled markets report result='yes'/'no' with
-    status='finalized'.
+
+def settlement_of(market: Dict[str, Any]) -> Optional[float]:
+    """1.0 (yes) or 0.0 (no) once `market` has settled, otherwise None.
+
+    The one rule for "has this contract settled", shared by the daily resolver
+    and by the Week-5 publisher's check that the record is current -- two readers
+    with two rules would disagree about exactly the contract that matters.
     """
-    try:
-        payload = get_json(f"{BASE}/markets/{ticker}")
-    except FetchError:
-        return None
-
-    market = payload.get("market") or {}
-    if market.get("status") not in ("settled", "finalized", "closed"):
+    if market.get("status") not in SETTLED_STATUSES:
         return None
 
     result = str(market.get("result") or "").strip().lower()
@@ -498,3 +496,22 @@ def fetch_settlement(ticker: str) -> Optional[float]:
     if result == "no":
         return 0.0
     return None
+
+
+def fetch_market(ticker: str) -> Optional[Dict[str, Any]]:
+    """The market as Kalshi serves it now, or None if it could not be fetched."""
+    try:
+        payload = get_json(f"{BASE}/markets/{ticker}")
+    except FetchError:
+        return None
+    return payload.get("market") or {}
+
+
+def fetch_settlement(ticker: str) -> Optional[float]:
+    """Resolved outcome: 1.0 (yes), 0.0 (no), or None if not yet settled.
+
+    Verified public: settled markets report result='yes'/'no' with
+    status='finalized'.
+    """
+    market = fetch_market(ticker)
+    return None if market is None else settlement_of(market)

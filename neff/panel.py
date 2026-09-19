@@ -586,7 +586,8 @@ def count_mock_observations(obs_path=OBS_PATH) -> int:
     return sum(1 for record in JsonlStore(obs_path).read() if _is_mock(record))
 
 
-def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[str, Dict[str, List[float]]]:
+def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False,
+                         variant: Optional[int] = None) -> Dict[str, Dict[str, List[float]]]:
     """Pair each model's two answers to the same question, asked identically.
 
     Returns {model_key: {"first": [...], "second": [...]}}, aligned by task.
@@ -595,9 +596,15 @@ def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[
     `load_panel` filters out, so replicates never enter the primary panel or
     H3's variant arm. They exist only to measure each model's own sampling
     noise -- see stats.test_retest_reliability and PREREGISTRATION.md 5.4(d).
+
+    `variant` pairs variant 0 with another reserved variant instead: the bridge
+    (`config.BRIDGE_VARIANT`, deviation 23) is the same question put to the same
+    model through the route it moves to, so it pairs exactly as a replicate does.
     """
     from .config import REPLICATE_VARIANT
 
+    if variant is None:
+        variant = REPLICATE_VARIANT
     first: Dict[tuple, float] = {}
     second: Dict[tuple, float] = {}
     if not Path(obs_path).exists():
@@ -617,10 +624,10 @@ def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[
         if value is None:
             continue
         key = (rec.get("model_key"), rec.get("task_id"))
-        variant = int(rec.get("prompt_variant", 0))
-        if variant == 0:
+        row_variant = int(rec.get("prompt_variant", 0))
+        if row_variant == 0:
             first[key] = float(value)
-        elif variant == REPLICATE_VARIANT:
+        elif row_variant == variant:
             second[key] = float(value)
 
     out: Dict[str, Dict[str, List[float]]] = {}
@@ -630,6 +637,36 @@ def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[
         bucket["first"].append(first[key])
         bucket["second"].append(second[key])
     return out
+
+
+def bridge_report(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[str, Dict[str, float]]:
+    """Does a model answer the same on the route it moves to? (deviation 23)
+
+    For each model with bridge rows: how many questions were answered on both
+    routes, the share answered with the identical probability, the mean absolute
+    difference, and the test-retest statistics of 5.4(d) computed across routes.
+    Beside it, for the same model, the same statistics from its own replicates --
+    the noise the route change has to be judged against. Forecasts only: nothing
+    here reads an outcome, so it is the same number blind or unblinded.
+    """
+    from .config import BRIDGE_VARIANT
+    from .stats import noise_floor, test_retest_reliability
+
+    def _stats(pair: Dict[str, List[float]]) -> Dict[str, float]:
+        a, b = np.asarray(pair["first"]), np.asarray(pair["second"])
+        return {
+            "n": int(a.size),
+            "identical_share": float(np.mean(a == b)) if a.size else float("nan"),
+            "mean_abs_difference": float(np.mean(np.abs(a - b))) if a.size else float("nan"),
+            "reliability": test_retest_reliability(pair["first"], pair["second"]),
+            "noise_sd": noise_floor(pair["first"], pair["second"]),
+        }
+
+    bridged = load_replicate_pairs(obs_path, include_mock=include_mock, variant=BRIDGE_VARIANT)
+    replicated = load_replicate_pairs(obs_path, include_mock=include_mock)
+    return {model: {"across_routes": _stats(pair),
+                    "own_replicates": _stats(replicated[model]) if model in replicated else None}
+            for model, pair in bridged.items()}
 
 
 def reliability_report(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[str, Dict[str, float]]:

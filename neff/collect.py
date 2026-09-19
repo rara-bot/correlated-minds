@@ -33,9 +33,11 @@ from typing import Dict, List, Optional
 
 from .config import (
     ARM_CAPS_USD,
+    BRIDGE_VARIANT,
     BUDGET_USD,
     H3_VARIANT_MODEL,
     H3_VARIANT_START,
+    H3_VARIANTS,
     LEDGER_PATH,
     PRIMARY_ARM,
     ROOT,
@@ -44,7 +46,9 @@ from .config import (
     TASKS_PATH,
     RunConfig,
     REPLICATE_VARIANT,
+    bridge_spec,
     mock_sandbox,
+    routed,
 )
 from .ledger import Ledger
 from .providers import PROVIDERS, RATE_LIMIT_ALLOWANCE_S, RateLimitAllowance, ask
@@ -70,6 +74,8 @@ def logprobs_coverage(collected, models) -> Dict[str, Dict[str, object]]:
     for o in collected:
         if o.model_key not in asked or not o.model_id_returned or o.provider == "mock":
             continue
+        if o.prompt_variant == BRIDGE_VARIANT:
+            continue            # asked on the bridge route, which serves no logprobs
         entry = report.setdefault(
             o.model_key, {"answered": 0, "carried": 0, "hosts_without": {}}
         )
@@ -114,7 +120,9 @@ def run_day(
     task_store = JsonlStore(tasks_path)
     obs_store = JsonlStore(obs_path)
 
-    models = config.models()
+    # A panel member its vendor has retired is asked on its registered route from
+    # the route's first day (config.SERVING_ROUTES, deviation 23).
+    models = [routed(m, today.isoformat()) for m in config.models()]
     _log(f"collection for {today} | {len(models)} models | arm={config.arm}")
     if use_mock:
         _log(f"MOCK -- writing to {obs_store.path.parent}, not the study record")
@@ -284,6 +292,28 @@ def run_day(
                     pending.append((task, spec, REPLICATE_VARIANT, task.prompt))
         _log(f"test-retest: {len(chosen)} task(s) re-asked to all {len(models)} models")
 
+    # 2c. THE SERVING-ROUTE BRIDGE (deviation 23).
+    #
+    # A model whose vendor retires it is moved to a registered route on a fixed
+    # day. Until then, every question of the day is also put to it through that
+    # route, at a reserved variant, so the change of host is measured on
+    # identical prompts before it is made. On the primary arm only, like H3's arm.
+    bridges = {}
+    if config.bridge:
+        for spec in models:
+            other = bridge_spec(spec, today.isoformat())
+            if other is None:
+                continue
+            bridges[spec.key] = other
+            added = 0
+            for task in tasks:
+                if observation_id(task.task_id, spec.key, BRIDGE_VARIANT) in done:
+                    continue
+                pending.append((task, other, BRIDGE_VARIANT, task.prompt))
+                added += 1
+            _log(f"bridge: {spec.key} also asked via {other.provider} "
+                 f"({other.model_id}) on {len(tasks)} task(s), {added} to collect")
+
     if not pending:
         _log("every observation for today already collected -- nothing to do")
         return {"date": today.isoformat(), "tasks": len(tasks), "observations": 0}
@@ -362,13 +392,19 @@ def run_day(
 
     # Model-drift check: a provider silently serving a different model is the
     # highest-impact silent failure in a longitudinal panel.
+    pinned = {m.key: m.model_id for m in models}
+
+    def _pinned_for(o) -> str:
+        # A bridge row was asked on the route-to-be, and answers to that route's id.
+        if o.prompt_variant == BRIDGE_VARIANT and o.model_key in bridges:
+            return bridges[o.model_key].model_id
+        return pinned.get(o.model_key, "")
+
     drift = sorted(
         {
             f"{o.model_key} -> {o.model_id_returned}"
             for o in collected
-            if o.model_id_returned and not o.model_id_returned.startswith(
-                next((m.model_id for m in models if m.key == o.model_key), "")
-            )
+            if o.model_id_returned and not o.model_id_returned.startswith(_pinned_for(o))
         }
     )
     if drift:
@@ -488,8 +524,9 @@ def run_day(
         "rate_limit_waits": waited,
         "logprobs": logprobs,
         "h3_variants": sum(
-            1 for o in collected if 0 < o.prompt_variant < REPLICATE_VARIANT
+            1 for o in collected if 0 < o.prompt_variant < H3_VARIANTS
         ),
+        "bridge": sum(1 for o in collected if o.prompt_variant == BRIDGE_VARIANT),
     }
 
 
@@ -701,6 +738,7 @@ def config_from_args(args) -> RunConfig:
             if args.arm == PRIMARY_ARM and not getattr(args, "no_h3", False)
             else None
         ),
+        bridge=args.arm == PRIMARY_ARM,
     )
     if args.tasks is not None:
         config.tasks_per_day = args.tasks

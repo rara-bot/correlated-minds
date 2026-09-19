@@ -133,13 +133,18 @@ def week5(now: datetime) -> Milestone:
     else:
         m.detail = (
             "The window opens once 2026-10-02 has collected and its settlements are "
-            "recorded. The script refuses before then, and refuses to run twice."
+            "recorded. The script refuses before then, refuses on a copy of the record "
+            "that is not current, and refuses to run twice."
         )
+        # `git pull` comes first because the record is committed by the daily job
+        # on GitHub, not on the machine that publishes; `--check` says READY or
+        # names what to wait for, and applies exactly what --publish refuses on.
         m.how = [
-            "./.venv/bin/python scripts/week5_prediction.py            # rehearse; writes nothing",
+            "git pull --ff-only                                        # the record lives on GitHub",
+            "./.venv/bin/python scripts/week5_prediction.py --check    # READY, or what to wait for",
             "./.venv/bin/python scripts/week5_prediction.py --publish  # the registered look",
-            "git add predictions/ && git commit && git push            # the file IS the evidence",
-            "Post the printed SHA-256 publicly (OSF or the repo) the same day.",
+            "git add predictions/ && git commit -m 'Week-5 prediction' && git push  # the file IS the evidence",
+            "Post the printed SHA-256 publicly (Zenodo new version, OSF wiki) the same day.",
         ]
     return m
 

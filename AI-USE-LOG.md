@@ -11,6 +11,17 @@ Society for Science's guidance *Use of generative AI to support a research proje
   produce **conclusions**, or supply **citations** or a starter bibliography.
 - Affiliated fairs (for this project, NCSEF Region 6) may adopt stricter rules.
 
+**For 2026-27 this is in the International Rules themselves**, not only in the
+guidance (All Projects, Eligibility/Limitations #8, in Society for Science's list of
+rule changes for 2026-27): AI may be used as a resource if it is cited and
+acknowledged; everything you present must be in your own words; and generative AI
+may not write the research plan, abstract or poster, or create citations. The same
+year adds **Form 2A, the Student Support Disclosure Form, required for every
+project** (it may be completed before or after experimentation), and requires the
+Research Plan to have seven parts: rationale; research question or hypotheses and
+expected outcomes; list of materials; procedures; risk and safety; data analysis;
+bibliography.
+
 This file is the factual half of that record. It was generated on 2026-09-13 from
 this repository's git history by Claude (Anthropic's Claude Code), the assistant
 used throughout the project. It is **not** a disclosure statement written for you:
@@ -92,6 +103,38 @@ against outcomes made up inside the test, so the real record is never opened ear
 again. **If a judge asks whether anyone looked at the results before December, the
 honest answer is this deviation, and it is in the public log.**
 
+A sixth session, on 2026-09-19, wrote §11 deviation 22. `scripts/week5_prediction.py`
+now refuses to publish the 2 October prediction from a copy of the record that is
+not current -- behind GitHub, missing that day's questions, or missing a settlement
+Kalshi has already published -- and has a read-only `--check` that says READY or
+what to wait for. `neff/sources/kalshi.py` and `scripts/release_surprise.py` now
+expose the settlement rules they already applied, so the check uses the same ones.
+`tests/test_week5_publish.py` runs the registered 2 October look end to end,
+unblinded, on a record fabricated inside the test, and fails if anything opens the
+real one. The same session changed the collection job's environment **without a
+deviation number**, because nothing there reaches a model, enters the record or
+moves a registered quantity: `requirements.txt` caps every dependency below its
+next major version (httpx 1.0, then in pre-release, removes every function the
+study uses to call a model or a data source); both workflows run on a named Ubuntu
+24.04 image and on action versions that run on Node 24 (GitHub removes Node 20 on
+2026-09-23, and moves `ubuntu-latest` to Ubuntu 26.04 from 2026-10-19); the daily
+job's commit step now fails, and its alarm now fires, when a day's data cannot be
+pushed, where before a failed push finished green; and `scripts/milestones.py` lists
+`git pull` and `--check` before `--publish`. `tests/test_requirements_bounded.py`
+and `tests/test_workflow_commit.py` pin those.
+
+The same session wrote §11 deviation 23. Checking every vendor's retirement
+schedule, it found that OpenAI shuts down `gpt-4.1-nano-2025-04-14` (`gpt_small`)
+on 2026-10-23, an announcement from April that nobody had checked. **You chose**
+between keeping the model through Azure and letting it drop out, and chose Azure.
+The code (`neff/config.py` `SERVING_ROUTES`, `neff/providers.py`
+`OpenRouterAzureProvider`) moves the model to OpenRouter's Azure host on that day,
+asks every question on that route beforehand as well (the "bridge", stored at
+prompt variant 98 and read only by `panel.bridge_report`), alarms if the route
+fails, and adds a sensitivity without the post-switch answers
+(`report.without_route`). `tests/test_serving_route.py` pins it. The route was
+probed live with a synthetic question, outside the study record.
+
 The 8 commits without a trailer, for you to check against your own memory:
 
 | Commit | Date | Message |
@@ -109,8 +152,8 @@ The 8 commits without a trailer, for you to check against your own memory:
 
 ## The prompt log
 
-Claude Code keeps a transcript of every session. On this Mac there are 27 of them
-in `~/.claude/projects/-Users-rajankhiani-r1/`, from 19 Aug to 16 Sep 2026. **They
+Claude Code keeps a transcript of every session. On this Mac there are 29 of them
+in `~/.claude/projects/-Users-rajankhiani-r1/`, from 19 Aug to 19 Sep 2026. **They
 are not in this repository.** Copy that folder somewhere safe now, and again after
 each working session, and keep it with your research notebook: it is the prompt
 log the rules require. Sessions before 19 Aug, if any, are not on this machine.
@@ -131,3 +174,6 @@ log the rules require. Sessions before 19 Aug, if any, are not on this machine.
    it was given in person or on a call, email them to confirm it, describing the
    use plainly: AI-written code and analysis, an AI-drafted pre-registration, and
    AI models as the object of study. Keep their reply.
+5. **Fill in Form 2A**, the Student Support Disclosure Form, new for 2026-27 and
+   required for every project. It is where the help you had is declared; name the
+   AI assistant there, in your own words, and keep this file as the evidence.

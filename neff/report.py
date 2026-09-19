@@ -10,8 +10,10 @@
           unbanded stratum)
   5.4(d)  `rho_bar` raw and disattenuated, with every model's reliability
   H5      headroom on Type A against Type B
-  and the sensitivities the record owes: without `claude_sonnet`, and without the
-  two days collected at max_tokens 400 (VALIDITY.md 7, deviation 1).
+  and the sensitivities the record owes: without `claude_sonnet`, without the
+  two days collected at max_tokens 400 (VALIDITY.md 7, deviation 1), and without
+  the answers a model gave on the route it was moved to when its vendor retired
+  it (deviation 23).
 
 Until 2026-09-13 the analysis driver computed `rho_bar` and N_eff and none of this
 (PREREGISTRATION.md 11, deviation 17). This module composes; every estimator in it
@@ -27,6 +29,7 @@ import numpy as np
 
 from . import analysis
 from .analysis import ALPHA, BLOCK_DAYS, N_BOOT, resolution_event
+from .config import SERVING_ROUTES
 from .metrics import variance_reduction
 from .panel import Panel, _rows
 from .stats import (
@@ -155,6 +158,25 @@ def _estimate(panel: Panel, n_boot: int) -> Dict[str, object]:
     return out
 
 
+def without_route(panel: Panel, key: str, starts: str) -> Panel:
+    """The panel with `key`'s answers on task-days asked from `starts` removed.
+
+    Deviation 23's sensitivity. Only that model's cells go; every other model keeps
+    every task-day, so what moves is exactly what the change of route touched.
+    """
+    if key not in panel.model_keys:
+        return panel
+    column = panel.model_keys.index(key)
+    rows = [i for i, day in enumerate(panel.asked_on) if day and day >= starts]
+    forecasts, errors = panel.forecasts.copy(), panel.errors.copy()
+    forecasts[rows, column] = np.nan
+    errors[rows, column] = np.nan
+    return Panel(forecasts=forecasts, outcomes=panel.outcomes, errors=errors,
+                 task_ids=list(panel.task_ids), model_keys=list(panel.model_keys),
+                 market_implied=panel.market_implied, state=list(panel.state),
+                 question_ids=list(panel.question_ids), asked_on=list(panel.asked_on))
+
+
 def strata(panel: Panel, n_boot: int = N_BOOT) -> Dict[str, object]:
     kinds = [kind_of(s) for s in panel.state]
     days_out = [(s or {}).get("days_out") for s in panel.state]
@@ -172,6 +194,10 @@ def strata(panel: Panel, n_boot: int = N_BOOT) -> Dict[str, object]:
     if FRONTIER_ANCHOR in panel.model_keys:
         out["sensitivity"]["without_" + FRONTIER_ANCHOR] = _estimate(
             panel.subset_by_models([k for k in panel.model_keys if k != FRONTIER_ANCHOR]), n_boot)
+    for key, route in sorted(SERVING_ROUTES.items()):
+        if key in panel.model_keys:
+            out["sensitivity"][f"without_{key}_from_{route.starts}"] = _estimate(
+                without_route(panel, key, route.starts), n_boot)
     return out
 
 

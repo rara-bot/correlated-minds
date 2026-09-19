@@ -76,6 +76,13 @@ def reference(store: JsonlStore, have: set) -> int:
     return failures
 
 
+def fully_settled(markets) -> bool:
+    """True once every market in a release has settled -- the point from which its
+    surprise is recorded, and after which it never changes."""
+    return bool(markets) and all(
+        str(m.get("status") or "").lower() in ("finalized", "settled") for m in markets)
+
+
 def study(store: JsonlStore, have: set) -> int:
     lo = datetime.fromisoformat(surprise.REFERENCE_WINDOW[1])
     events = sorted({
@@ -98,9 +105,7 @@ def study(store: JsonlStore, have: set) -> int:
         # Only once EVERY market in the release has settled. The first row per
         # event is the one the analysis keeps, so a surprise computed while some
         # rungs were still open would be frozen incomplete.
-        finished = bool(markets) and all(
-            str(m.get("status") or "").lower() in ("finalized", "settled") for m in markets)
-        if not finished or close is None or close < lo:
+        if not fully_settled(markets) or close is None or close < lo:
             continue                                   # not fully settled yet: next run
         _write(store, surprise.event_surprise(event, fetched=fetched), "study")
     return failures

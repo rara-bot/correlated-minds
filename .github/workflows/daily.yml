@@ -50,15 +50,23 @@ permissions:
 
 jobs:
   collect:
-    runs-on: ubuntu-latest
+    # A named image, not `ubuntu-latest`. GitHub moves `ubuntu-latest` to Ubuntu
+    # 26.04 between 2026-10-19 and 2026-11-19 -- in the middle of collection -- and
+    # the instrument should run on the machine it ran on from the first day to the
+    # freeze. 24.04 is what `ubuntu-latest` was for every run from 2026-09-01.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      # Versions that run on Node 24 natively. GitHub removes Node 20 from its
+      # runners on 2026-09-23; checkout@v4, setup-python@v5 and upload-artifact@v4
+      # all declare node20 and had been forced onto Node 24 with a warning on every
+      # run. Each newer major changes nothing else this workflow uses.
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -159,71 +167,6 @@ jobs:
         # matters most.
         if: always()
         run: python scripts/check_days.py --json
-
-      - name: Raise an alarm if a day is at risk
-        # A failed run sends one email, and ten of those went past unread in
-        # August. An issue is durable, lands in the same place as the study, and
-        # is still there tomorrow. Deduplicated per day so a bad stretch does not
-        # bury the repo in near-identical alarms.
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          JOB_STATUS: ${{ job.status }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          python - <<'PY' > alarm.txt || true
-          import json, os, pathlib
-          status = os.environ.get("JOB_STATUS", "")
-          try:
-              c = json.loads(pathlib.Path("continuity.json").read_text())
-          except Exception:
-              c = {}
-          reasons = []
-          if status not in ("success", ""):
-              reasons.append(f"the collection job finished `{status}`")
-          if c.get("today_state") == "late" and not c.get("today_collected"):
-              reasons.append(f"{c.get('today')} is past the cron plus its usual delay and still has no observations")
-          for m in c.get("below_floor", []):
-              cov = c.get("coverage_window", {}).get(m)
-              reasons.append(f"`{m}` is at {cov:.0%} over the last {c.get('window_days')} collected days, under the 80% floor of PREREGISTRATION.md 3.3")
-          # A day older than yesterday is permanently lost and was alarmed on at
-          # the time. Repeating it every morning for the rest of the study would
-          # turn the alarm into wallpaper; it belongs in PREREGISTRATION.md 11
-          # as a dated deviation, not in a fresh issue each day.
-          import datetime as _dt
-          try:
-              _cut = (_dt.date.fromisoformat(c["today"]) - _dt.timedelta(days=1)).isoformat()
-          except Exception:
-              _cut = ""
-          for m in c.get("missing_days", []):
-              if m == c.get("today") or m < _cut:
-                  continue          # already reported as late, or long since lost
-              reasons.append(f"{m} has no observations and cannot be recovered")
-          # Print nothing at all when there is nothing wrong. A bare newline is a
-          # non-empty file to `test -s`, which would file an alarm every day and
-          # make the alarm worthless within a week.
-          if reasons:
-              print("\n".join(f"- {r}" for r in reasons))
-          PY
-          if [ ! -s alarm.txt ]; then
-            echo "nothing to raise"
-            exit 0
-          fi
-          DAY="$(date -u +%Y-%m-%d)"
-          TITLE="collection at risk: ${DAY}"
-          BODY="$(cat alarm.txt)
-
-          Run: ${RUN_URL}
-
-          A day that is still missing tonight is missing permanently -- collection
-          cannot be back-dated. If today has not landed, re-run it now:
-          Actions -> daily-collection -> Run workflow."
-          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')"
-          if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body "$BODY"
-          else
-            gh issue create --title "$TITLE" --body "$BODY"
-          fi
 
       - name: Say so if the market moved
         # NOT an alarm, and deliberately not folded into the one above: nothing
@@ -369,18 +312,104 @@ jobs:
           git add -A data/
           if git diff --staged --quiet; then
             echo "no new data"
+            exit 0
+          fi
+          git commit -m "data: collection for $(date -u +%Y-%m-%d)"
+          # The panel may have run while a push landed; rebase rather than fail,
+          # because a lost day cannot be recovered later. The waits grow, so a
+          # GitHub hiccup of a few minutes is ridden out rather than lost.
+          #
+          # And a push that never lands must FAIL this step. The loop used to end
+          # on `sleep`, which succeeds, so three failed pushes finished green: the
+          # day's data gone with the runner, the run reporting success, and no
+          # alarm -- the alarm below reads this job's status.
+          for i in 1 2 3 4 5 6; do
+            if git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
+               git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "pushed on attempt ${i}"
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((i * 15))
+          done
+          echo "::error::The day was collected but could not be pushed after 6 attempts. The data exists only on this runner and is gone when the job ends. Re-run now: Actions -> daily-collection -> Run workflow."
+          exit 1
+
+      - name: Raise an alarm if a day is at risk
+        # A failed run sends one email, and ten of those went past unread in
+        # August. An issue is durable, lands in the same place as the study, and
+        # is still there tomorrow. Deduplicated per day so a bad stretch does not
+        # bury the repo in near-identical alarms.
+        #
+        # Runs AFTER the commit, so that a day collected but never pushed -- the
+        # one failure every earlier step reports as fine -- is in the job status
+        # this step reads.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY' > alarm.txt || true
+          import json, os, pathlib
+          status = os.environ.get("JOB_STATUS", "")
+          try:
+              c = json.loads(pathlib.Path("continuity.json").read_text())
+          except Exception:
+              c = {}
+          reasons = []
+          if status not in ("success", ""):
+              reasons.append(f"the collection job finished `{status}`")
+          if c.get("today_state") == "late" and not c.get("today_collected"):
+              reasons.append(f"{c.get('today')} is past the cron plus its usual delay and still has no observations")
+          for m in c.get("below_floor", []):
+              cov = c.get("coverage_window", {}).get(m)
+              reasons.append(f"`{m}` is at {cov:.0%} over the last {c.get('window_days')} collected days, under the 80% floor of PREREGISTRATION.md 3.3")
+          # The route a model moves to when its vendor retires it (deviation 23)
+          # is asked every day beforehand. Failing now means failing then.
+          for m, b in (c.get("bridge_latest") or {}).items():
+              if b.get("asked") and b.get("answered", 0) < 0.8 * b["asked"]:
+                  reasons.append(f"the route `{m}` moves to (PREREGISTRATION.md 11, deviation 23) answered {b.get('answered')}/{b['asked']} on {c.get('bridge_day')}")
+          # A day older than yesterday is permanently lost and was alarmed on at
+          # the time. Repeating it every morning for the rest of the study would
+          # turn the alarm into wallpaper; it belongs in PREREGISTRATION.md 11
+          # as a dated deviation, not in a fresh issue each day.
+          import datetime as _dt
+          try:
+              _cut = (_dt.date.fromisoformat(c["today"]) - _dt.timedelta(days=1)).isoformat()
+          except Exception:
+              _cut = ""
+          for m in c.get("missing_days", []):
+              if m == c.get("today") or m < _cut:
+                  continue          # already reported as late, or long since lost
+              reasons.append(f"{m} has no observations and cannot be recovered")
+          # Print nothing at all when there is nothing wrong. A bare newline is a
+          # non-empty file to `test -s`, which would file an alarm every day and
+          # make the alarm worthless within a week.
+          if reasons:
+              print("\n".join(f"- {r}" for r in reasons))
+          PY
+          if [ ! -s alarm.txt ]; then
+            echo "nothing to raise"
+            exit 0
+          fi
+          DAY="$(date -u +%Y-%m-%d)"
+          TITLE="collection at risk: ${DAY}"
+          BODY="$(cat alarm.txt)
+
+          Run: ${RUN_URL}
+
+          A day that is still missing tonight is missing permanently -- collection
+          cannot be back-dated. If today has not landed, re-run it now:
+          Actions -> daily-collection -> Run workflow."
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
           else
-            git commit -m "data: collection for $(date -u +%Y-%m-%d)"
-            # The panel may have run while a push landed; rebase rather than fail,
-            # because a lost day cannot be recovered later.
-            for i in 1 2 3; do
-              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
-              git push origin "HEAD:${GITHUB_REF_NAME}" && break
-              sleep 5
-            done
+            gh issue create --title "$TITLE" --body "$BODY"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: run-summary-${{ github.run_number }}

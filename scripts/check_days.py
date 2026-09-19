@@ -32,6 +32,13 @@ TASKS = ROOT / "data" / "tasks.jsonl"
 
 PRIMARY_ARM = "ws1_prospective"
 COVERAGE_FLOOR = 0.80          # PREREGISTRATION.md 3.3
+
+# neff.config.BRIDGE_VARIANT (deviation 23): the same questions put to a model on
+# the route it moves to when its vendor retires it. Those rows are not the model's
+# registered answers, so they are reported on their own line and never counted
+# toward the coverage floor -- a hiccup on the route-to-be must not read as the
+# model failing, and a healthy bridge must not prop up a model that is.
+BRIDGE_VARIANT = 98
 WINDOW_END = date(2026, 12, 11)  # the registered freeze date
 
 # The cron in .github/workflows/daily.yml. GitHub does not honour it precisely:
@@ -251,9 +258,16 @@ def main() -> int:
     wgood: dict[str, int] = defaultdict(int)
     lseen: dict[str, int] = defaultdict(int)
     lgood: dict[str, int] = defaultdict(int)
+    bridge_seen: dict[str, int] = defaultdict(int)
+    bridge_good: dict[str, int] = defaultdict(int)
     for day, rows in by_day.items():
         for o in rows:
             ok = o.get("forecast") is not None and not o.get("error")
+            if int(o.get("prompt_variant", 0)) == BRIDGE_VARIANT:
+                if day == latest:
+                    bridge_seen[o["model_key"]] += 1
+                    bridge_good[o["model_key"]] += ok
+                continue
             seen[o["model_key"]] += 1
             good[o["model_key"]] += ok
             if day in window:
@@ -288,6 +302,10 @@ def main() -> int:
         print(f"  {model:<18}{wgood[model]:>4}/{wseen[model]:<3}{wfrac:>6.1%}"
               f"{lgood[model]:>6}/{lseen[model]:<3}{lfrac:>6.1%}"
               f"{good[model]:>7}/{seen[model]:<4}{frac:>6.1%}{mark}")
+
+    for model in sorted(bridge_seen):
+        print(f"  bridge (deviation 23): {model} on its next route answered "
+              f"{bridge_good[model]}/{bridge_seen[model]} on {latest}; not counted above")
 
     # ---- verdict ------------------------------------------------------------
     print()
@@ -353,6 +371,12 @@ def main() -> int:
             "window_days": len(window),
             "coverage_window": {m: round(wgood[m] / wseen[m], 4)
                                 for m in sorted(wseen) if wseen[m]},
+            # The route a model moves to (deviation 23), as it did on the latest
+            # day. The daily alarm reads it: a route that fails now is one the
+            # model will be asked on, and this is the only warning before then.
+            "bridge_day": latest,
+            "bridge_latest": {m: {"answered": bridge_good[m], "asked": bridge_seen[m]}
+                              for m in sorted(bridge_seen)},
         }, indent=2), encoding="utf-8")
 
     # Only a LATE today is actionable enough to fail on. A historic gap is

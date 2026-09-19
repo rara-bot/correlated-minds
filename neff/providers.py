@@ -492,6 +492,29 @@ class OpenRouterProvider(OpenAICompatProvider):
     UPSTREAM_FIELD = "provider"
 
 
+class OpenRouterAzureProvider(OpenRouterProvider):
+    """OpenRouter, pinned to Azure's deployment of the model (PREREGISTRATION.md 11, deviation 23).
+
+    For a model its vendor retires mid-collection while Azure keeps serving the same
+    snapshot (`config.SERVING_ROUTES`). The general OpenRouter routing is left free
+    on purpose (deviation 4); this one is pinned, because the point of the route is
+    one known host: `allow_fallbacks: False` means that if Azure cannot answer, the
+    call fails and is recorded as a failure rather than answered by some other
+    stack. `require_parameters` keeps temperature 0 a condition of routing, not a
+    request a host may ignore. Probed 2026-09-19: it answers with host "Azure" and
+    refuses `logprobs` at the routing step, so the route's specs never ask for them.
+    """
+
+    name = "openrouter_azure"
+    EXTRA_BODY = {
+        "provider": {
+            "order": ["Azure"],
+            "allow_fallbacks": False,
+            "require_parameters": True,
+        }
+    }
+
+
 def google_daily_quota(response_json: Dict[str, Any]) -> Optional[int]:
     """The per-day request quota named in a Google 429, if it names one.
 
@@ -699,6 +722,7 @@ PROVIDERS: Dict[str, Provider] = {
     "anthropic": AnthropicProvider(),
     "openai": OpenAICompatProvider(),
     "openrouter": OpenRouterProvider(),
+    "openrouter_azure": OpenRouterAzureProvider(),
     "google": GoogleProvider(),
     "mock": MockProvider(),
 }

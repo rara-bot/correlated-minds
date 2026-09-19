@@ -41,13 +41,16 @@ concurrency:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    # The same image and the same action versions as daily.yml, so that this
+    # run, on the push, is a rehearsal of the collection job's environment and
+    # not merely of its code. daily.yml says why each is pinned.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           # The same interpreter daily.yml collects on. A suite that passes on
           # 3.9 locally and fails on 3.11 in CI is the exact regression this

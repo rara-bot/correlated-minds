@@ -34,7 +34,7 @@ import numpy as np  # noqa: E402
 
 from neff import analysis, h1, h2, h3, h4, h5, h6, logprobs, report  # noqa: E402
 from neff.config import DATA_FREEZE  # noqa: E402
-from neff.panel import load_panel, reliability_report  # noqa: E402
+from neff.panel import bridge_report, load_panel, reliability_report  # noqa: E402
 
 NOT_RUN = [
     "H2 rationale similarity: exploratory, demoted by PREREGISTRATION.md 4 (H2) for want of "
@@ -90,6 +90,8 @@ def main(argv=None) -> int:
         "h4": h4.run(n_boot=args.n_boot, **common),
         "h5": h5.run(n_boot=args.n_boot, **common),
         "h6": h6.run(**common),
+        # Forecasts only, so identical blind or unblinded (deviation 23).
+        "serving_route_bridge": bridge_report(),
         "not_run": NOT_RUN,
     }
     result = _clean(result)

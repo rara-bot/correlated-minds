@@ -301,7 +301,8 @@ All four are covered by tests (`tests/test_edgar.py`).
 9. **Logprobs are usable for three models.** Most hosts serving deepseek send none,
    and the two that send them list values that cannot describe the answers beside
    them, so the §5.4(a) logprob sensitivity rests on gpt_mid, gpt_small and llama,
-   and on no rows before 9 Sep (deviations 10, 12 and 19).
+   on no rows before 9 Sep, and on gpt_small's rows only to 22 Oct (deviations 10,
+   12, 19 and 23).
 
 10. **The H3 prompt-variant arm starts on 14 Sep.** It was never collected before
     (deviation 14), so the intra-model contrast rests on the later task-days only.
@@ -316,6 +317,16 @@ All four are covered by tests (`tests/test_edgar.py`).
     company's next target quarter is due after the 11 Dec freeze, so the resolved
     filing sample rests on questions asked before each company's autumn filing
     (deviation 17).
+
+13. **gpt_small changes host on 23 Oct.** OpenAI shuts `gpt-4.1-nano-2025-04-14`
+    down that day. From then it is asked through OpenRouter's Azure host, which
+    serves the same snapshot, so the model stays in the panel with the same key,
+    temperature and prompt. Every question from 20 Sep to 22 Oct is also asked on
+    the Azure route and stored apart, so the change of host is measured against
+    the model's own test-retest noise before it happens, and every primary
+    estimate is also reported without the answers given on the new route
+    (deviation 23). This is the §8 argument in practice: banks buy these models
+    through Azure too.
 ---
 
 ## 8. The one-sentence answer for a judge

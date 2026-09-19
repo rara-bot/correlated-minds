@@ -7,7 +7,7 @@ detect after the fact. So we pin exact IDs, log the ID returned by the API on
 every single call, and treat any drift as an event worth recording.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -486,6 +486,75 @@ H3_VARIANT_START = "2026-09-14"
 # 100 calls a day.
 H3_MEASURED_DAILY_USD = 0.024
 
+# --- a model its vendor retires mid-collection (PREREGISTRATION.md 11, deviation 23)
+#
+# OpenAI shuts `gpt-4.1-nano-2025-04-14` down on 2026-10-23 -- announced on
+# 2026-04-22, four months before this roster was verified, and noticed on
+# 2026-09-19. That is `gpt_small`: one of the nine, and half of the OpenAI
+# within-family pair H3 and H6 rest on. Left alone it answers nothing from that
+# day, the 5.6 floor removes it from the whole primary panel, and the Week-5
+# prediction is judged on a smaller panel than it is made on.
+#
+# Azure serves the same snapshot until 2027-04-14, and OpenRouter routes to Azure;
+# PREREGISTRATION.md 3.1 already names Azure OpenAI as a channel that serves "the
+# same weights under a different invoice". So from the day OpenAI stops, the key
+# is served there. Model, key, temperature, max_tokens and prompt are unchanged;
+# the string sent becomes OpenRouter's id for the model, the host is pinned and
+# recorded, and logprobs are not served on that route. Probed 2026-09-19: host
+# Azure, the same probability as OpenAI's own endpoint on the same prompt.
+
+
+@dataclass(frozen=True)
+class ServingRoute:
+    """Where one panel member is asked from a registered date onward."""
+
+    starts: str               # first UTC day the route serves the key
+    provider: str             # a key of providers.PROVIDERS
+    model_id: str             # the exact string sent on the route
+    supports_logprobs: bool
+
+
+SERVING_ROUTES: Dict[str, ServingRoute] = {
+    "gpt_small": ServingRoute(
+        starts="2026-10-23",
+        provider="openrouter_azure",
+        model_id="openai/gpt-4.1-nano",
+        supports_logprobs=False,
+    ),
+}
+
+# THE BRIDGE. Until a route starts, every question of the day is also put to the
+# model through that route, stored at this reserved variant: the change of host is
+# measured on identical prompts, on the days before it happens, instead of assumed
+# harmless. `panel.load_panel` reads variant 0 only, H3 reads 1-4 and the test-
+# retest replicates are 99, so these rows reach no estimate. `panel.bridge_report`
+# is their one reader.
+BRIDGE_VARIANT = 98
+# The first day the bridge is asked: the first collection after deviation 23.
+BRIDGE_START = "2026-09-20"
+
+
+def _on_route(spec: "ModelSpec", route: ServingRoute) -> "ModelSpec":
+    return replace(spec, provider=route.provider, model_id=route.model_id,
+                   supports_logprobs=route.supports_logprobs)
+
+
+def routed(spec: "ModelSpec", day: str) -> "ModelSpec":
+    """The spec that asks `spec.key` its questions on `day` (ISO date)."""
+    route = SERVING_ROUTES.get(spec.key)
+    if route is None or day < route.starts:
+        return spec
+    return _on_route(spec, route)
+
+
+def bridge_spec(spec: "ModelSpec", day: str) -> Optional["ModelSpec"]:
+    """The route-to-be for `spec.key`, on the days the bridge runs; else None."""
+    route = SERVING_ROUTES.get(spec.key)
+    if route is None or not (BRIDGE_START <= day < route.starts):
+        return None
+    return _on_route(spec, route)
+
+
 COLLECTION_START = "2026-08-29"
 CALIBRATION_END = "2026-10-02"   # end of Week 5: prediction is frozen after this
 DATA_FREEZE = "2026-12-11"
@@ -554,6 +623,9 @@ class RunConfig:
     # it on for the primary arm, which is how the daily workflow runs.
     h3_variant_model: Optional[str] = None
     h3_variants: int = H3_VARIANTS
+    # The serving-route bridge (deviation 23). Off by default for programmatic
+    # callers and tests, on for the primary arm, as H3's arm is.
+    bridge: bool = False
 
     def models(self) -> List[ModelSpec]:
         panel = enabled_panel()
