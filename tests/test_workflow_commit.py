@@ -152,6 +152,24 @@ class TestTheAlarmSeesTheCommit:
         assert _names().count("Raise an alarm if a day is at risk") == 1
 
 
+class TestAReportCannotDiscardTheDay:
+    # Every step between Collect and the commit only reports. Under the default
+    # `success()` a failure in any of them skipped the commit, and the day's rows
+    # went with the runner. The commit keys on Collect having run instead, so a
+    # day the tests stopped still commits nothing.
+    def test_the_commit_runs_whenever_collect_ran(self):
+        assert re.search(r"^        if: \$\{\{ !cancelled\(\) && steps\.collect\.outcome != 'skipped' \}\}$",
+                         _step("Commit the day"), re.M)
+
+    def test_collect_carries_the_id_the_commit_reads(self):
+        assert re.search(r"^        id: collect\b", _step("Collect"), re.M)
+
+    def test_the_tests_still_come_before_collect(self):
+        names = _names()
+        assert names.index("Verify estimator before spending anything") < names.index("Collect")
+        assert "if:" not in _step("Collect")
+
+
 class TestTheMachineDoesNotChangeUnderTheStudy:
     # The first major of each action that declares `runs.using: node24`.
     NODE24 = {"actions/checkout": 5, "actions/setup-python": 6, "actions/upload-artifact": 6}

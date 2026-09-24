@@ -135,6 +135,23 @@ fails, and adds a sensitivity without the post-switch answers
 (`report.without_route`). `tests/test_serving_route.py` pins it. The route was
 probed live with a synthetic question, outside the study record.
 
+A later session, on 2026-09-24 UTC, changed the collection job's environment and
+its monitoring, again **without a deviation number**, because nothing there reaches
+a model, enters the record or moves a registered quantity. `scripts/check_days.py`
+now knows that `neff/tasks.py` asks no question from 8 December: a question must be
+at least 3 days from resolving and must resolve by the 11 December freeze, and from
+8 December no question can be both, a rule in the code since before registration.
+The last four days therefore no longer count as missing days or raise alarms. The
+daily job's commit step now runs whenever collection ran, so a failure in a
+reporting step after collection can no longer throw away a day's data. And
+`constraints.txt` pins every installed package exactly, including the ones the
+capped dependencies pull in, which had been changing under the study all month.
+`tests/test_last_ask_day.py`, `tests/test_workflow_commit.py` and
+`tests/test_requirements_bounded.py` pin those. The same session ran the whole test
+suite with the clock set to every remaining day to 14 December, and to dates in
+January and February 2027, and found no date on which it fails; no test opens the
+real record unblinded on any date.
+
 The 8 commits without a trailer, for you to check against your own memory:
 
 | Commit | Date | Message |

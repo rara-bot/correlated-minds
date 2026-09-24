@@ -60,9 +60,10 @@ jobs:
           cache: pip
 
       - name: Install
+        # Exact versions, direct and transitive -- constraints.txt says why.
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip -c constraints.txt
+          pip install -r requirements.txt -c constraints.txt
 
       - name: Run the suite
         # No API keys in the environment, deliberately. The suite is hermetic --

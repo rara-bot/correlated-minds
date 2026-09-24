@@ -72,9 +72,10 @@ jobs:
           cache: pip
 
       - name: Install
+        # Exact versions, direct and transitive -- constraints.txt says why.
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip -c constraints.txt
+          pip install -r requirements.txt -c constraints.txt
 
       - name: Verify estimator before spending anything
         # If the statistics are broken, do not collect data against them.
@@ -103,6 +104,7 @@ jobs:
           PY
 
       - name: Collect
+        id: collect       # read by "Commit the day"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -306,6 +308,18 @@ jobs:
           PY
 
       - name: Commit the day
+        # Runs whenever Collect ran, whatever happened after it. Under the default
+        # `success()`, a failure in any step between Collect and here -- the budget
+        # guard, the continuity report, panel health, all of which only report --
+        # skipped this step, and the observations already written went with the
+        # runner. The 20:00 backup would then re-ask from a fresh checkout, pay
+        # again, and meet the same failure. A Collect that failed part-way has
+        # written real rows too, and real spend to the ledger; committing them lets
+        # the backup finish the same tasks instead of starting over. Skipped only
+        # when Collect never ran -- the tests or the registration check stopped it,
+        # so nothing is committed on a day the estimator failed -- or when the run
+        # was cancelled.
+        if: ${{ !cancelled() && steps.collect.outcome != 'skipped' }}
         run: |
           git config user.name  "neff-collector"
           git config user.email "actions@github.com"

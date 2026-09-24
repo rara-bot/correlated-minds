@@ -41,6 +41,17 @@ COVERAGE_FLOOR = 0.80          # PREREGISTRATION.md 3.3
 BRIDGE_VARIANT = 98
 WINDOW_END = date(2026, 12, 11)  # the registered freeze date
 
+# The last day a question can be asked. `neff.tasks.build_daily_tasks` asks nothing
+# once the days left before the freeze are no more than its 3-day minimum horizon
+# (`min_days_out`): a question asked then could not resolve inside the study. It
+# has done so since the instrument was built, before registration. So from 8 Dec
+# the collector runs and, correctly, collects nothing. Those four days are not
+# holes in the record, and counting them as missing would raise a "collection at
+# risk" alarm on each of the study's last days and end the continuity report on
+# four gaps that are not gaps. `tests/test_last_ask_day.py` holds this date to the
+# collector's own rule, so the two cannot drift apart.
+LAST_ASK_DAY = WINDOW_END - timedelta(days=4)
+
 # The cron in .github/workflows/daily.yml. GitHub does not honour it precisely:
 # across the first twelve scheduled runs the job started anywhere from 30
 # minutes to 10 hours late, which is ordinary queueing for scheduled workflows
@@ -209,7 +220,9 @@ def main() -> int:
 
     due_at = datetime.combine(today, CRON_UTC, tzinfo=timezone.utc)
     late_after = due_at + timedelta(hours=DELAY_GRACE_HOURS)
-    if now < due_at:
+    if today > LAST_ASK_DAY:
+        today_state = "closed"          # nothing can be asked; see LAST_ASK_DAY
+    elif now < due_at:
         today_state = "not_due"
     elif now < late_after:
         today_state = "pending"
@@ -224,7 +237,7 @@ def main() -> int:
     # ---- per-day continuity -------------------------------------------------
     expected, missing = [], []
     cursor = first
-    horizon = min(today, WINDOW_END)
+    horizon = min(today, LAST_ASK_DAY)
     while cursor <= horizon:
         expected.append(cursor.isoformat())
         cursor += timedelta(days=1)
@@ -245,6 +258,9 @@ def main() -> int:
         usable = [o for o in rows if o.get("forecast") is not None and not o.get("error")]
         models = {o["model_key"] for o in rows}
         print(f"{day:<12}{len(rows):>6}{len(usable):>8}{len(models):>8}")
+    if today > LAST_ASK_DAY:
+        print(f"{LAST_ASK_DAY + timedelta(days=1)} to {WINDOW_END}: no question can resolve "
+              f"by the freeze, so none is asked (LAST_ASK_DAY). Not a gap.")
 
     # ---- coverage against the 3.3 floor -------------------------------------
     collected_days = [d for d in days]
