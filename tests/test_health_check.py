@@ -537,6 +537,83 @@ class TestTheStateStaysOnThisMac:
         assert ctx.ack("you.prompt_log_backup") is None
         assert ctx.ack("you.isef") is not None
 
+    def test_what_a_person_records_during_a_long_run_survives_the_runs_save(self, repos, tmp_path):
+        # The procedure starts --deep in the background (twenty minutes) and records the
+        # web checks with --ack while it runs. The run loaded the state before that.
+        origin, mac, job = repos
+        assert hc.main(["--root", str(mac), "--ack", "you.isef", "signed"]) == 0
+        deep = ctx_for(mac, tmp_path)
+        assert hc.main(["--root", str(mac), "--ack", "web.calendar", "no shutdown"]) == 0
+        assert hc.main(["--root", str(mac), "--unack", "you.isef"]) == 0
+        assert hc.main(["--root", str(mac), "--balance", "openai=8.83"]) == 0
+        deep.state.setdefault("seen", {})["deviations"] = 24
+        deep.state.setdefault("balances", {})["openrouter"] = {"usd": 9.63}
+        hc._save_state(deep)
+        state = json.loads((mac / ".health" / "state.json").read_text())
+        assert set(state["acks"]) == {"web.calendar"}
+        assert state["balances"]["openai"]["usd"] == 8.83 and state["balances"]["openrouter"]["usd"] == 9.63
+        assert state["seen"]["deviations"] == 24
+
+    def test_what_the_run_itself_removed_stays_removed(self, tmp_path):
+        state_dir = tmp_path / ".health"
+        hc._ensure_state_dir(state_dir)
+        write(state_dir / "state.json", json.dumps({"acks": {"you.isef": {"at": "2026-09-20"}}}))
+        ctx = hc.Ctx(ROOT, now=NOW, http=FakeHttp(), state_dir=state_dir)
+        other = hc.Ctx(ROOT, now=NOW, http=FakeHttp(), state_dir=state_dir)
+        other.state["acks"]["you.addendum"] = {"at": "2026-09-30"}
+        hc._save_state(other)
+        ctx.state["acks"].pop("you.isef")
+        hc._save_state(ctx)
+        assert set(json.loads((state_dir / "state.json").read_text())["acks"]) == {"you.addendum"}
+
+    def test_an_unreadable_state_file_is_rewritten_from_what_the_run_knew(self, tmp_path):
+        state_dir = tmp_path / ".health"
+        hc._ensure_state_dir(state_dir)
+        write(state_dir / "state.json", json.dumps({"acks": {"you.isef": {"at": "2026-09-20"}}}))
+        ctx = hc.Ctx(ROOT, now=NOW, http=FakeHttp(), state_dir=state_dir)
+        write(state_dir / "state.json", '{"acks": {"you.is')               # cut off mid-write
+        ctx.state.setdefault("seen", {})["deviations"] = 24
+        hc._save_state(ctx)
+        state = json.loads((state_dir / "state.json").read_text())
+        assert state == {"acks": {"you.isef": {"at": "2026-09-20"}}, "seen": {"deviations": 24}}
+        assert not list(state_dir.glob("*.tmp"))
+
+
+class TestOneFixingRunAtATime:
+    CHECKS = ["repo.git", "repo.fetch", "repo.sync"]
+
+    def test_a_run_started_while_another_is_fixing_checks_everything_and_changes_nothing(self, repos, tmp_path):
+        origin, mac, job = repos
+        daily_commit(job)
+        before = git(mac, "rev-parse", "HEAD")
+        ctx = ctx_for(mac, tmp_path)
+        with hc._flock(mac / ".health" / "fix.lock", wait=False) as first:
+            assert first
+            got = hc.run_checks(ctx, self.CHECKS)
+        assert ctx.fix is False and "another health check" in ctx.facts["fix_skipped"]
+        assert git(mac, "rev-parse", "HEAD") == before
+        assert [f.status for f in got if f.check == "repo.sync"] == [hc.CLAUDE]
+        assert "Report only: another health check" in hc.render_terminal(ctx, got, hc.verdict(got))
+
+    def test_once_it_has_finished_the_next_run_fixes(self, repos, tmp_path):
+        origin, mac, job = repos
+        daily_commit(job)
+        with hc._flock(mac / ".health" / "fix.lock", wait=False):
+            pass
+        ctx = ctx_for(mac, tmp_path)
+        hc.run_checks(ctx, self.CHECKS)
+        assert ctx.fix is True and "fix_skipped" not in ctx.facts
+        assert git(mac, "rev-parse", "HEAD") == git(origin, "rev-parse", "main")
+
+    def test_a_report_only_run_never_holds_back_a_fixing_one(self, repos, tmp_path, monkeypatch):
+        origin, mac, job = repos
+        taken, real = [], hc._flock
+        monkeypatch.setattr(hc, "_flock", lambda path, wait=True: (taken.append(path.name), real(path, wait))[1])
+        hc.run_checks(ctx_for(mac, tmp_path, fix=False), self.CHECKS)
+        assert "fix.lock" not in taken
+        hc.run_checks(ctx_for(mac, tmp_path), self.CHECKS)
+        assert "fix.lock" in taken
+
 
 # --- 1. each check speaks up in the case it exists for -----------------------------------------
 

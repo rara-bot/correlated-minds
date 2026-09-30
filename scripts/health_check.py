@@ -61,10 +61,16 @@ import tempfile
 import time
 import traceback
 from collections import Counter, defaultdict
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+
+try:
+    import fcntl
+except ImportError:                     # Windows only; this Mac and the runner have it
+    fcntl = None
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -522,6 +528,7 @@ class Ctx:
         self.git = Git(self.root)
         self.state_dir = Path(state_dir) if state_dir else self.root / ".health"
         self.state = _load_state(self.state_dir)
+        self._state_base = _plain(self.state)      # what was on disk; a save writes only the difference
         self.results: Dict[str, List[Finding]] = {}
         self.flags: Dict[str, Any] = {}
         self.facts: Dict[str, Any] = {}
@@ -635,18 +642,87 @@ def _ensure_state_dir(state_dir: Path) -> None:
                          encoding="utf-8")
 
 
-def _load_state(state_dir: Path) -> dict:
-    try:
-        return json.loads((state_dir / "state.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+def _read_state(state_dir: Path) -> Optional[dict]:
+    """The state on disk: {} when there is none yet, None when it cannot be read."""
+    path = state_dir / "state.json"
+    if not path.exists():
         return {}
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return state if isinstance(state, dict) else None
+
+
+def _load_state(state_dir: Path) -> dict:
+    return _read_state(state_dir) or {}
+
+
+def _plain(value: Any) -> Any:
+    """`value` as it reads back from state.json."""
+    return json.loads(json.dumps(value, default=str))
+
+
+_GONE = object()
+
+
+def _changes(base: Any, ours: Any, path: Tuple[str, ...] = ()) -> Iterator[Tuple[Tuple[str, ...], Any]]:
+    """Each leaf this run set, changed or removed, relative to what it loaded."""
+    if isinstance(ours, dict):
+        was = base if isinstance(base, dict) else {}
+        for key, value in ours.items():
+            yield from _changes(was.get(key, _GONE), value, path + (key,))
+        for key in was.keys() - ours.keys():
+            yield path + (key,), _GONE
+    elif base != ours:
+        yield path, ours
+
+
+def _apply_changes(state: dict, changes: Iterable[Tuple[Tuple[str, ...], Any]]) -> dict:
+    for path, value in changes:
+        node = state
+        for key in path[:-1]:
+            if not isinstance(node.get(key), dict):
+                node[key] = {}
+            node = node[key]
+        if value is _GONE:
+            node.pop(path[-1], None)
+        else:
+            node[path[-1]] = value
+    return state
+
+
+@contextmanager
+def _flock(path: Path, wait: bool = True) -> Iterator[bool]:
+    """An exclusive lock between processes; yields False when `wait` is off and another holds it."""
+    _ensure_state_dir(path.parent)
+    with path.open("a", encoding="utf-8") as fh:
+        got = True
+        if fcntl is not None:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
+            except OSError:
+                got = False
+        yield got                        # closing the file releases the lock
 
 
 def _save_state(ctx: Ctx) -> None:
-    _ensure_state_dir(ctx.state_dir)
-    tmp = ctx.state_dir / "state.json.tmp"
-    tmp.write_text(json.dumps(ctx.state, indent=2, sort_keys=True, default=str), encoding="utf-8")
-    tmp.replace(ctx.state_dir / "state.json")
+    """Write what this run changed -- and only that -- onto the state as it is on disk now.
+
+    A --deep run takes twenty minutes, and the procedure has acknowledgements and
+    balances recorded while it runs. Writing back the whole state the run loaded would
+    silently undo them, so its own changes, leaf by leaf, are replayed onto a fresh read
+    under a lock, and everything another run wrote meanwhile is kept.
+    """
+    ours = _plain(ctx.state)
+    with _flock(ctx.state_dir / "state.lock"):
+        on_disk = _read_state(ctx.state_dir)
+        merged = _apply_changes(on_disk if on_disk is not None else _plain(ctx._state_base),
+                                _changes(ctx._state_base, ours))
+        tmp = ctx.state_dir / f"state.json.{os.getpid()}.tmp"
+        tmp.write_text(json.dumps(merged, indent=2, sort_keys=True), encoding="utf-8")
+        tmp.replace(ctx.state_dir / "state.json")
+    ctx.state, ctx._state_base = merged, _plain(merged)
 
 
 def _seen(ctx: Ctx) -> dict:
@@ -3569,6 +3645,17 @@ def _normalise(result: Any) -> List[Finding]:
 
 def run_checks(ctx: Ctx, selected: Optional[Sequence[str]] = None) -> List[Finding]:
     _ensure_state_dir(ctx.state_dir)          # self-ignoring before anything could be written into it
+    # One fixing run at a time: two runs replaying commits or putting back data/ at the
+    # same moment would trip over each other. A run started while another is fixing (a
+    # --deep run in the background, say) still checks everything, and changes nothing.
+    with (_flock(ctx.state_dir / "fix.lock", wait=False) if ctx.fix else nullcontext(True)) as alone:
+        if not alone:
+            ctx.fix = False
+            ctx.facts["fix_skipped"] = "another health check was running and fixing; this one only reported"
+        return _run_checks(ctx, selected)
+
+
+def _run_checks(ctx: Ctx, selected: Optional[Sequence[str]]) -> List[Finding]:
     wanted = [c for c in CHECKS if _selected(c, selected)]
     findings: List[Finding] = []
     started = False
@@ -3667,6 +3754,8 @@ def render_terminal(ctx: Ctx, findings: List[Finding], v: Dict[str, Any], verbos
     tone = {"green": "32;1", "attention": "33;1", "red": "31;1"}[v["level"]]
     lines = [c("1", f"Correlated Minds -- health check -- {_when(ctx.now)}"), "",
              c(tone, v["headline"]), ""]
+    if ctx.facts.get("fix_skipped"):
+        lines += [f"Report only: {ctx.facts['fix_skipped']}.", ""]
     fixed = [f for f in findings if f.status == FIXED]
     claude = sorted([f for f in findings if f.status in (CLAUDE, ERROR)], key=_sort_key)
     you = sorted([f for f in findings if f.status == YOU], key=_sort_key)
@@ -3722,6 +3811,7 @@ def render_terminal(ctx: Ctx, findings: List[Finding], v: Dict[str, Any], verbos
 def render_markdown(ctx: Ctx, findings: List[Finding], v: Dict[str, Any]) -> str:
     out = [f"# Health check -- {_when(ctx.now)}", "", f"**{v['headline']}**", "",
            f"Mode: {'fix' if ctx.fix else 'report only'}{', offline' if ctx.offline else ''}"
+           f"{' (another check was fixing)' if ctx.facts.get('fix_skipped') else ''}"
            f"{', deep' if ctx.deep else ''}{', quick' if ctx.quick else ''}.", "",
            f"Summary line: `{_summary_line(ctx, v)}`", ""]
     for label, statuses in (("Fixed automatically", (FIXED,)), ("For Claude", (CLAUDE, ERROR)),

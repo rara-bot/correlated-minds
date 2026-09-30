@@ -27,6 +27,9 @@ check-in of the week; the Week-5 publish (2 Oct) or the last asking day (7 Dec) 
 within three days. `--deep --only deep.ci_parity` is the minimum before asking to
 push code.
 
+Runs may overlap: while a `--deep` run is going, a second run reports only (it says
+so at the top), and `--ack` / `--balance` can be recorded safely -- nothing is lost.
+
 ## 2. Read the report
 
 Read `.health/last-report.json`: `verdict`, then `findings` (sorted most severe

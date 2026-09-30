@@ -32,6 +32,11 @@ urgent. The full report is in `.health/last-report.md` (and `.json`); a run with
 one-line history of every run is in `.health/history.jsonl`. Everything in `.health/`
 stays on this Mac: the folder ignores itself, so no `git add` can publish it.
 
+Runs can overlap. Only one fixes at a time: a run started while another is fixing
+(a `--deep` in the background, say) still checks everything, changes nothing, and
+says so at the top. What you record with `--ack` or `--balance` while a long run
+works is kept: a run writes back only what it changed itself.
+
 ---
 
 ## Reading a report
