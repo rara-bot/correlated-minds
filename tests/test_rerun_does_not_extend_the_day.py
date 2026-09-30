@@ -23,11 +23,22 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from neff import collect
+from neff import collect, config
 from neff.config import RunConfig, mock_sandbox
 from neff.store import JsonlStore, Task
 
 ARM = "pilot"
+# Any member will do -- the provider is the mock -- but it must be one still asked on
+# the day the suite runs: a run that asks nobody collects nothing, and these tests
+# would pass without testing anything. gpt_small is not asked from 2026-10-23
+# (deviation 24).
+MODEL = "gpt_mid"
+
+
+@pytest.fixture(autouse=True)
+def _the_model_is_still_asked():
+    today = datetime.now(timezone.utc).date().isoformat()
+    assert not config.retired(MODEL, today), f"{MODEL} is not asked on {today}; use a member that is"
 
 
 def _task(ref):
@@ -65,7 +76,7 @@ def _serve(monkeypatch, refs, calls=None):
 
 def _run(**kw):
     return collect.run_day(
-        config=RunConfig(arm=ARM, tasks_per_day=25, model_keys=["gpt_small"], replicates_per_day=0),
+        config=RunConfig(arm=ARM, tasks_per_day=25, model_keys=[MODEL], replicates_per_day=0),
         use_mock=True,
         **kw,
     )
@@ -102,6 +113,7 @@ class TestASecondRunReusesTheDay:
     def test_a_rerun_collects_no_duplicate_observations(self, sandbox, monkeypatch):
         _serve(monkeypatch, ["A", "B"])
         first = _run()
+        assert first["observations"] > 0
         _run()
         obs = JsonlStore(sandbox / "observations.jsonl").read_all()
         assert len(obs) == first["observations"]

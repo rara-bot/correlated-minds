@@ -24,6 +24,7 @@ import numpy as np
 
 from .panel import (
     Panel,
+    _rows,
     apply_coverage_exclusion,
     apply_filing_deadline_exclusion,
     apply_settled_question_exclusion,
@@ -266,19 +267,37 @@ def estimate(panel: Panel, n_boot: int = N_BOOT) -> Dict[str, object]:
     return out
 
 
+def asked_before(panel: Panel, first_day_left_out: Optional[str]) -> Panel:
+    """Only the task-days asked before `first_day_left_out`. DEVIATION 24's sensitivity.
+
+    Applied BEFORE the registered exclusions, and that order is the point: 5.6 then
+    judges each model's coverage on the task-days it is estimated on. `gpt_small` is
+    not asked from 2026-10-23, when no host serves it any more; on the whole panel
+    5.6 may remove it, and on the task-days asked before its retirement it is
+    complete, so there the primary panel keeps all nine models and H3 and H6 keep
+    the OpenAI within-family pair. Restricting after the exclusions would carry the
+    whole-panel verdict into the sub-panel and defeat the sensitivity.
+    """
+    if not first_day_left_out:
+        return panel
+    return _rows(panel, [i for i, day in enumerate(panel.asked_on) if day and day < first_day_left_out])
+
+
 def run(
     blind: bool = True,
     seed: int = 0,
     model_keys: Optional[List[str]] = None,
     n_boot: int = N_BOOT,
+    asked_before_day: Optional[str] = None,
     **load_kwargs,
 ) -> Dict[str, object]:
     """Load the panel, apply the registered exclusions, estimate.
 
     `blind=True` (the default) permutes outcomes. Ask for `blind=False` only
     when the freeze has passed and the real estimate is the thing wanted.
+    `asked_before_day` is deviation 24's sensitivity (see `asked_before`).
     """
-    panel = load_panel(model_keys=model_keys, **load_kwargs)
+    panel = asked_before(load_panel(model_keys=model_keys, **load_kwargs), asked_before_day)
     before = panel.n_tasks
     models_before = list(panel.model_keys)
     panel, exclusion_report = apply_registered_exclusions(panel)
@@ -291,6 +310,8 @@ def run(
     result["tasks_excluded"] = before - panel.n_tasks
     result["models_before_exclusions"] = models_before
     result["models_excluded"] = exclusion_report["models_below_coverage_floor"]
+    if asked_before_day:
+        result["asked_before"] = asked_before_day
 
     # 5.6 says "reported separately", not "quietly dropped". A registered panel
     # member leaving the estimate is the single largest thing that can happen to

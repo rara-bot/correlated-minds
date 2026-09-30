@@ -39,7 +39,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from . import h1
-from .analysis import GOVERNING, N_BOOT, _permute_outcomes, apply_registered_exclusions, intervals, resampled
+from .analysis import (GOVERNING, N_BOOT, _permute_outcomes, apply_registered_exclusions, asked_before,
+                       intervals, resampled)
 from .config import (
     H3_VARIANT_MODEL,
     H3_VARIANT_START,
@@ -201,10 +202,15 @@ def evaluate(panel: Panel, family: Dict[str, str], n_boot: int = N_BOOT, seed: i
 
 def run(blind: bool = True, seed: int = 0, n_boot: int = N_BOOT, obs_path: Path = OBS_PATH,
         resolutions_path: Path = RESOLUTIONS_PATH, tasks_path: Path = TASKS_PATH,
-        start: str = H3_VARIANT_START, **load_kwargs) -> Dict[str, object]:
-    """Load, exclude, attach the variants, (permute), and test H3 as registered."""
+        start: str = H3_VARIANT_START, asked_before_day: Optional[str] = None,
+        **load_kwargs) -> Dict[str, object]:
+    """Load, exclude, attach the variants, (permute), and test H3 as registered.
+
+    `asked_before_day` is deviation 24's sensitivity (`analysis.asked_before`).
+    """
     panel = load_panel(obs_path=obs_path, resolutions_path=resolutions_path, tasks_path=tasks_path,
                        **load_kwargs)
+    panel = asked_before(panel, asked_before_day)
     panel, exclusions = apply_registered_exclusions(panel)
     panel = attach_variants(panel, obs_path, resolutions_path, tasks_path)
     if blind and panel.n_tasks:
@@ -212,6 +218,8 @@ def run(blind: bool = True, seed: int = 0, n_boot: int = N_BOOT, obs_path: Path 
     family = {m.key: m.family for m in primary_panel()}
     rows = [i for i, day in enumerate(panel.asked_on) if day and day >= start]
     result = evaluate(_rows(panel, rows), family, n_boot, seed)
+    if asked_before_day:
+        result["asked_before"] = asked_before_day
     result.update(blind=blind, variants_from=start,
                   models=[k for k in panel.model_keys if k in family],
                   models_excluded=exclusions.get("models_below_coverage_floor", {}))

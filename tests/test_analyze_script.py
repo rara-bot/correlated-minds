@@ -20,3 +20,7 @@ def test_a_blind_run_carries_every_hypothesis_and_the_logprob_leg(tmp_path, monk
     assert {"primary", "report", "h1", "h2", "h3", "h4", "h5", "h6"} <= set(result)
     assert "logprob_leg" in result["report"]
     assert all(result[k]["blind"] is True for k in ("h2", "h3", "h4", "h5", "h6"))
+    # Deviation 24's sensitivity, for every retired member, blind like everything else.
+    retired = result["before_retirement"]["gpt_small"]
+    assert retired["asked_before"] == "2026-10-23"
+    assert all(retired[k]["blind"] is True for k in ("primary", "h3", "h6"))

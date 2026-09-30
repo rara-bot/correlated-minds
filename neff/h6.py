@@ -39,12 +39,12 @@ deviation 20, while the driver has only run on permuted outcomes:
 import math
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 
 from . import h1
-from .analysis import _permute_outcomes, apply_registered_exclusions
+from .analysis import _permute_outcomes, apply_registered_exclusions, asked_before
 from .config import TASKS_PATH, panel_by_key
 from .metrics import brier_skill
 from .panel import Panel, load_panel
@@ -147,9 +147,12 @@ def evaluate(panel: Panel, family: Dict[str, str]) -> Dict[str, object]:
 
 
 def run(blind: bool = True, seed: int = 0, tasks_path: Path = TASKS_PATH,
-        **load_kwargs) -> Dict[str, object]:
-    """Load, exclude, (permute), and test H6 as registered."""
-    panel = load_panel(tasks_path=tasks_path, **load_kwargs)
+        asked_before_day: Optional[str] = None, **load_kwargs) -> Dict[str, object]:
+    """Load, exclude, (permute), and test H6 as registered.
+
+    `asked_before_day` is deviation 24's sensitivity (`analysis.asked_before`).
+    """
+    panel = asked_before(load_panel(tasks_path=tasks_path, **load_kwargs), asked_before_day)
     panel, exclusions = apply_registered_exclusions(panel)
     if blind and panel.n_tasks:
         panel = _permute_outcomes(panel, seed)
@@ -157,4 +160,6 @@ def run(blind: bool = True, seed: int = 0, tasks_path: Path = TASKS_PATH,
     result = evaluate(panel, family)
     result.update(blind=blind, models=list(panel.model_keys),
                   models_excluded=exclusions.get("models_below_coverage_floor", {}))
+    if asked_before_day:
+        result["asked_before"] = asked_before_day
     return result

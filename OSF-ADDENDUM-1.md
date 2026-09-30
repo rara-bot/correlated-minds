@@ -5,7 +5,7 @@
 | Step | Where | What |
 |---|---|---|
 | 1 | **Zenodo** — open DOI `10.5281/zenodo.22220263` → **New version** | Upload `PREREGISTRATION.md` (the current one, with §11) and `OSF-ADDENDUM-1.md` (this file). Set version to `1.1-addendum-1`. Publish |
-| 2 | **Your OSF project** (osf.io/965dz — the project, *not* the frozen registration) | Upload the same two files. Then **Wiki** → new page titled `Addendum 1 — 2026-09-19` → paste the wiki entry at the end of this file |
+| 2 | **Your OSF project** (osf.io/965dz — the project, *not* the frozen registration) | Upload the same two files. Then **Wiki** → new page titled `Addendum 1 — 2026-09-30` → paste the wiki entry at the end of this file |
 | 3 | **osf.io/x6kqg** (the registration) | Only if it offers a way to attach a note or comment without changing any registered answer: paste the title and body below. If the only option is "Update" of the registered answers, **skip this step** |
 
 **Do not withdraw or edit the registration.** Its immutability is the asset. Steps
@@ -16,12 +16,12 @@
 | Registration | osf.io/x6kqg, registered 2026-08-29 14:44 UTC |
 | Plan frozen | 2026-08-29 03:54 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
-| Addendum date | 2026-09-19 |
-| Recorded at | PREREGISTRATION.md §11, deviations 1-23 |
+| Addendum date | 2026-09-30 |
+| Recorded at | PREREGISTRATION.md §11, deviations 1-24 |
 
 **Why post it before 2 Oct:** its value is that it is public while the outcomes it
-could affect are still unknown. By the morning of 2026-09-19, 18 collection days
-had been committed and 45 task-days in the primary panel had an outcome. The
+could affect are still unknown. By the morning of 2026-09-30, 29 collection days
+had been committed and 50 task-days in the primary panel had an outcome. The
 Week-5 prediction is made on 2 Oct; this addendum fixes the rules it will be made
 under, and posting it before that date is what gives it its value. If you post it
 on a later day, change only the wiki page title to that day's date -- the text
@@ -34,7 +34,7 @@ below is dated by when it was written, not when it was posted.
 ### Title of update
 
 ```
-Addendum 1 (19 Sep 2026): twenty-three dated deviations and disclosures, every one recorded before the study's first registered look at its outcomes
+Addendum 1 (30 Sep 2026): twenty-four dated deviations and disclosures, every one recorded before the study's first registered look at its outcomes
 ```
 
 ### Body
@@ -43,16 +43,18 @@ Addendum 1 (19 Sep 2026): twenty-three dated deviations and disclosures, every o
 WHAT THIS IS
 
 Section 11 of the registered plan requires every change after the freeze to be
-logged as a dated, numbered deviation. By 19 September 2026 there were twenty-three.
+logged as a dated, numbered deviation. By 30 September 2026 there were twenty-four.
 This addendum summarises all of them in one public place. The full text of each is
 in PREREGISTRATION.md section 11 in the repository and in the Zenodo deposit.
 
 None of them changes a hypothesis, a falsification clause, the model roster, the
 sampling temperature, the task mix, the primary outcome or the multiple-testing
-correction. One changes where a model is asked: deviation 23 moves gpt-4.1-nano,
-which OpenAI retires on 23 October, to Azure's copy of the same model. Every
-analysis choice below was fixed while the analysis code had only ever been run on
-permuted outcomes. Deviation 21 records the single run that was
+correction. Two concern where one model can be asked. Deviation 23 moved
+gpt-4.1-nano, which OpenAI retires on 23 October, to Azure's copy of the same
+model; deviation 24 withdraws that move, because Azure now retires the model first,
+on 14 October, so from 23 October no host serves it and it is no longer asked.
+Every analysis choice below was fixed while the analysis code had only ever been
+run on permuted outcomes. Deviation 21 records the single run that was
 not on permuted outcomes. It was made after every choice below was already fixed
 and public, it displayed no estimate of anything, the file it wrote was deleted
 without being opened, and no choice was made or changed after it.
@@ -130,6 +132,23 @@ model is asked or how it is asked, except where a registered arm was missing.
   the answers the model gave on the new route. Left alone, the model would have
   left the primary panel under section 5.6, taking one of the three within-family
   pairs H3 and H6 rest on.
+- Dev 24 (30 Sep): Microsoft's retirement schedule, updated 23 September, now
+  retires gpt-4.1-nano on Azure on 14 October -- before the move of deviation 23;
+  on 14 September it had said April 2027. OpenAI still shuts the model down on
+  23 October, and no other host serves it; OpenAI's suggested substitute is a
+  different model that rejects temperature 0. So the move is withdrawn before it
+  was ever used: the model is asked through OpenAI up to 22 October and not at all
+  from 23 October, and the comparison asking on Azure as well continues to
+  13 October, the last day Azure serves the model. Section 5.6 applies unchanged:
+  if the model's coverage of the analysed panel is under 80% it is reported
+  separately and left out of the primary panel, and the human benchmark for a
+  panel of eight, already registered, applies. A registered sensitivity re-runs
+  the primary estimate, H3 and H6 on the questions asked before 23 October with
+  all nine models, applying the exclusions to that sub-panel, so the within-family
+  pair is reported where it exists. Deviation 23's sensitivity without the
+  answers given on the new route is withdrawn, since none will be given. Found by
+  the study's health check, which reads the vendors' retirement pages at every
+  check-in; chosen before any registered look, from vendor schedules alone.
 
 C. ANALYSES THAT WERE MISSING, IMPLEMENTED BLIND
 
@@ -277,7 +296,7 @@ run otherwise.
 VERIFICATION
 
   Repository:  https://github.com/rara-bot/correlated-minds
-  Recorded at: PREREGISTRATION.md section 11, deviations 1-23
+  Recorded at: PREREGISTRATION.md section 11, deviations 1-24
   Zenodo:      10.5281/zenodo.22220263 (latest version)
 
 The plan outside section 11 is unchanged since registration:
@@ -293,12 +312,12 @@ append-only files, so what existed on any date is checkable from the commit hist
 
 ## Step 2 — paste this as the OSF project wiki entry
 
-Title the page **`Addendum 1 — 2026-09-19`**, then paste:
+Title the page **`Addendum 1 — 2026-09-30`**, then paste:
 
 ```
-ADDENDUM 1 -- 19 September 2026
+ADDENDUM 1 -- 30 September 2026
 
-Twenty-three dated deviations and disclosures, all logged in PREREGISTRATION.md
+Twenty-four dated deviations and disclosures, all logged in PREREGISTRATION.md
 section 11 before the study's first registered look at its outcomes (2 Oct). No
 hypothesis, falsification clause, model, temperature, task mix, primary outcome or
 multiple-testing correction has changed. Deviation 21 discloses an unregistered
@@ -321,10 +340,12 @@ INSTRUMENT (all from the dates stated)
   been); Kalshi prices recorded (they were public under renamed fields);
   questions past their SEC filing deadline refused and excluded (13 ExxonMobil
   task-days); Chevron replaces ExxonMobil to keep the 60/40 mix.
-- 23 Oct: gpt-4.1-nano, which OpenAI shuts down that day, is asked through
-  OpenRouter's Azure host, which serves the same snapshot; from 20 Sep every
-  question is also asked on that route so the change is measured first; a
-  sensitivity drops the answers given on it (deviation 23).
+- 23 Oct: gpt-4.1-nano stops being asked. OpenAI shuts it down that day, and
+  Azure, where deviation 23 had moved it, now retires it first, on 14 Oct
+  (deviation 24). It is asked through OpenAI to 22 Oct; the comparison on Azure
+  runs 20 Sep to 13 Oct; section 5.6 applies unchanged, and a sensitivity re-runs
+  the primary estimate, H3 and H6 on the questions asked before 23 Oct with all
+  nine models.
 
 ANALYSIS, FIXED BLIND
 - Missing implementations added: the 5.6 coverage floor, the derived state

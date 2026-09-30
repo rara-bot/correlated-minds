@@ -204,13 +204,17 @@ that wrote it (`git log -p`), never edit the record by hand, and treat it as a
 Actions → daily-collection → Run workflow, then tell Claude. **A past day
 missing** can never be recovered — Claude finds out why and records it as lost
 in §11 and the next addendum; never back-fill. A model below the floor and still
-failing: read `record.errors`. From 8 Dec no questions are asked (none could
-resolve by the freeze); that is not a gap.
+failing: read `record.errors`. A bridge answering under 80% (until 13 Oct) is
+medium: no day is at risk, since deviation 24 it carries the model nowhere; if
+Azure retired the model early, record the bridge's early end in §11 and the next
+addendum. From 8 Dec no questions are asked (none could resolve by the freeze);
+that is not a gap.
 
 #### `record.day_shape`
 Each day has the whole registered design: 25 questions × every model, 2
 replicates per model, the H3 arm (gpt_mid, variants 1-4) from 14 Sep, the bridge
-(gpt_small on its next route) from 20 Sep to 22 Oct. A missing answer means the
+(gpt_small asked through Azure as well) from 20 Sep to 13 Oct, and no gpt_small
+from 23 Oct (deviation 24). A missing answer means the
 collector never asked — usually a run cut off by its 45-minute limit. Check that
 day's run. Known: 3 Sep has 30 questions (deviation 2).
 
@@ -290,9 +294,9 @@ What the daily job's "Panel health" step prints. Rows out of time order would
 mean the loader broke.
 
 #### `panel.bridge`
-gpt_small answering the same questions on its current and its next route
-(deviation 23): share identical and reliability, beside its own replicates.
-Forecasts only.
+gpt_small answering the same questions through OpenAI and, until 13 Oct, through
+Azure (deviations 23 and 24): share identical and reliability, beside its own
+replicates. Forecasts only.
 
 ### Settlements
 
@@ -384,9 +388,9 @@ OpenRouter's balance, read live with the key in `.env` (never printed).
 Each account's estimated balance against what is left to spend there. Balances
 you read out are recorded once (`--balance`); the check subtracts the study's
 spend since then. The estimate cannot see other use of the same account. Short:
-**you**, top up (steps in the finding; keep auto-reload off). From 23 Oct
-gpt_small's spend moves from OpenAI to OpenRouter; the projection follows the
-route.
+**you**, top up (steps in the finding; keep auto-reload off). The projection
+follows the registered design: the bridge (billed by OpenRouter) ends 13 Oct, and
+gpt_small costs nothing from 23 Oct.
 
 ### Models and hosts
 
@@ -395,7 +399,9 @@ Reads Anthropic's, OpenAI's, Google's and Azure's retirement pages and finds the
 rows about the panel's models — the rows themselves, not mentions of a model as
 someone else's replacement. A shutdown before 11 Dec that is not already handled
 is critical: read the page yourself, then bring the student the choice with a
-recommendation (19 Sep: gpt_small). A row that **changed** since the last run is
+recommendation (19 Sep and 30 Sep: gpt_small). Handled means registered: a
+member retired before the shutdown (deviation 24: gpt_small from 23 Oct), or a
+bridge that ends before its host retires the model (13 Oct). A row that **changed** since the last run is
 high: read it. Anthropic gives 60 days' notice; while a notice could still land
 a retirement inside the window, claude-haiku-4-5 is on `watch` — tell Claude if
 an Anthropic deprecation e-mail arrives.
@@ -407,12 +413,15 @@ ignored, and Azure still serves the gpt_small route. No host is critical.
 ### Dates
 
 #### `dates.calendar`
-The dates ahead: the Week-5 window, the route switch, the last asking day, the
-freeze, the fair.
+The dates ahead: the Week-5 window, the bridge's last day and gpt_small's
+retirement, the last asking day, the freeze, the fair.
 
-#### `dates.route_switch`
-From 23 Oct, gpt_small's answers come from its registered route. Before then it
-only counts down.
+#### `dates.retirements`
+Deviation 24: gpt_small is not asked from 23 Oct, when no host serves it any
+more, and the bridge to Azure ends on 13 Oct, the day before Azure retires the
+model. Before those days it counts down; after them it confirms nothing was
+asked. A gpt_small answer after 22 Oct, or a bridge answer after 13 Oct, means the
+collector ignored `neff/config.py`'s RETIREMENTS or BRIDGE_END.
 
 #### `dates.after_freeze`
 After 11 Dec the registered final look is allowed — with the student.
@@ -474,7 +483,8 @@ asking to push code.
 
 #### `deep.time_travel`
 The suite with the clock set to every instant that matters: the Week-5 window's
-edges, the route switch, month ends, the last asking days, the freeze, 2027.
+edges, the bridge's last day and gpt_small's retirement (deviation 24), month ends,
+the last asking days, the freeze, 2027.
 It verifies each clock really moved. No test can unblind the real record at any
 date.
 
@@ -535,6 +545,11 @@ Each of these was looked into, and each is here so no check-in raises it again.
 - **`e433cea` touching the ledger.** Verification receipts before collection.
 - **Days asked only by the evening run, or just after midnight.** GitHub's
   queue; each question carries the market state of the moment it was asked.
+- **gpt_small missing from 23 Oct, and under the 80% floor at the freeze.**
+  Deviation 24: no host serves the model after 22 Oct. §5.6 removes it from the
+  primary panel as registered, and the registered side analysis
+  (`before_retirement` in `scripts/analyze.py`) keeps all nine models on the
+  questions asked before 23 Oct.
 - **The Week-5 check NOT READY before 2 Oct.** Waiting for 2 Oct's collection
   and the payrolls settlement, by design.
 
@@ -553,7 +568,7 @@ Each of these was looked into, and each is here so no check-in raises it again.
 | 22 Sep | "Check everything, then my tasks" | balances against spend, the fair's date → `money.balances`, `dates.web` |
 | 23 Sep | "Check everything else" | a second qwen host, a new VIX low → `vendors.hosts`, `record.market` |
 | 24 Sep | "Make sure everything runs smoothly" | a reporting step could discard a day, December false alarms, package drift → `ci.steps`, `deep.*` |
-| 29 Sep | This file | a diverged copy `git pull` could not fix, the 28 Sep dropped run, and Azure moving gpt-4.1-nano's retirement to 14 Oct → `repo.sync`, `ci.schedule`, `vendors.retirements` |
+| 29 Sep | This file | a diverged copy `git pull` could not fix, the 28 Sep dropped run, and Azure moving gpt-4.1-nano's retirement to 14 Oct, which became deviation 24 → `repo.sync`, `ci.schedule`, `vendors.retirements`, `dates.retirements` |
 
 ---
 

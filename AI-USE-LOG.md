@@ -165,8 +165,17 @@ what to do when a finding is real. It cannot unblind: its runner refuses
 tests hold both. On its first run it found that Microsoft now lists 14 October
 2026 for the Azure retirement of `gpt-4.1-nano` -- 2027-04-14 when deviation 23 was
 written on 19 September -- which is before the 23 October switch deviation 23
-registers. What to do about that is your decision, recorded separately when you
-make it. The same session added a third daily slot to the collection job (16:41
+registers. **You chose**, the same day, to retire the model cleanly rather than
+leave the route to fail every day: §11 deviation 24. `gpt_small` is asked through
+OpenAI up to 22 October and not at all from 23 October (`neff/config.py`
+`RETIREMENTS`, `neff/collect.py`); the comparison on Azure runs to 13 October, the
+last day Azure serves the model (`BRIDGE_END`); §5.6 applies unchanged; and a
+registered sensitivity re-runs the primary estimate, H3 and H6 on the questions
+asked before 23 October with all nine models (`asked_before_day` in
+`neff/analysis.py`, `neff/h3.py` and `neff/h6.py`, reported by `scripts/analyze.py`).
+`scripts/check_days.py` no longer judges a member that is not asked.
+`tests/test_retirement.py` and `tests/test_serving_route.py` pin it, and
+OSF-ADDENDUM-1.md now covers deviations 1-24. The same session added a third daily slot to the collection job (16:41
 UTC), again without a deviation number, after the check showed that on 28
 September only one of the two scheduled runs started on that day; a rerun
 collects nothing twice. `tests/test_workflow_commit.py` pins it.

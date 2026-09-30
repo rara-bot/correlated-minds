@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT))
 import numpy as np  # noqa: E402
 
 from neff import analysis, h1, h2, h3, h4, h5, h6, logprobs, report  # noqa: E402
-from neff.config import DATA_FREEZE  # noqa: E402
+from neff.config import DATA_FREEZE, RETIREMENTS  # noqa: E402
 from neff.panel import bridge_report, load_panel, reliability_report  # noqa: E402
 
 NOT_RUN = [
@@ -92,6 +92,17 @@ def main(argv=None) -> int:
         "h6": h6.run(**common),
         # Forecasts only, so identical blind or unblinded (deviation 23).
         "serving_route_bridge": bridge_report(),
+        # Deviation 24: a member no host serves any more is not asked from its
+        # retirement. The primary estimate, H3 and H6 again, on the task-days asked
+        # before it, with the registered exclusions applied to that sub-panel -- so
+        # the retired member is judged by 5.6 on the days it was asked.
+        "before_retirement": {
+            key: {"asked_before": day,
+                  "primary": analysis.run(n_boot=args.n_boot, asked_before_day=day, **common),
+                  "h3": h3.run(n_boot=args.n_boot, asked_before_day=day, **common),
+                  "h6": h6.run(asked_before_day=day, **common)}
+            for key, day in sorted(RETIREMENTS.items())
+        },
         "not_run": NOT_RUN,
     }
     result = _clean(result)

@@ -33,11 +33,11 @@ TASKS = ROOT / "data" / "tasks.jsonl"
 PRIMARY_ARM = "ws1_prospective"
 COVERAGE_FLOOR = 0.80          # PREREGISTRATION.md 3.3
 
-# neff.config.BRIDGE_VARIANT (deviation 23): the same questions put to a model on
-# the route it moves to when its vendor retires it. Those rows are not the model's
-# registered answers, so they are reported on their own line and never counted
-# toward the coverage floor -- a hiccup on the route-to-be must not read as the
-# model failing, and a healthy bridge must not prop up a model that is.
+# neff.config.BRIDGE_VARIANT (deviations 23 and 24): the same questions put to a
+# model through a second host, to compare its answers there. Those rows are not the
+# model's registered answers, so they are reported on their own line and never
+# counted toward the coverage floor -- a hiccup on the second host must not read as
+# the model failing, and a healthy bridge must not prop up a model that is.
 BRIDGE_VARIANT = 98
 WINDOW_END = date(2026, 12, 11)  # the registered freeze date
 
@@ -174,8 +174,8 @@ def _print_market_state(tasks, today: str) -> dict:
                 out["vix_new_high"] = out["vix_notable"] = True
                 print(f"  *** NEW HIGH: {latest:.2f} exceeds every earlier day "
                       f"(prev max {max(prior):.2f}, {latest_day}).")
-                print(f"      This day is worth more to H1 than an ordinary one. "
-                      f"Confirm it collected in full before anything else.")
+                print("      This day is worth more to H1 than an ordinary one. "
+                      "Confirm it collected in full before anything else.")
             elif latest < min(prior):
                 out["vix_notable"] = True
                 print(f"  *** NEW LOW: {latest:.2f} below every earlier day "
@@ -276,9 +276,12 @@ def main() -> int:
     lgood: dict[str, int] = defaultdict(int)
     bridge_seen: dict[str, int] = defaultdict(int)
     bridge_good: dict[str, int] = defaultdict(int)
+    last_asked: dict[str, str] = {}
     for day, rows in by_day.items():
         for o in rows:
             ok = o.get("forecast") is not None and not o.get("error")
+            if int(o.get("prompt_variant", 0)) != BRIDGE_VARIANT:
+                last_asked[o["model_key"]] = max(day, last_asked.get(o["model_key"], day))
             if int(o.get("prompt_variant", 0)) == BRIDGE_VARIANT:
                 if day == latest:
                     bridge_seen[o["model_key"]] += 1
@@ -302,6 +305,13 @@ def main() -> int:
     print(f"  {'model':<18}{'window':>13}{'latest day':>15}{'all time':>16}")
     below, watching = [], []
     for model in sorted(seen):
+        if not wseen[model]:
+            # Not asked at all inside the window: a member no host serves any more
+            # (neff.config.RETIREMENTS, deviation 24). A model that is failing is still
+            # asked, and its failures are rows, so this cannot hide one. Not judged.
+            print(f"  {model:<18}  not asked since {last_asked.get(model, '?')} -- retired, "
+                  f"not judged (deviation 24)")
+            continue
         wfrac = wgood[model] / wseen[model] if wseen[model] else 0.0
         lfrac = lgood[model] / lseen[model] if lseen[model] else 1.0
         frac = good[model] / seen[model]
@@ -320,7 +330,7 @@ def main() -> int:
               f"{good[model]:>7}/{seen[model]:<4}{frac:>6.1%}{mark}")
 
     for model in sorted(bridge_seen):
-        print(f"  bridge (deviation 23): {model} on its next route answered "
+        print(f"  bridge (deviations 23-24): {model} through its second host answered "
               f"{bridge_good[model]}/{bridge_seen[model]} on {latest}; not counted above")
 
     # ---- verdict ------------------------------------------------------------
@@ -387,9 +397,9 @@ def main() -> int:
             "window_days": len(window),
             "coverage_window": {m: round(wgood[m] / wseen[m], 4)
                                 for m in sorted(wseen) if wseen[m]},
-            # The route a model moves to (deviation 23), as it did on the latest
-            # day. The daily alarm reads it: a route that fails now is one the
-            # model will be asked on, and this is the only warning before then.
+            # The bridge (deviations 23 and 24) as it did on the latest day. The
+            # daily alarm reads it: no day is at risk when it fails, but a sudden
+            # failure most likely means its host retired the model early.
             "bridge_day": latest,
             "bridge_latest": {m: {"answered": bridge_good[m], "asked": bridge_seen[m]}
                               for m in sorted(bridge_seen)},

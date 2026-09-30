@@ -486,7 +486,7 @@ H3_VARIANT_START = "2026-09-14"
 # 100 calls a day.
 H3_MEASURED_DAILY_USD = 0.024
 
-# --- a model its vendor retires mid-collection (PREREGISTRATION.md 11, deviation 23)
+# --- a model its vendor retires mid-collection (deviation 23; its route withdrawn by 24, below)
 #
 # OpenAI shuts `gpt-4.1-nano-2025-04-14` down on 2026-10-23 -- announced on
 # 2026-04-22, four months before this roster was verified, and noticed on
@@ -495,7 +495,7 @@ H3_MEASURED_DAILY_USD = 0.024
 # day, the 5.6 floor removes it from the whole primary panel, and the Week-5
 # prediction is judged on a smaller panel than it is made on.
 #
-# Azure serves the same snapshot until 2027-04-14, and OpenRouter routes to Azure;
+# Azure's schedule then said it served the same snapshot until 2027-04-14, and OpenRouter routes to Azure;
 # PREREGISTRATION.md 3.1 already names Azure OpenAI as a channel that serves "the
 # same weights under a different invoice". So from the day OpenAI stops, the key
 # is served there. Model, key, temperature, max_tokens and prompt are unchanged;
@@ -514,24 +514,60 @@ class ServingRoute:
     supports_logprobs: bool
 
 
-SERVING_ROUTES: Dict[str, ServingRoute] = {
+# --- deviation 24: the route above is withdrawn -----------------------------------------
+#
+# Microsoft's retirement schedule, as updated on 2026-09-23, retires this snapshot on
+# Azure on 2026-10-14 -- nine days BEFORE the day deviation 23 moved `gpt_small` there.
+# On 2026-09-14 the same page had said 2027-04-14, which is what deviation 23 relied
+# on; `scripts/health_check.py` found the change on its first run. OpenAI shuts the
+# snapshot down on 2026-10-23. So from 2026-10-23 no host serves the registered model,
+# and none can be substituted without changing the model. The student chose, on
+# 2026-09-30, before the Week-5 look and from vendor schedules alone:
+#
+#   * `gpt_small` is asked through OpenAI, as registered, up to 2026-10-22 -- its last
+#     available day -- and not at all from 2026-10-23 (RETIREMENTS);
+#   * no member changes host (SERVING_ROUTES is empty; the mechanism stays);
+#   * the bridge keeps measuring the route it was measuring, through 2026-10-13, the
+#     last day Azure serves the snapshot (BRIDGE_ROUTES, BRIDGE_END);
+#   * 5.6 applies unchanged, and a registered sensitivity re-runs the primary estimate,
+#     H3 and H6 on the task-days asked before the retirement, with all nine models
+#     (`asked_before` in neff/analysis.py, neff/h3.py, neff/h6.py).
+
+SERVING_ROUTES: Dict[str, ServingRoute] = {}
+
+# The first UTC day a panel member is no longer asked, because no host serves it.
+RETIREMENTS: Dict[str, str] = {
+    "gpt_small": "2026-10-23",
+}
+
+
+def retired(spec, day: str) -> bool:
+    """Is `spec` (or a model key) past its retirement on `day` (ISO date)?"""
+    key = spec if isinstance(spec, str) else spec.key
+    first_day_gone = RETIREMENTS.get(key)
+    return first_day_gone is not None and day >= first_day_gone
+
+
+# THE BRIDGE. Every question of the day is also put to a model through another route,
+# stored at this reserved variant, so answers on the two routes can be compared on
+# identical prompts. `panel.load_panel` reads variant 0 only, H3 reads 1-4 and the
+# test-retest replicates are 99, so these rows reach no estimate. `panel.bridge_report`
+# is their one reader. Deviation 23 opened it to measure the route before a move;
+# deviation 24 withdrew the move and keeps the measurement until the route's own host
+# retires the model.
+BRIDGE_VARIANT = 98
+BRIDGE_ROUTES: Dict[str, ServingRoute] = {
     "gpt_small": ServingRoute(
-        starts="2026-10-23",
+        starts="2026-09-20",
         provider="openrouter_azure",
         model_id="openai/gpt-4.1-nano",
         supports_logprobs=False,
     ),
 }
-
-# THE BRIDGE. Until a route starts, every question of the day is also put to the
-# model through that route, stored at this reserved variant: the change of host is
-# measured on identical prompts, on the days before it happens, instead of assumed
-# harmless. `panel.load_panel` reads variant 0 only, H3 reads 1-4 and the test-
-# retest replicates are 99, so these rows reach no estimate. `panel.bridge_report`
-# is their one reader.
-BRIDGE_VARIANT = 98
 # The first day the bridge is asked: the first collection after deviation 23.
 BRIDGE_START = "2026-09-20"
+# The last day: Azure retires the snapshot on 2026-10-14 (deviation 24).
+BRIDGE_END = "2026-10-13"
 
 
 def _on_route(spec: "ModelSpec", route: ServingRoute) -> "ModelSpec":
@@ -548,9 +584,9 @@ def routed(spec: "ModelSpec", day: str) -> "ModelSpec":
 
 
 def bridge_spec(spec: "ModelSpec", day: str) -> Optional["ModelSpec"]:
-    """The route-to-be for `spec.key`, on the days the bridge runs; else None."""
-    route = SERVING_ROUTES.get(spec.key)
-    if route is None or not (BRIDGE_START <= day < route.starts):
+    """The bridged route for `spec.key`, on the days the bridge runs; else None."""
+    route = BRIDGE_ROUTES.get(spec.key)
+    if route is None or not (BRIDGE_START <= day <= BRIDGE_END) or retired(spec, day):
         return None
     return _on_route(spec, route)
 

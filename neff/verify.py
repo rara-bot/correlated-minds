@@ -26,6 +26,7 @@ from .config import (
     TEMPERATURE,
     enabled_panel,
     families,
+    retired,
     routed,
 )
 from .ledger import Ledger
@@ -227,8 +228,9 @@ def check_live_models(spend_cap_usd: float = 0.50) -> List[Tuple[str, str, str]]
 
     today = checked_at[:10]
     # Each model as the daily run asks it today: a model on its registered route
-    # (config.SERVING_ROUTES, deviation 23) is verified on that route.
-    for spec in (routed(m, today) for m in enabled_panel()):
+    # (config.SERVING_ROUTES, deviation 23) is verified on that route, and a retired
+    # one (config.RETIREMENTS, deviation 24) is not asked, so it is not verified.
+    for spec in (routed(m, today) for m in enabled_panel() if not retired(m, today)):
         if spec.provider not in PROVIDERS:
             out.append((CROSS, spec.key, f"no client for provider {spec.provider!r}"))
             _receipt(spec, ok=False, model_id_returned="", usd=0.0,

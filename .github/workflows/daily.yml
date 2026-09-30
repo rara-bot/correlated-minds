@@ -387,11 +387,13 @@ jobs:
           for m in c.get("below_floor", []):
               cov = c.get("coverage_window", {}).get(m)
               reasons.append(f"`{m}` is at {cov:.0%} over the last {c.get('window_days')} collected days, under the 80% floor of PREREGISTRATION.md 3.3")
-          # The route a model moves to when its vendor retires it (deviation 23)
-          # is asked every day beforehand. Failing now means failing then.
+          # The bridge (deviations 23 and 24) asks a model's questions through a
+          # second host too, until 13 Oct. It carries the model nowhere, so no day
+          # is at risk when it fails -- but a sudden failure most likely means that
+          # host retired the model early, a fact the plan must record.
           for m, b in (c.get("bridge_latest") or {}).items():
               if b.get("asked") and b.get("answered", 0) < 0.8 * b["asked"]:
-                  reasons.append(f"the route `{m}` moves to (PREREGISTRATION.md 11, deviation 23) answered {b.get('answered')}/{b['asked']} on {c.get('bridge_day')}")
+                  reasons.append(f"the bridge that asks `{m}` through a second host (PREREGISTRATION.md 11, deviations 23 and 24) answered {b.get('answered')}/{b['asked']} on {c.get('bridge_day')}; no day is at risk, but if that host retired the model early, record it in 11")
           # A day older than yesterday is permanently lost and was alarmed on at
           # the time. Repeating it every morning for the rest of the study would
           # turn the alarm into wallpaper; it belongs in PREREGISTRATION.md 11

@@ -302,7 +302,7 @@ All four are covered by tests (`tests/test_edgar.py`).
    and the two that send them list values that cannot describe the answers beside
    them, so the §5.4(a) logprob sensitivity rests on gpt_mid, gpt_small and llama,
    on no rows before 9 Sep, and on gpt_small's rows only to 22 Oct (deviations 10,
-   12, 19 and 23).
+   12, 19, 23 and 24).
 
 10. **The H3 prompt-variant arm starts on 14 Sep.** It was never collected before
     (deviation 14), so the intra-model contrast rests on the later task-days only.
@@ -318,15 +318,20 @@ All four are covered by tests (`tests/test_edgar.py`).
     filing sample rests on questions asked before each company's autumn filing
     (deviation 17).
 
-13. **gpt_small changes host on 23 Oct.** OpenAI shuts `gpt-4.1-nano-2025-04-14`
-    down that day. From then it is asked through OpenRouter's Azure host, which
-    serves the same snapshot, so the model stays in the panel with the same key,
-    temperature and prompt. Every question from 20 Sep to 22 Oct is also asked on
-    the Azure route and stored apart, so the change of host is measured against
-    the model's own test-retest noise before it happens, and every primary
-    estimate is also reported without the answers given on the new route
-    (deviation 23). This is the §8 argument in practice: banks buy these models
-    through Azure too.
+13. **gpt_small stops on 23 Oct, because no host serves it after that.** OpenAI
+    shuts `gpt-4.1-nano-2025-04-14` down that day. Deviation 23 had moved it to
+    Azure's copy of the same snapshot, which Microsoft's schedule then kept until
+    April 2027; on 23 Sep Microsoft moved that retirement to 14 Oct, before the move.
+    So the move is withdrawn and the model is not asked from 23 Oct (deviation 24).
+    Its answers end on 22 Oct, so on the analysed panel it will most likely fall
+    under the 80% floor and §5.6 will report it separately; the primary panel is
+    then eight models, and the human benchmark for eight is already registered
+    (deviation 17). A registered sensitivity re-runs the primary estimate, H3 and
+    H6 on the questions asked before 23 Oct with all nine models, so the OpenAI
+    within-family pair is still reported where it exists. The comparison of its
+    answers on the two hosts, asked 20 Sep to 13 Oct, stays in the record. The
+    lesson for anyone repeating this: a vendor's retirement schedule is itself a
+    moving part, and has to be re-read during collection, not only before it.
 ---
 
 ## 8. The one-sentence answer for a judge

@@ -1,16 +1,21 @@
-"""A panel member its vendor retires keeps its place, on a registered route (deviation 23).
+"""A panel member no host serves any more is retired on its day (deviations 23 and 24).
 
-OpenAI shuts `gpt-4.1-nano-2025-04-14` -- `gpt_small` -- down on 2026-10-23. Azure
-serves the same snapshot until 2027-04-14 and OpenRouter routes to it, so from
-that day `gpt_small` is asked there. Until then a BRIDGE asks every question of
-the day through the new route as well, at a reserved variant, so the change of
-host is measured before it is made.
+OpenAI shuts `gpt-4.1-nano-2025-04-14` -- `gpt_small` -- down on 2026-10-23.
+Deviation 23 (19 Sep) moved it that day to Azure's copy of the snapshot, which
+Microsoft's schedule then kept until 2027-04-14, and opened a BRIDGE: every
+question of the day also asked through Azure, at a reserved variant, so the change
+of host would be measured before it was made. On 23 Sep Microsoft moved Azure's
+retirement of the snapshot to 2026-10-14, before the move. Deviation 24 (30 Sep):
+no member changes host; `gpt_small` is asked through OpenAI up to 2026-10-22 and
+not at all from 2026-10-23; the bridge keeps measuring through 2026-10-13, the
+last day Azure serves the model.
 
-Pinned here: the route starts on the registered day and changes nothing but where
-the question is sent; the route is pinned to one host with no fallback; bridge
-rows are collected on exactly the days registered, for the primary arm, and reach
-no estimate, no coverage alarm, no drift alarm and no logprob count; and the one
-sensitivity the deviation registers removes exactly the rerouted cells.
+Pinned here: nothing moves host; `gpt_small` is retired on the registered day and
+every other model is untouched; the bridge runs on exactly its registered days,
+pinned to one host with no fallback, for the primary arm, and reaches no estimate,
+no coverage alarm, no drift alarm and no logprob count; a retired member is not
+judged against the coverage floor; and the sensitivity deviation 24 registers
+keeps the retired member where it was asked, by restricting BEFORE the exclusions.
 """
 import json
 from argparse import Namespace
@@ -20,63 +25,65 @@ import numpy as np
 import pytest
 
 from neff import collect, config, panel, providers, report, tasks
-from neff.config import (BRIDGE_START, BRIDGE_VARIANT, H3_VARIANTS, REPLICATE_VARIANT,
-                         SERVING_ROUTES, RunConfig, bridge_spec, mock_sandbox, panel_by_key,
-                         routed)
+from neff.config import (BRIDGE_END, BRIDGE_ROUTES, BRIDGE_START, BRIDGE_VARIANT, H3_VARIANTS,
+                         REPLICATE_VARIANT, RETIREMENTS, SERVING_ROUTES, RunConfig, bridge_spec,
+                         mock_sandbox, panel_by_key, retired, routed)
 from neff.store import Task, observation_id
 from scripts import check_days
 
 SMALL = panel_by_key()["gpt_small"]
-ROUTE = SERVING_ROUTES["gpt_small"]
+ROUTE = BRIDGE_ROUTES["gpt_small"]
 BRIDGE_DAY = date(2026, 9, 25)
-ROUTE_DAY = date(2026, 10, 26)
+AFTER_BRIDGE_DAY = date(2026, 10, 20)
+RETIRED_DAY = date(2026, 10, 26)
+MOVE_DAY = "2026-10-23"          # the move deviation 23 registered and deviation 24 withdrew
 
 
-# --- 1. what the route is ------------------------------------------------------------
+# --- 1. what changes, and what does not ------------------------------------------------
 
-class TestTheRoute:
-    def test_it_starts_the_day_openai_stops(self):
-        # OpenAI deprecations, "2026-04-22: Legacy GPT model snapshots":
-        # gpt-4.1-nano-2025-04-14, shutdown October 23, 2026.
-        assert ROUTE.starts == "2026-10-23"
-
-    def test_before_it_starts_nothing_changes(self):
-        assert routed(SMALL, "2026-10-22") is SMALL
-
-    def test_from_the_day_it_starts_only_the_destination_changes(self):
-        moved = routed(SMALL, "2026-10-23")
-        assert (moved.provider, moved.model_id) == ("openrouter_azure", "openai/gpt-4.1-nano")
-        for name in ("key", "family", "tier", "price", "primary", "enabled", "thinking_budget"):
-            assert getattr(moved, name) == getattr(SMALL, name), name
-
-    def test_the_route_asks_for_no_logprobs_because_it_serves_none(self):
-        assert routed(SMALL, "2026-11-01").supports_logprobs is False
-
-    def test_no_other_model_moves_on_any_day(self):
+class TestTheRetirement:
+    def test_no_member_changes_host_any_more(self):
+        assert SERVING_ROUTES == {}
         for spec in config.PANEL:
-            if spec.key in SERVING_ROUTES:
-                continue
-            for day in ("2026-09-20", "2026-10-23", "2026-12-11"):
+            for day in ("2026-09-20", MOVE_DAY, "2026-12-11"):
                 assert routed(spec, day) is spec
+
+    def test_gpt_small_is_asked_through_its_last_day_and_not_after(self):
+        # OpenAI deprecations, "2026-04-22: Legacy GPT model snapshots": gpt-4.1-nano-2025-04-14,
+        # shutdown October 23, 2026. Azure's schedule, updated 2026-09-23: retirement 2026-10-14.
+        assert RETIREMENTS == {"gpt_small": "2026-10-23"}
+        assert not retired(SMALL, "2026-10-22") and retired(SMALL, "2026-10-23")
+        assert retired("gpt_small", "2026-12-07")
+
+    def test_no_other_model_retires(self):
+        for spec in config.PANEL:
+            if spec.key == "gpt_small":
+                continue
+            for day in ("2026-09-20", MOVE_DAY, "2026-12-11"):
+                assert not retired(spec, day)
                 assert bridge_spec(spec, day) is None
 
     def test_the_registered_roster_is_untouched(self):
-        # The route is applied when a day is collected; the roster the plan
+        # Retirement is applied when a day is collected; the roster the plan
         # registers (3.1) and tests/test_roster.py pins is what it was.
         assert (SMALL.provider, SMALL.model_id) == ("openai", "gpt-4.1-nano-2025-04-14")
 
 
 class TestTheBridge:
     @pytest.mark.parametrize("day,expected", [
-        ("2026-09-19", False), (BRIDGE_START, True), ("2026-10-22", True),
-        ("2026-10-23", False), ("2026-12-11", False),
+        ("2026-09-19", False), (BRIDGE_START, True), ("2026-10-13", True),
+        ("2026-10-14", False), ("2026-10-22", False), (MOVE_DAY, False), ("2026-12-11", False),
     ])
-    def test_it_runs_from_its_start_until_the_route_takes_over(self, day, expected):
+    def test_it_runs_from_its_start_to_the_day_before_azure_retires_the_model(self, day, expected):
+        assert BRIDGE_END == "2026-10-13"
         assert (bridge_spec(SMALL, day) is not None) is expected
 
-    def test_it_asks_on_exactly_the_route_to_be(self):
+    def test_it_asks_on_exactly_the_route_it_measures_and_changes_nothing_else(self):
         bridge = bridge_spec(SMALL, BRIDGE_START)
-        assert bridge == routed(SMALL, ROUTE.starts)
+        assert (bridge.provider, bridge.model_id) == ("openrouter_azure", "openai/gpt-4.1-nano")
+        assert bridge.supports_logprobs is False            # the route serves none
+        for name in ("key", "family", "tier", "price", "primary", "enabled", "thinking_budget"):
+            assert getattr(bridge, name) == getattr(SMALL, name), name
 
     def test_its_variant_is_no_other_variant(self):
         assert BRIDGE_VARIANT not in (0, REPLICATE_VARIANT, *range(1, H3_VARIANTS))
@@ -101,7 +108,7 @@ class TestTheAzureProvider:
         assert self.PROVIDER.UPSTREAM_FIELD == "provider"
 
     def test_it_is_pinned_to_azure_with_no_fallback(self):
-        body = self.PROVIDER._body(routed(SMALL, ROUTE.starts), "Q?", 1000, False)
+        body = self.PROVIDER._body(bridge_spec(SMALL, BRIDGE_START), "Q?", 1000, False)
         assert body["provider"] == {"order": ["Azure"], "allow_fallbacks": False,
                                     "require_parameters": True}
         assert body["model"] == "openai/gpt-4.1-nano"
@@ -131,7 +138,7 @@ class TestTheAzureProvider:
             return Reply()
 
         monkeypatch.setattr(providers.httpx, "post", fake_post)
-        done = self.PROVIDER.complete(routed(SMALL, ROUTE.starts), "Q?", 1000, 30)
+        done = self.PROVIDER.complete(bridge_spec(SMALL, BRIDGE_START), "Q?", 1000, 30)
         assert sent["url"] == providers.OpenRouterProvider.URL
         assert (done.model_id, done.upstream_provider, done.logprobs) == (
             "openai/gpt-4.1-nano", "Azure", None)
@@ -216,14 +223,23 @@ class TestCollection:
         _run(BRIDGE_DAY)
         assert len(_rows(obs)) == before
 
-    def test_from_the_route_day_the_model_is_answered_by_the_route(self, sandbox):
+    def test_after_the_bridge_ends_only_openai_is_asked(self, sandbox):
         obs, state = sandbox
-        state["day"] = ROUTE_DAY
-        summary = _run(ROUTE_DAY)
+        state["day"] = AFTER_BRIDGE_DAY
+        summary = _run(AFTER_BRIDGE_DAY)
         small = [r for r in _rows(obs) if r["model_key"] == "gpt_small"]
-        assert {r["prompt_variant"] for r in small} == {0}
-        assert all(r["model_id_returned"].startswith("openai/gpt-4.1-nano") for r in small)
+        assert small and {r["prompt_variant"] for r in small} == {0}
+        assert all(r["model_id_returned"].startswith("gpt-4.1-nano-2025-04-14") for r in small)
         assert summary["bridge"] == 0 and summary["drift"] == []
+
+    def test_from_its_retirement_it_is_not_asked_at_all(self, sandbox, capsys):
+        obs, state = sandbox
+        state["day"] = RETIRED_DAY
+        _run(RETIRED_DAY)
+        rows = _rows(obs)
+        assert rows and not [r for r in rows if r["model_key"] == "gpt_small"]
+        assert {r["model_key"] for r in rows} == {"claude_haiku"}
+        assert "not asked, retired (deviation 24): gpt_small" in capsys.readouterr().out
 
     def test_off_for_every_arm_but_the_primary(self, sandbox):
         obs, state = sandbox
@@ -330,7 +346,7 @@ class TestTheBridgeReachesNoEstimate:
         check_days.main()
         out = capsys.readouterr().out
         assert "BELOW COVERAGE FLOOR" not in out
-        assert "bridge (deviation 23): gpt_small on its next route answered 0/5" in out
+        assert "bridge (deviations 23-24): gpt_small through its second host answered 0/5" in out
 
 
 # --- 5. the registered sensitivity ------------------------------------------------------
@@ -348,7 +364,7 @@ class TestTheSensitivity:
 
     def test_it_removes_exactly_the_rerouted_cells(self):
         p = self._panel()
-        out = report.without_route(p, "gpt_small", ROUTE.starts)
+        out = report.without_route(p, "gpt_small", MOVE_DAY)
         assert np.isnan(out.forecasts[2:, 0]).all() and np.isnan(out.errors[2:, 0]).all()
         np.testing.assert_array_equal(out.forecasts[:2, 0], p.forecasts[:2, 0])
         np.testing.assert_array_equal(out.forecasts[:, 1], p.forecasts[:, 1])
@@ -357,17 +373,18 @@ class TestTheSensitivity:
 
     def test_a_panel_without_the_model_is_returned_as_it_is(self):
         p = self._panel().subset_by_models(["claude_haiku"])
-        assert report.without_route(p, "gpt_small", ROUTE.starts) is p
+        assert report.without_route(p, "gpt_small", MOVE_DAY) is p
 
-    def test_it_is_reported_always(self):
+    def test_the_withdrawn_route_is_no_longer_reported(self):
+        # Deviation 24 withdrew the move, so nothing is ever asked on the route and
+        # deviation 23's sensitivity has nothing to remove.
         sens = report.strata(self._panel(), n_boot=0)["sensitivity"]
-        assert f"without_gpt_small_from_{ROUTE.starts}" in sens
+        assert not [k for k in sens if k.startswith("without_gpt_small_from_")]
 
 
-# --- 6. a failing route-to-be raises the daily alarm ----------------------------------------
+# --- 6. a failing bridge raises the daily alarm, and says no day is at risk ------------------
 
 def _alarm_script() -> str:
-    import re
     from pathlib import Path
     text = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "daily.yml").read_text()
     step = text[text.index("      - name: Raise an alarm if a day is at risk"):]
@@ -391,10 +408,11 @@ class TestTheAlarm:
             "missing_days": [], "below_floor": [], "window_days": 7, "coverage_window": {},
             "bridge_day": "2026-09-25"}
 
-    def test_a_failing_route_to_be_raises_it(self, tmp_path, monkeypatch):
+    def test_a_failing_bridge_raises_it(self, tmp_path, monkeypatch):
         out = _alarm(tmp_path, monkeypatch, {**self.BASE, "bridge_latest": {
             "gpt_small": {"answered": 3, "asked": 25}}})
-        assert "the route `gpt_small` moves to" in out and "3/25" in out
+        assert "the bridge that asks `gpt_small` through a second host" in out and "3/25" in out
+        assert "no day is at risk" in out and "moves to" not in out
 
     def test_a_healthy_one_is_silent(self, tmp_path, monkeypatch):
         out = _alarm(tmp_path, monkeypatch, {**self.BASE, "bridge_latest": {

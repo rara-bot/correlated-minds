@@ -47,6 +47,7 @@ from .config import (
     RunConfig,
     REPLICATE_VARIANT,
     bridge_spec,
+    retired,
     mock_sandbox,
     routed,
 )
@@ -120,10 +121,15 @@ def run_day(
     task_store = JsonlStore(tasks_path)
     obs_store = JsonlStore(obs_path)
 
-    # A panel member its vendor has retired is asked on its registered route from
-    # the route's first day (config.SERVING_ROUTES, deviation 23).
-    models = [routed(m, today.isoformat()) for m in config.models()]
+    # A panel member no host serves any more is not asked from its retirement day
+    # (config.RETIREMENTS, deviation 24); one that moved host would be asked on its
+    # registered route (config.SERVING_ROUTES, deviation 23 -- none does now).
+    day = today.isoformat()
+    gone = [m.key for m in config.models() if retired(m, day)]
+    models = [routed(m, day) for m in config.models() if not retired(m, day)]
     _log(f"collection for {today} | {len(models)} models | arm={config.arm}")
+    if gone:
+        _log(f"not asked, retired (deviation 24): {', '.join(gone)} -- no host serves the registered model")
     if use_mock:
         _log(f"MOCK -- writing to {obs_store.path.parent}, not the study record")
     _log(f"budget: ${ledger.spent:.2f} spent of ${ledger.cap_usd:.2f}")
@@ -395,7 +401,7 @@ def run_day(
     pinned = {m.key: m.model_id for m in models}
 
     def _pinned_for(o) -> str:
-        # A bridge row was asked on the route-to-be, and answers to that route's id.
+        # A bridge row was asked through the second host, and answers to its id there.
         if o.prompt_variant == BRIDGE_VARIANT and o.model_key in bridges:
             return bridges[o.model_key].model_id
         return pinned.get(o.model_key, "")

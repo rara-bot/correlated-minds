@@ -565,9 +565,11 @@ class TestTheDesignOfADay:
     @pytest.mark.parametrize("day, rows", [
         ("2026-09-01", 270),      # 25 questions x 10 models + 2 replicates each
         ("2026-09-14", 370),      # + the H3 arm: gpt_mid, variants 1-4
-        ("2026-09-20", 395),      # + the bridge: gpt_small on its next route
-        ("2026-10-22", 395),
-        ("2026-10-23", 370),      # the switch: the route IS the model now; no bridge
+        ("2026-09-20", 395),      # + the bridge: gpt_small asked through Azure as well
+        ("2026-10-13", 395),      # the bridge's last day (deviation 24)
+        ("2026-10-14", 370),      # Azure has retired the model: no bridge
+        ("2026-10-22", 370),      # gpt_small's last day
+        ("2026-10-23", 343),      # retired: no host serves it (25 answers + 2 replicates fewer)
     ])
     def test_rows_owed_on_the_registered_dates(self, day, rows):
         assert sum(hc.expected_rows(day, config.TASKS_PER_DAY).values()) == rows
@@ -607,6 +609,35 @@ class TestFailedAnswers:
             jsonl(root / "data" / f"{name}.jsonl", rows)
         got = hc._normalise(hc._record_errors(ctx_for(root, tmp_path)))
         assert [f.status for f in got] == [hc.KNOWN]
+
+
+class TestAFailingBridge:
+    """Since deviation 24 the bridge carries gpt_small nowhere: its failing puts no day at risk."""
+
+    def _continuity(self, tmp_path, monkeypatch, answered):
+        c = {"today": "2026-10-05", "today_state": "done", "today_collected": True, "missing_days": [],
+             "below_floor": [], "window_days": 7, "coverage_window": {"gpt_small": 0.99},
+             "bridge_day": "2026-10-05", "bridge_latest": {"gpt_small": {"answered": answered, "asked": 25}}}
+
+        def check_days(ctx, name, *args, cwd=None, **kw):
+            assert name == "check_days.py"
+            (cwd / "continuity.json").write_text(json.dumps(c), encoding="utf-8")
+            return hc.Proc(0)
+        monkeypatch.setattr(hc, "_script", check_days)
+        root = tmp_path / "r"
+        jsonl(root / "data" / "tasks.jsonl", [])
+        jsonl(root / "data" / "observations.jsonl", [])
+        got = hc._normalise(hc._record_continuity(ctx_for(root, tmp_path)))
+        return [f for f in got if "bridge" in f.summary]
+
+    def test_is_for_claude_to_record_not_an_emergency(self, tmp_path, monkeypatch):
+        got = self._continuity(tmp_path, monkeypatch, answered=0)
+        assert [(f.status, f.severity) for f in got] == [(hc.CLAUDE, "medium")]
+        assert "moves to" not in got[0].summary and "0/25" in got[0].summary
+        assert "no day is at risk" in " ".join(got[0].detail).lower()
+
+    def test_a_healthy_one_says_nothing(self, tmp_path, monkeypatch):
+        assert self._continuity(tmp_path, monkeypatch, answered=25) == []
 
 
 class TestTheFloorIsWatchedAhead:
@@ -687,16 +718,33 @@ class TestVendorPages:
         got = self._assess("azure", "gpt_small route", "openai/gpt-4.1-nano")
         assert [f.status for f in got] == [hc.CLAUDE] and "14 Oct 2026" in got[0].summary
 
-    def test_a_shutdown_is_not_handled_by_a_route_that_retires_first(self, tmp_path):
-        http = FakeHttp({"platform.claude.com": (200, self.FREEZE_PAGE["anthropic"] + " " * 3000),
+    def _http(self):
+        return FakeHttp({"platform.claude.com": (200, self.FREEZE_PAGE["anthropic"] + " " * 3000),
                          "developers.openai.com": (200, self.FREEZE_PAGE["openai"] + " " * 3000),
                          "ai.google.dev": (200, self.FREEZE_PAGE["google"] + " " * 3000),
                          "learn.microsoft.com": (200, self.FREEZE_PAGE["azure"] + " " * 3000)})
-        ctx = hc.Ctx(ROOT, now=NOW, http=http, state_dir=tmp_path / ".health")
+
+    def test_with_deviation_24_both_shutdowns_are_handled(self, tmp_path):
+        ctx = hc.Ctx(ROOT, now=NOW, http=self._http(), state_dir=tmp_path / ".health")
+        got = hc._normalise(hc._vendors_retirements(ctx))
+        assert not [f for f in got if f.severity == "critical"], got
+        known = [f.summary for f in got if f.status == hc.KNOWN]
+        assert any(k.startswith("gpt_small (") and "not asked from 2026-10-23" in k for k in known)
+        assert any(k.startswith("gpt_small bridge") and "2026-10-13" in k for k in known)
+        assert len([f for f in got if f.summary.startswith("gpt_small (")]) == 1   # one row, not one per mention
+
+    def test_a_shutdown_is_not_handled_by_a_route_that_retires_first(self, tmp_path, monkeypatch):
+        # Deviation 23 as it stood on 29 Sep: a route to Azure from 23 Oct, whose host then
+        # moved the model's retirement to 14 Oct. The route handles nothing, and says so once.
+        route = config.ServingRoute(starts="2026-10-23", provider="openrouter_azure",
+                                    model_id="openai/gpt-4.1-nano", supports_logprobs=False)
+        monkeypatch.setattr(config, "SERVING_ROUTES", {"gpt_small": route})
+        monkeypatch.setattr(config, "RETIREMENTS", {})
+        monkeypatch.setattr(config, "BRIDGE_ROUTES", {})
+        ctx = hc.Ctx(ROOT, now=NOW, http=self._http(), state_dir=tmp_path / ".health")
         got = hc._normalise(hc._vendors_retirements(ctx))
         small = [f for f in got if f.summary.startswith("gpt_small (")]
-        assert len(small) == 1, small                       # one row, not one per mention
-        assert small[0].status == hc.INFO and "retires first" in small[0].summary
+        assert len(small) == 1 and small[0].status == hc.INFO and "retires first" in small[0].summary
         critical = [f for f in got if f.severity == "critical"]
         assert len(critical) == 1 and critical[0].summary.startswith("gpt_small route")
 
@@ -819,12 +867,14 @@ class TestIssues:
 
 
 class TestMoney:
-    def test_the_route_switch_moves_the_spend_to_openrouter(self):
+    def test_the_spend_follows_the_registered_design_day_by_day(self):
         rate = {("gpt_small", False): 1.0, ("gpt_small", True): 0.5}
-        before = hc.vendor_need(rate, [date(2026, 10, 22)])
-        after = hc.vendor_need(rate, [date(2026, 10, 23)])
-        assert before.get("openai") == 1.0 and before.get("openrouter") == 0.5
-        assert after.get("openrouter") == 1.0 and not after.get("openai")
+        bridged = hc.vendor_need(rate, [date(2026, 10, 13)])
+        after_bridge = hc.vendor_need(rate, [date(2026, 10, 14)])
+        retired = hc.vendor_need(rate, [date(2026, 10, 23)])
+        assert bridged.get("openai") == 1.0 and bridged.get("openrouter") == 0.5
+        assert after_bridge.get("openai") == 1.0 and not after_bridge.get("openrouter")
+        assert not retired.get("openai") and not retired.get("openrouter")
 
     def test_a_balance_you_read_is_drawn_down_by_the_study_and_warns_in_time(self, tmp_path):
         today = NOW.date()

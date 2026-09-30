@@ -598,8 +598,8 @@ def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False,
     noise -- see stats.test_retest_reliability and PREREGISTRATION.md 5.4(d).
 
     `variant` pairs variant 0 with another reserved variant instead: the bridge
-    (`config.BRIDGE_VARIANT`, deviation 23) is the same question put to the same
-    model through the route it moves to, so it pairs exactly as a replicate does.
+    (`config.BRIDGE_VARIANT`, deviations 23 and 24) is the same question put to the
+    same model through a second host, so it pairs exactly as a replicate does.
     """
     from .config import REPLICATE_VARIANT
 
@@ -640,13 +640,13 @@ def load_replicate_pairs(obs_path=OBS_PATH, include_mock: bool = False,
 
 
 def bridge_report(obs_path=OBS_PATH, include_mock: bool = False) -> Dict[str, Dict[str, float]]:
-    """Does a model answer the same on the route it moves to? (deviation 23)
+    """Does a model answer the same through a second host? (deviations 23 and 24)
 
     For each model with bridge rows: how many questions were answered on both
     routes, the share answered with the identical probability, the mean absolute
     difference, and the test-retest statistics of 5.4(d) computed across routes.
     Beside it, for the same model, the same statistics from its own replicates --
-    the noise the route change has to be judged against. Forecasts only: nothing
+    the noise a change of host has to be judged against. Forecasts only: nothing
     here reads an outcome, so it is the same number blind or unblinded.
     """
     from .config import BRIDGE_VARIANT

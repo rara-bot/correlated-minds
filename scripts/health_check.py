@@ -1141,9 +1141,13 @@ def _record_continuity(ctx: Ctx):
                            detail=["See record.errors for what its failures say."]))
     for m, b in (c.get("bridge_latest") or {}).items():
         if b.get("asked") and b.get("answered", 0) < 0.8 * b["asked"]:
-            out.append(Finding(CLAUDE, f"the route {m} moves to on its retirement answered only "
-                               f"{b.get('answered')}/{b['asked']} on {c.get('bridge_day')} (deviation 23)",
-                               severity="high", playbook="record.continuity"))
+            out.append(Finding(CLAUDE, f"the bridge that asks {m} through a second host answered only "
+                               f"{b.get('answered')}/{b['asked']} on {c.get('bridge_day')} (deviations 23-24)",
+                               severity="medium", playbook="record.continuity",
+                               detail=["No day is at risk: since deviation 24 the bridge carries the model "
+                                       "nowhere.",
+                                       "If the host has retired the model early, record the bridge's early end "
+                                       "in PREREGISTRATION.md 11 for the next addendum."]))
     watching = [m for m, v in (c.get("coverage_window") or {}).items()
                 if v < 0.80 and m not in c.get("below_floor", [])]
     if watching:
@@ -1164,6 +1168,8 @@ def expected_rows(day: str, n_tasks: int) -> Dict[Tuple[str, int], int]:
     if not n_tasks:
         return want
     for spec in config.enabled_panel():
+        if config.retired(spec, day):
+            continue                    # no host serves it (deviation 24)
         want[(spec.key, 0)] = n_tasks
         if config.REPLICATES_PER_DAY:
             want[(spec.key, config.REPLICATE_VARIANT)] = min(config.REPLICATES_PER_DAY, n_tasks)
@@ -1714,7 +1720,7 @@ def _panel_health(ctx: Ctx):
                    f"{d['resolved']} settled, {d['distinct_days']} days")
 
 
-@check("panel.bridge", "gpt_small answers the same on the route it moves to (deviation 23)",
+@check("panel.bridge", "gpt_small answers the same through a second host (deviations 23-24)",
        origin="09-19: OpenAI retires gpt-4.1-nano on 23 Oct; Azure keeps it; both are asked until then")
 def _panel_bridge(ctx: Ctx):
     from neff.panel import bridge_report
@@ -2677,14 +2683,14 @@ def vendor_need(daily_rate: Dict[Tuple[str, bool], float], days: Iterable[date])
     """What each account still pays, following each model's registered route day by day.
 
     `daily_rate[(model_key, is_bridge)]` is the model's spend per day. From a route's
-    start the model bills the route's vendor (gpt_small moves from OpenAI to OpenRouter
-    on 23 Oct), and the bridge -- the same questions on the route-to-be -- stops.
+    start the model would bill the route's vendor; the bridge bills its route's vendor
+    while it runs (to 13 Oct); a retired member costs nothing (gpt_small from 23 Oct).
     """
     need: Dict[str, float] = defaultdict(float)
     for d in days:
         iso = d.isoformat()
         for key, spec in config.panel_by_key().items():
-            if not spec.enabled:
+            if not spec.enabled or config.retired(spec, iso):
                 continue
             need[VENDOR_OF_PROVIDER.get(config.routed(spec, iso).provider, "")] += daily_rate.get((key, False), 0.0)
             bridge = config.bridge_spec(spec, iso)
@@ -2796,7 +2802,7 @@ def retirement_rows(vendor: str, text: str, model_id: str) -> List[Dict[str, Any
 
 
 def assess_retirement(ctx: Ctx, vendor: str, key: str, model_id: str, rows: List[dict],
-                      handled_until: Optional[date]) -> List[Finding]:
+                      handled_until: Optional[date], handled_how: str = "") -> List[Finding]:
     freeze = date.fromisoformat(config.DATA_FREEZE)
     out: List[Finding] = []
     label = f"{key} ({model_id})"
@@ -2826,8 +2832,8 @@ def assess_retirement(ctx: Ctx, vendor: str, key: str, model_id: str, rows: List
         if inside:
             d = min(inside)
             if handled_until and handled_until <= d:
-                out.append(Finding(KNOWN, f"{label}: {vendor} shuts it down on {d:%d %b %Y} -- handled: it moves "
-                                   f"to its registered route on {handled_until:%d %b} (deviation 23)",
+                how = handled_how or f"it moves to its registered route on {handled_until:%d %b} (deviation 23)"
+                out.append(Finding(KNOWN, f"{label}: {vendor} shuts it down on {d:%d %b %Y} -- handled: {how}",
                                    playbook="vendors.retirements"))
             else:
                 out.append(Finding(CLAUDE, f"{label}: {vendor} lists a shutdown on {d:%d %b %Y}, before the freeze",
@@ -2861,17 +2867,27 @@ def _vendors_retirements(ctx: Ctx):
     freeze = date.fromisoformat(config.DATA_FREEZE)
     # Routes first: a route whose own host retires the model before it takes over
     # handles nothing, and the model's own shutdown must not read as handled.
-    targets = []
+    targets: List[Tuple[str, str, str, Optional[date], str]] = []
     for key, route in config.SERVING_ROUTES.items():
         if route.provider == "openrouter_azure":
-            targets.append(("azure", f"{key} route", route.model_id, None))
+            targets.append(("azure", f"{key} route", route.model_id, None, ""))
+    bridge_stops = date.fromisoformat(config.BRIDGE_END) + timedelta(days=1)
+    for key, route in config.BRIDGE_ROUTES.items():
+        if route.provider == "openrouter_azure":
+            targets.append(("azure", f"{key} bridge", route.model_id, bridge_stops,
+                            f"the bridge's last day is {config.BRIDGE_END} (deviation 24)"))
     for spec in config.enabled_panel():
-        if spec.provider in RETIREMENT_PAGES:
-            route = config.SERVING_ROUTES.get(spec.key)
+        if spec.provider not in RETIREMENT_PAGES:
+            continue
+        route, gone = config.SERVING_ROUTES.get(spec.key), config.RETIREMENTS.get(spec.key)
+        if gone:
+            targets.append((spec.provider, spec.key, spec.model_id, date.fromisoformat(gone),
+                            f"it is not asked from {gone}, when no host serves it (deviation 24)"))
+        else:
             targets.append((spec.provider, spec.key, spec.model_id,
-                            date.fromisoformat(route.starts) if route else None))
+                            date.fromisoformat(route.starts) if route else None, ""))
     dead_route: Dict[str, date] = {}
-    for vendor, key, model_id, handled in targets:
+    for vendor, key, model_id, handled, how in targets:
         text = text_of(vendor)
         if text is None:
             out.append(Finding(WATCH, f"could not read {vendor}'s retirement page for {key}", severity="low",
@@ -2892,7 +2908,7 @@ def _vendors_retirements(ctx: Ctx):
             inside = [d for r in rows for d in r.get("dates", []) if ctx.today <= d <= freeze]
             if inside:
                 dead_route[key[:-len(" route")]] = min(inside)
-        if handled and key in dead_route and dead_route[key] <= handled:
+        if handled and key in dead_route and dead_route[key] <= handled and not how:
             got = assess_retirement(ctx, vendor, key, model_id, rows, None)
             for f in got:
                 if f.status == CLAUDE:
@@ -2901,7 +2917,7 @@ def _vendors_retirements(ctx: Ctx):
                                   f"({dead_route[key]:%d %b}); see that finding")
                     f.steps = []
         else:
-            got = assess_retirement(ctx, vendor, key, model_id, rows, handled)
+            got = assess_retirement(ctx, vendor, key, model_id, rows, handled, how)
         out += got
     unique: List[Finding] = []
     for f in out:
@@ -2972,7 +2988,10 @@ def _dates_calendar(ctx: Ctx):
     from neff import prediction
     items = [(_ts(prediction.PUBLISH_NOT_BEFORE), "Week-5 prediction: the publish window opens (a person runs it)")]
     for key, route in config.SERVING_ROUTES.items():
-        items.append((_ts(f"{route.starts}T00:00:00+00:00"), f"{key} moves to {route.provider} (deviation 23)"))
+        items.append((_ts(f"{route.starts}T00:00:00+00:00"), f"{key} moves to {route.provider}"))
+    items.append((_ts(f"{config.BRIDGE_END}T00:00:00+00:00"), "the bridge's last day (deviation 24)"))
+    for key, gone in config.RETIREMENTS.items():
+        items.append((_ts(f"{gone}T00:00:00+00:00"), f"{key} is retired: not asked from this day (deviation 24)"))
     items.append((_ts(f"{_last_ask_day().isoformat()}T00:00:00+00:00"), "the last day questions are asked"))
     items.append((_ts(f"{config.DATA_FREEZE}T00:00:00+00:00"), "data freeze; the registered final look opens after it"))
     for name, d in FAIR_DATES.items():
@@ -2983,32 +3002,43 @@ def _dates_calendar(ctx: Ctx):
     return Finding(INFO, "next: " + (lines[0] if lines else "nothing"), detail=lines)
 
 
-@check("dates.route_switch", "gpt_small answers on its new route from 23 Oct",
-       origin="memory, 09-24: 'On 10-23 confirm gpt_small collected on the Azure route'")
-def _dates_route_switch(ctx: Ctx):
+@check("dates.retirements", "A retired member stops on its day, and the bridge ends on its day",
+       origin="09-30 (deviation 24): gpt_small is not asked from 23 Oct, when no host serves it, and "
+              "the bridge to Azure ends on 13 Oct, the day before Azure retires the model")
+def _dates_retirements(ctx: Ctx):
     out = []
-    for key, route in config.SERVING_ROUTES.items():
-        starts = route.starts
-        if ctx.today.isoformat() < starts:
-            out.append(Finding(INFO, f"{key} switches to {route.provider} on {starts} "
-                               f"(in {(date.fromisoformat(starts) - ctx.today).days} days)"))
+    today = ctx.today.isoformat()
+    for key, gone in sorted(config.RETIREMENTS.items()):
+        if today < gone:
+            out.append(Finding(INFO, f"{key} is asked until {date.fromisoformat(gone) - timedelta(days=1)}; "
+                               f"from {gone} it is retired (deviation 24), in "
+                               f"{(date.fromisoformat(gone) - ctx.today).days} days"))
             continue
-        rows = [o for o in ctx.primary_obs() if o.get("model_key") == key and o["_day"] >= starts
-                and int(o.get("prompt_variant", 0) or 0) == 0]
-        if not rows:
-            out.append(Finding(CLAUDE, f"no {key} answers since its switch on {starts}", severity="critical",
-                               playbook="dates.route_switch"))
-            continue
-        wrong = [o for o in rows if o.get("provider") != route.provider]
-        answered = sum(1 for o in rows if o.get("forecast") is not None)
-        if wrong:
-            out.append(Finding(CLAUDE, f"{len(wrong)} {key} answers since {starts} did not come from {route.provider}",
-                               severity="high", playbook="dates.route_switch"))
-        elif answered < 0.8 * len(rows):
-            out.append(Finding(CLAUDE, f"{key} on {route.provider}: only {answered}/{len(rows)} answered since {starts}",
-                               severity="high", playbook="dates.route_switch"))
+        late = [o for o in ctx.primary_obs() if o.get("model_key") == key and o["_day"] >= gone]
+        if late:
+            out.append(Finding(CLAUDE, f"{key} was asked {len(late)} time(s) after its retirement on {gone}",
+                               severity="high", playbook="dates.retirements",
+                               detail=sorted({o["_day"] for o in late})[:6]))
         else:
-            out.append(Finding(OK, f"{key} has answered on {route.provider} since {starts} ({answered}/{len(rows)})"))
+            out.append(Finding(OK, f"{key} has not been asked since its retirement on {gone}"))
+    if today <= config.BRIDGE_END:
+        out.append(Finding(INFO, f"the bridge runs until {config.BRIDGE_END} (deviation 24)"))
+    else:
+        late = [o for o in ctx.primary_obs() if int(o.get("prompt_variant", 0) or 0) == config.BRIDGE_VARIANT
+                and o["_day"] > config.BRIDGE_END]
+        out.append(Finding(CLAUDE, f"{len(late)} bridge answers after its last day, {config.BRIDGE_END}",
+                           severity="high", playbook="dates.retirements") if late else
+                   Finding(OK, f"the bridge ended on {config.BRIDGE_END}, as registered"))
+    for key, route in sorted(config.SERVING_ROUTES.items()):      # none since deviation 24
+        if today < route.starts:
+            out.append(Finding(INFO, f"{key} moves to {route.provider} on {route.starts}"))
+            continue
+        rows = [o for o in ctx.primary_obs() if o.get("model_key") == key and o["_day"] >= route.starts
+                and int(o.get("prompt_variant", 0) or 0) == 0]
+        wrong = [o for o in rows if o.get("provider") != route.provider]
+        if not rows or wrong:
+            out.append(Finding(CLAUDE, f"{key} is not being answered by its route {route.provider}",
+                               severity="high", playbook="dates.retirements"))
     return out or None
 
 
@@ -3375,10 +3405,12 @@ def _deep_ci_parity(ctx: Ctx):
 
 
 # The instants a date-dependent bug would show itself: the Week-5 window's edges and
-# hold, the route switch, month ends, the last asking days, the freeze, and after it.
+# hold, the bridge's last day and gpt_small's retirement (deviation 24), month ends,
+# the last asking days, the freeze, and after it.
 TIME_TRAVEL_INSTANTS = [
     "2026-10-02 19:59:30", "2026-10-02 20:00:30", "2026-10-02 23:50:00", "2026-10-04 19:59:30",
-    "2026-10-04 20:00:30", "2026-10-22 23:50:00", "2026-10-23 00:05:00", "2026-10-23 13:15:00",
+    "2026-10-04 20:00:30", "2026-10-13 23:50:00", "2026-10-14 00:05:00", "2026-10-14 13:15:00",
+    "2026-10-22 23:50:00", "2026-10-23 00:05:00", "2026-10-23 13:15:00",
     "2026-11-01 13:15:00", "2026-11-02 13:15:00", "2026-12-07 13:15:00", "2026-12-07 23:50:00",
     "2026-12-08 13:15:00", "2026-12-08 23:50:00", "2026-12-10 23:50:00", "2026-12-11 13:15:00",
     "2026-12-11 23:59:30", "2026-12-12 00:05:00", "2026-12-12 23:50:00", "2027-01-05 13:15:00",

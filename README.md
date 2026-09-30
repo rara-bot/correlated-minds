@@ -120,7 +120,7 @@ PREREGISTRATION.md §11.
 |---|---|
 | Daily collection: 10 models, 25 questions, test-retest replicates | ✅ running (GitHub Actions) |
 | H3 prompt-variant arm; Kalshi prices on every question | ✅ from the first run after 13 Sep (deviations 14, 15) |
-| `gpt_small` after OpenAI retires it on 23 Oct | ✅ asked through Azure's copy from that day; both routes asked from 20 Sep so the switch is measured first (deviation 23) |
+| `gpt_small` after 22 Oct | ⏹ not asked from 23 Oct: OpenAI shuts it down that day and Azure retires it on 14 Oct, so no host serves it; the registered 80% rule applies, and a sensitivity keeps all nine models on the questions asked before 23 Oct (deviation 24, withdrawing 23's move) |
 | Estimators: N_eff, block and cluster bootstrap, Benjamini-Hochberg | ✅ tested |
 | Registered exclusions (§3.3, §5.6, deviations 3 and 16) | ✅ applied by the analysis |
 | Primary estimate and every quantity "reported always" | ✅ built; run blind with `scripts/analyze.py` |
@@ -269,7 +269,7 @@ tests/             about 950 tests, run on every push and before every collectio
 |---|---|
 | [EXPLAINER.md](EXPLAINER.md) | Plain-language version — not for use as an abstract |
 | [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment, with its deviation log |
-| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-23, ready to post |
+| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-24, ready to post |
 | [VALIDITY.md](VALIDITY.md) | Do the tasks match how AI is used in finance? Limitations |
 | [AI-USE-LOG.md](AI-USE-LOG.md) | Which parts were written with an AI assistant, for the ISEF rules |
 | [HEALTH-CHECK.md](HEALTH-CHECK.md) | What `scripts/health_check.py` checks, and what to do about each finding |
