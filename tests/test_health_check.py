@@ -991,6 +991,29 @@ class TestSecretsAreFoundAndNeverShown:
         assert you and you[0].severity == "high"
         assert self.FAKE not in json.dumps([f.as_dict() for f in got])
 
+    GOOGLE = "AI" + "za" + "SyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q"
+
+    def _log(self, tmp_path, *records):
+        ctx = hc.Ctx(ROOT, now=NOW, http=FakeHttp(), home=tmp_path / "home", state_dir=tmp_path / ".health")
+        write(hc._transcripts_dir(ctx) / "session.jsonl", "".join(json.dumps(r) + "\n" for r in records))
+        return [f for f in hc._normalise(hc._you_prompt_log(ctx)) if "secrets" in f.summary]
+
+    def test_a_google_key_someone_pasted_is_found(self, tmp_path):
+        got = self._log(tmp_path, {"type": "user", "message": {"content": f"my key is {self.GOOGLE}"}})
+        assert got and "Google key (legacy)" in got[0].summary
+        assert self.GOOGLE not in json.dumps([f.as_dict() for f in got])
+
+    def test_base64_that_happens_to_spell_a_key_is_not_one(self, tmp_path):
+        # 30 Sep: a thinking block's signature, 2,900 characters of base64, held "AIza"
+        # and 47 more key characters. Screenshots and pasted images are base64 too.
+        blob = "Qm9uZ+" * 50 + "x7" + self.GOOGLE + "Kq" * 6 + "/Zm9v" * 50
+        got = self._log(tmp_path,
+                        {"type": "assistant", "message": {"content": [
+                            {"type": "thinking", "thinking": "...", "signature": blob}]}},
+                        {"type": "user", "message": {"content": [
+                            {"type": "image", "source": {"type": "base64", "data": blob}}]}})
+        assert got == []
+
 
 class TestLeftovers:
     def test_only_links_into_deleted_scratch_folders_are_removed(self, tmp_path):

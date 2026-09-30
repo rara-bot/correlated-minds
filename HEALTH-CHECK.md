@@ -462,8 +462,12 @@ kept in writing. The check cannot see these; mark them done with
 
 #### `you.prompt_log`
 The Claude Code transcripts are the prompt log the ISEF rules require. The check
-counts secret-shaped strings in them (never showing one). If it finds a token or
-key, revoke it and make a new one, then `--ack you.github_token`. Never share the
+counts secret-shaped strings in them (never showing one). A key someone pasted or
+a tool printed is found; base64 (thinking-block signatures, screenshots) is not
+read as keys, since four of its characters spell "AIza" now and then (one did on
+30 Sep). If it finds a token or key, check first that it is real (compare its hash
+with `.env`, never print it), then revoke it and make a new one, and
+`--ack you.github_token`. Never share the
 transcripts as they are — ask Claude for a redacted copy. Back them up weekly
 (`--ack you.prompt_log_backup`).
 

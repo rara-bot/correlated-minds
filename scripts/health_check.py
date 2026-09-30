@@ -195,6 +195,13 @@ KEY_PATTERNS = [
     ("GitHub fine-grained token", r"github_pat_[A-Za-z0-9_]{50,}"),
 ]
 _KEY_RE = re.compile("|".join(f"(?P<k{i}>{p})" for i, (_, p) in enumerate(KEY_PATTERNS)))
+# A transcript also holds base64 -- the signature of every thinking block, screenshots,
+# pasted images -- thousands of characters at a time, where four of them spell "AIza"
+# now and then (30 Sep: one thinking signature did). A key someone pasted or a tool
+# printed never starts in the middle of such a run, so the prompt log is read with a
+# boundary in front. Committed files keep the broad patterns, exactly as
+# tests/test_no_secrets_committed.py has them.
+_LOG_KEY_RE = re.compile(r"(?<![A-Za-z0-9+/])(?:" + _KEY_RE.pattern + ")")
 
 
 def _key_kind(match: "re.Match") -> str:
@@ -3278,7 +3285,7 @@ def _you_prompt_log(ctx: Ctx):
             text = f.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        for m in _KEY_RE.finditer(text):
+        for m in _LOG_KEY_RE.finditer(text):
             kinds[_key_kind(m)].add(m.group(0)[-6:])
             where[_key_kind(m)].add(f.name[:8])
     newest = datetime.fromtimestamp(max(f.stat().st_mtime for f in files), timezone.utc)
