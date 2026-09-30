@@ -187,3 +187,19 @@ class TestTheMachineDoesNotChangeUnderTheStudy:
             action, _, version = ref.partition("@")
             major = int(re.match(r"v(\d+)", version).group(1))
             assert major >= self.NODE24[action], f"{ref} declares node20"
+
+
+class TestADayGetsThreeChancesToRun:
+    # 2026-09-28: the 13:10 run never started on its day and the 20:00 run alone
+    # collected it. A run that starts after midnight UTC collects the next day, so a
+    # day whose other runs are delayed or dropped is lost for good. `neff.collect` is
+    # idempotent, so an extra slot costs nothing and adds a chance.
+    def _slots(self):
+        return sorted((int(h), int(m)) for m, h in re.findall(r'cron:\s*"(\d+) (\d+) \* \* \*"', _text()))
+
+    def test_the_original_two_slots_are_kept(self):
+        assert (13, 10) in self._slots() and (20, 0) in self._slots()
+
+    def test_a_third_slot_falls_between_them_off_the_top_of_the_hour(self):
+        middle = [s for s in self._slots() if (13, 10) < s < (20, 0)]
+        assert middle and all(minute != 0 for _, minute in middle)

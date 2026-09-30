@@ -169,12 +169,13 @@ then run the workflow by hand.
 Whether the daily job got its chances to run each day. GitHub delays scheduled
 runs by hours and sometimes drops them, and a run that starts after midnight UTC
 collects the *next* day. On 28 Sep the 13:10 run never started on its day and the
-20:00 run alone collected it. A `watch` here means a day ended up with one run or
-none. What to do: add a third daily slot between the two, at a minute off the top
-of the hour (when GitHub's scheduler is busiest). A rerun is free — the collector
-skips everything already asked — so a slot adds a chance, not a cost. Workflow
-changes: a test in `tests/test_workflow_commit.py`, an AI-USE-LOG entry, and push
-with the student's OK.
+20:00 run alone collected it, so on 29 Sep a third slot was added between the two
+(16:41 UTC — off the top of the hour, when GitHub's scheduler is busiest). A rerun
+is free: the collector skips everything already asked. A `watch` here means a day
+still ended up with one run or none. If that recurs: compare the typical delays
+the finding prints, and move the 20:00 slot earlier so its usual delay cannot
+carry it past midnight. Workflow changes: a test in
+`tests/test_workflow_commit.py`, an AI-USE-LOG entry, and push with the student's OK.
 
 #### `ci.steps`
 A step marked `continue-on-error` can fail every day inside a green run. Any

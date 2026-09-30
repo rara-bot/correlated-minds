@@ -27,6 +27,14 @@ on:
     # try: `neff.collect` exposes no `--as-of`, because a forecast collected
     # today and stamped yesterday would be a fabricated observation.
     - cron: "0 20 * * *"
+    # Third chance, between the two. On 2026-09-28 the 13:10 run never started on
+    # its day, and the 20:00 run alone collected it. The evening run usually starts
+    # around 22:45, about an hour before midnight UTC, and a run that starts after
+    # midnight collects the NEXT day, so a day left with one run is one queue delay
+    # from being lost for good. A rerun is free -- the collector skips everything
+    # already asked -- so another slot only adds a chance. 16:41, not 16:00: GitHub's
+    # scheduler is busiest at the top of the hour, when it delays and drops the most.
+    - cron: "41 16 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
