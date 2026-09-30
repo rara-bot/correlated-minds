@@ -152,6 +152,22 @@ suite with the clock set to every remaining day to 14 December, and to dates in
 January and February 2027, and found no date on which it fails; no test opens the
 real record unblinded on any date.
 
+A session on 2026-09-29/30 UTC wrote `scripts/health_check.py`, `HEALTH-CHECK.md`,
+the Claude Code skill `.claude/skills/check/SKILL.md` and
+`tests/test_health_check.py`, **without a deviation number**: it is operator
+tooling. It reads the record, GitHub's and the vendors' public pages and the public
+copies of the plan, and the only things it can change are on this Mac -- bringing
+this copy up to date with GitHub, and putting back anything written into `data/`
+here, which only the daily job may write. It is the September check-ins written
+down as one command: what each one checked, what it learned is not a defect, and
+what to do when a finding is real. It cannot unblind: its runner refuses
+`--unblind`, `--publish` and `--evaluate`, no line of it reads an outcome, and the
+tests hold both. On its first run it found that Microsoft now lists 14 October
+2026 for the Azure retirement of `gpt-4.1-nano` -- 2027-04-14 when deviation 23 was
+written on 19 September -- which is before the 23 October switch deviation 23
+registers. What to do about that is your decision, recorded separately when you
+make it.
+
 The 8 commits without a trailer, for you to check against your own memory:
 
 | Commit | Date | Message |
@@ -169,11 +185,13 @@ The 8 commits without a trailer, for you to check against your own memory:
 
 ## The prompt log
 
-Claude Code keeps a transcript of every session. On this Mac there are 29 of them
-in `~/.claude/projects/-Users-rajankhiani-r1/`, from 19 Aug to 19 Sep 2026. **They
-are not in this repository.** Copy that folder somewhere safe now, and again after
-each working session, and keep it with your research notebook: it is the prompt
-log the rules require. Sessions before 19 Aug, if any, are not on this machine.
+Claude Code keeps a transcript of every session. On this Mac there are 35 of them
+in `~/.claude/projects/-Users-rajankhiani-r1/`, from 16 Aug to 29 Sep 2026 (counted
+on 30 Sep). **They are not in this repository.** Copy that folder somewhere safe
+now, and again after each working session, and keep it with your research
+notebook: it is the prompt log the rules require. Before you share it with anyone,
+ask Claude for a redacted copy: `scripts/health_check.py` reports any key or token
+that was pasted into a chat and is still sitting in it.
 
 ---
 

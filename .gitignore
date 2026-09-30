@@ -26,3 +26,7 @@ continuity.json
 
 # scratch output of scripts/milestones.py --json
 milestones.json
+
+# scripts/health_check.py: reports, private state (balances), quarantine and
+# backups. The folder also ignores itself, so this line is belt and braces.
+.health/
