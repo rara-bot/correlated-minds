@@ -1,0 +1,742 @@
+{
+  "asked_on_or_before": "2026-10-02",
+  "blind": false,
+  "h1": {
+    "claim": {
+      "falsified": false,
+      "tercile_contrasts_supporting": [
+        "ambiguity"
+      ],
+      "variables_against": [],
+      "variables_supporting": []
+    },
+    "provisional": false,
+    "questions": 49,
+    "registered": {
+      "falsified": false,
+      "tercile_contrasts_supporting": [
+        "ambiguity"
+      ],
+      "variables_against": [],
+      "variables_supporting": []
+    },
+    "settlements": 16,
+    "stress_leg_untested": false
+  },
+  "models": [
+    "claude_sonnet",
+    "claude_haiku",
+    "gpt_mid",
+    "gemini_flash",
+    "gpt_small",
+    "gemini_flash_pro",
+    "llama",
+    "qwen",
+    "deepseek"
+  ],
+  "models_excluded": {},
+  "regression": {
+    "abs_surprise_regression": {
+      "clusters": 15,
+      "coefficients": {
+        "abs_surprise": {
+          "beta": -0.02363544001652014,
+          "estimable": true,
+          "p": 0.463650848194216,
+          "se": 0.031368747400487146,
+          "t": -0.7534709535820704
+        },
+        "days_out": {
+          "beta": -0.026168795160416765,
+          "estimable": true,
+          "p": 0.3814957150561611,
+          "se": 0.02896077402123973,
+          "t": -0.903594466820005
+        },
+        "expectation_dispersion": {
+          "beta": 0.0015282881396376403,
+          "estimable": true,
+          "p": 0.8685232282636846,
+          "se": 0.009064604907323132,
+          "t": 0.16859953139303
+        },
+        "ladder_distance": {
+          "beta": -0.03844809038285771,
+          "estimable": true,
+          "p": 0.014385480713435933,
+          "se": 0.013767350870990286,
+          "t": -2.7927006976972715
+        },
+        "novelty_score": {
+          "beta": 0.010181283654352568,
+          "estimable": true,
+          "p": 0.39778656305737525,
+          "se": 0.011672478586896982,
+          "t": 0.8722469335503117
+        },
+        "realized_vol_20d": {
+          "beta": -0.02234496194479738,
+          "estimable": true,
+          "p": 0.4249258709878476,
+          "se": 0.027187878736027606,
+          "t": -0.8218722086319773
+        },
+        "vix_level": {
+          "beta": 0.016755158072651925,
+          "estimable": true,
+          "p": 0.26443610908091925,
+          "se": 0.01441208223471103,
+          "t": 1.1625771904282973
+        }
+      },
+      "coverage": 0.5157894736842106,
+      "df": 14,
+      "estimable": true,
+      "pair_rows": 1716,
+      "task_days": 49,
+      "variables": [
+        "ladder_distance",
+        "vix_level",
+        "realized_vol_20d",
+        "expectation_dispersion",
+        "days_out",
+        "novelty_score",
+        "abs_surprise"
+      ]
+    },
+    "abs_surprise_task_days": 49,
+    "coverage": {
+      "abs_surprise": 0.5157894736842106,
+      "days_out": 1.0,
+      "expectation_dispersion": 1.0,
+      "ladder_distance": 0.7684210526315789,
+      "novelty_score": 1.0,
+      "realized_vol_20d": 1.0,
+      "vix_level": 1.0
+    },
+    "joint": {
+      "clusters": 39,
+      "coefficients": {
+        "days_out": {
+          "beta": -0.02742653282742987,
+          "estimable": true,
+          "p": 0.15782621565246807,
+          "se": 0.01903540951485882,
+          "t": -1.440816537517674
+        },
+        "expectation_dispersion": {
+          "beta": -0.06341175021328901,
+          "estimable": true,
+          "p": 0.039599180547612335,
+          "se": 0.02975365960436703,
+          "t": -2.131225236037247
+        },
+        "ladder_distance": {
+          "beta": -0.07010682219777675,
+          "estimable": true,
+          "p": 0.025151744984362446,
+          "se": 0.0300743071471981,
+          "t": -2.3311201104198447
+        },
+        "novelty_score": {
+          "beta": 0.0594573609778236,
+          "estimable": true,
+          "p": 0.010125162488727179,
+          "se": 0.021967413929152812,
+          "t": 2.7066163167671786
+        },
+        "realized_vol_20d": {
+          "beta": 0.007096322504893142,
+          "estimable": true,
+          "p": 0.6970589941961041,
+          "se": 0.018090948319166408,
+          "t": 0.39225818236266596
+        },
+        "vix_level": {
+          "beta": -0.020393545618609427,
+          "estimable": true,
+          "p": 0.21818651300390407,
+          "se": 0.016287510790510024,
+          "t": -1.2520971363218865
+        }
+      },
+      "coverage": 0.7684210526315789,
+      "df": 38,
+      "estimable": true,
+      "pair_rows": 2540,
+      "task_days": 73,
+      "variables": [
+        "ladder_distance",
+        "vix_level",
+        "realized_vol_20d",
+        "expectation_dispersion",
+        "days_out",
+        "novelty_score"
+      ]
+    },
+    "verdicts": {
+      "abs_surprise": {
+        "beta": -0.02363544001652014,
+        "bh_reject": false,
+        "p": 0.463650848194216,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "days_out": {
+        "beta": -0.02742653282742987,
+        "bh_reject": false,
+        "p": 0.15782621565246807,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "expectation_dispersion": {
+        "beta": -0.06341175021328901,
+        "bh_reject": false,
+        "p": 0.039599180547612335,
+        "registered_direction": -1,
+        "verdict": "not significant"
+      },
+      "ladder_distance": {
+        "beta": -0.07010682219777675,
+        "bh_reject": false,
+        "p": 0.025151744984362446,
+        "registered_direction": -1,
+        "verdict": "not significant"
+      },
+      "novelty_score": {
+        "beta": 0.0594573609778236,
+        "bh_reject": false,
+        "p": 0.010125162488727179,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "realized_vol_20d": {
+        "beta": 0.007096322504893142,
+        "bh_reject": false,
+        "p": 0.6970589941961041,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "vix_level": {
+        "beta": -0.020393545618609427,
+        "bh_reject": false,
+        "p": 0.21818651300390407,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      }
+    }
+  },
+  "regression_per_event_ladder": {
+    "abs_surprise_regression": {
+      "clusters": 15,
+      "coefficients": {
+        "abs_surprise": {
+          "beta": -0.017214991907645947,
+          "estimable": true,
+          "p": 0.5978550404096403,
+          "se": 0.03189478704629499,
+          "t": -0.539743121114386
+        },
+        "days_out": {
+          "beta": -0.02551738118722765,
+          "estimable": true,
+          "p": 0.3810936927748195,
+          "se": 0.02821534929531408,
+          "t": -0.9043794184559502
+        },
+        "expectation_dispersion": {
+          "beta": 0.0026364134386792984,
+          "estimable": true,
+          "p": 0.757855281811301,
+          "se": 0.008385595495110464,
+          "t": 0.314397879103107
+        },
+        "ladder_distance": {
+          "beta": -0.04180121679707065,
+          "estimable": true,
+          "p": 0.0156825781490053,
+          "se": 0.015207202149768296,
+          "t": -2.7487776111207642
+        },
+        "novelty_score": {
+          "beta": 0.013628033290368182,
+          "estimable": true,
+          "p": 0.26196130142748697,
+          "se": 0.011658825309996405,
+          "t": 1.1689027777681305
+        },
+        "realized_vol_20d": {
+          "beta": -0.020415078441470492,
+          "estimable": true,
+          "p": 0.44109496937020576,
+          "se": 0.025748973098110507,
+          "t": -0.7928501988674871
+        },
+        "vix_level": {
+          "beta": 0.01724964953506776,
+          "estimable": true,
+          "p": 0.25208216188370847,
+          "se": 0.014439433998481112,
+          "t": 1.1946208928190853
+        }
+      },
+      "coverage": 0.5157894736842106,
+      "df": 14,
+      "estimable": true,
+      "pair_rows": 1716,
+      "task_days": 49,
+      "variables": [
+        "ladder_distance",
+        "vix_level",
+        "realized_vol_20d",
+        "expectation_dispersion",
+        "days_out",
+        "novelty_score",
+        "abs_surprise"
+      ]
+    },
+    "abs_surprise_task_days": 49,
+    "coverage": {
+      "abs_surprise": 0.5157894736842106,
+      "days_out": 1.0,
+      "expectation_dispersion": 1.0,
+      "ladder_distance": 0.7684210526315789,
+      "novelty_score": 1.0,
+      "realized_vol_20d": 1.0,
+      "vix_level": 1.0
+    },
+    "joint": {
+      "clusters": 39,
+      "coefficients": {
+        "days_out": {
+          "beta": -0.017971236560802552,
+          "estimable": true,
+          "p": 0.3747846832830264,
+          "se": 0.020010157725328624,
+          "t": -0.8981056924931067
+        },
+        "expectation_dispersion": {
+          "beta": -0.07414021200935511,
+          "estimable": true,
+          "p": 0.014067613966901878,
+          "se": 0.028800723233169078,
+          "t": -2.574248271792344
+        },
+        "ladder_distance": {
+          "beta": -0.07517191513937688,
+          "estimable": true,
+          "p": 0.01282392166052095,
+          "se": 0.02878104900262846,
+          "t": -2.6118545968394593
+        },
+        "novelty_score": {
+          "beta": 0.04824044222615005,
+          "estimable": true,
+          "p": 0.04080714677299351,
+          "se": 0.022780394662374245,
+          "t": 2.1176297839048184
+        },
+        "realized_vol_20d": {
+          "beta": 0.019755864716578718,
+          "estimable": true,
+          "p": 0.21738513077368704,
+          "se": 0.015750206359604682,
+          "t": 1.2543241825229376
+        },
+        "vix_level": {
+          "beta": -0.01901585204041844,
+          "estimable": true,
+          "p": 0.24076411828830693,
+          "se": 0.015956754930511068,
+          "t": -1.191711731064945
+        }
+      },
+      "coverage": 0.7684210526315789,
+      "df": 38,
+      "estimable": true,
+      "pair_rows": 2540,
+      "task_days": 73,
+      "variables": [
+        "ladder_distance",
+        "vix_level",
+        "realized_vol_20d",
+        "expectation_dispersion",
+        "days_out",
+        "novelty_score"
+      ]
+    },
+    "verdicts": {
+      "abs_surprise": {
+        "beta": -0.017214991907645947,
+        "bh_reject": false,
+        "p": 0.5978550404096403,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "days_out": {
+        "beta": -0.017971236560802552,
+        "bh_reject": false,
+        "p": 0.3747846832830264,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "expectation_dispersion": {
+        "beta": -0.07414021200935511,
+        "bh_reject": true,
+        "p": 0.014067613966901878,
+        "registered_direction": -1,
+        "verdict": "supports H1"
+      },
+      "ladder_distance": {
+        "beta": -0.07517191513937688,
+        "bh_reject": true,
+        "p": 0.01282392166052095,
+        "registered_direction": -1,
+        "verdict": "supports H1"
+      },
+      "novelty_score": {
+        "beta": 0.04824044222615005,
+        "bh_reject": false,
+        "p": 0.04080714677299351,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "realized_vol_20d": {
+        "beta": 0.019755864716578718,
+        "bh_reject": false,
+        "p": 0.21738513077368704,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "vix_level": {
+        "beta": -0.01901585204041844,
+        "bh_reject": false,
+        "p": 0.24076411828830693,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      }
+    }
+  },
+  "regression_settlement_clustered": {
+    "abs_surprise_regression": {
+      "clusters": 5,
+      "coefficients": {
+        "abs_surprise": {
+          "beta": -0.02363544001652014,
+          "estimable": true,
+          "p": 0.6031965852761098,
+          "se": 0.04194537616123985,
+          "t": -0.5634814174907976
+        },
+        "days_out": {
+          "beta": -0.026168795160416765,
+          "estimable": true,
+          "p": 0.517641808650836,
+          "se": 0.036926268705668654,
+          "t": -0.7086769413125004
+        },
+        "expectation_dispersion": {
+          "beta": 0.0015282881396376403,
+          "estimable": true,
+          "p": 0.9048970353114862,
+          "se": 0.012011895753637614,
+          "t": 0.1272312190334171
+        },
+        "ladder_distance": {
+          "beta": -0.03844809038285771,
+          "estimable": true,
+          "p": 0.21112415289446548,
+          "se": 0.025849476770294654,
+          "t": -1.4873836992724339
+        },
+        "novelty_score": {
+          "beta": 0.010181283654352568,
+          "estimable": true,
+          "p": 0.316692987011642,
+          "se": 0.008905214216391845,
+          "t": 1.143294636934377
+        },
+        "realized_vol_20d": {
+          "beta": -0.02234496194479738,
+          "estimable": true,
+          "p": 0.5653594264096176,
+          "se": 0.0357041827684323,
+          "t": -0.6258359724887355
+        },
+        "vix_level": {
+          "beta": 0.016755158072651925,
+          "estimable": true,
+          "p": 0.35393700056898925,
+          "se": 0.015993431664810185,
+          "t": 1.0476274525571483
+        }
+      },
+      "coverage": 0.5157894736842106,
+      "df": 4,
+      "estimable": true,
+      "pair_rows": 1716,
+      "task_days": 49,
+      "variables": [
+        "ladder_distance",
+        "vix_level",
+        "realized_vol_20d",
+        "expectation_dispersion",
+        "days_out",
+        "novelty_score",
+        "abs_surprise"
+      ]
+    },
+    "abs_surprise_task_days": 49,
+    "coverage": {
+      "abs_surprise": 0.5157894736842106,
+      "days_out": 1.0,
+      "expectation_dispersion": 1.0,
+      "ladder_distance": 0.7684210526315789,
+      "novelty_score": 1.0,
+      "realized_vol_20d": 1.0,
+      "vix_level": 1.0
+    },
+    "joint": {
+      "clusters": 10,
+      "coefficients": {
+        "days_out": {
+          "beta": -0.02742653282742987,
+          "estimable": true,
+          "p": 0.3294451962756287,
+          "se": 0.02660159580699409,
+          "t": -1.031010809517634
+        },
+        "expectation_dispersion": {
+          "beta": -0.06341175021328901,
+          "estimable": true,
+          "p": 0.11249920456277464,
+          "se": 0.03605682560083216,
+          "t": -1.7586614782812584
+        },
+        "ladder_distance": {
+          "beta": -0.07010682219777675,
+          "estimable": true,
+          "p": 0.0878054221943155,
+          "se": 0.036615976726320276,
+          "t": -1.9146511568372995
+        },
+        "novelty_score": {
+          "beta": 0.0594573609778236,
+          "estimable": true,
+          "p": 0.053524853153961716,
+          "se": 0.02677718524632241,
+          "t": 2.2204485061023918
+        },
+        "realized_vol_20d": {
+          "beta": 0.007096322504893142,
+          "estimable": true,
+          "p": 0.7935161599570942,
+          "se": 0.02631757981724343,
+          "t": 0.2696419106229362
+        },
+        "vix_level": {
+          "beta": -0.020393545618609427,
+          "estimable": true,
+          "p": 0.35034317829033546,
+          "se": 0.020703260226383614,
+          "t": -0.9850402977894517
+        }
+      },
+      "coverage": 0.7684210526315789,
+      "df": 9,
+      "estimable": true,
+      "pair_rows": 2540,
+      "task_days": 73,
+      "variables": [
+        "ladder_distance",
+        "vix_level",
+        "realized_vol_20d",
+        "expectation_dispersion",
+        "days_out",
+        "novelty_score"
+      ]
+    },
+    "verdicts": {
+      "abs_surprise": {
+        "beta": -0.02363544001652014,
+        "bh_reject": false,
+        "p": 0.6031965852761098,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "days_out": {
+        "beta": -0.02742653282742987,
+        "bh_reject": false,
+        "p": 0.3294451962756287,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "expectation_dispersion": {
+        "beta": -0.06341175021328901,
+        "bh_reject": false,
+        "p": 0.11249920456277464,
+        "registered_direction": -1,
+        "verdict": "not significant"
+      },
+      "ladder_distance": {
+        "beta": -0.07010682219777675,
+        "bh_reject": false,
+        "p": 0.0878054221943155,
+        "registered_direction": -1,
+        "verdict": "not significant"
+      },
+      "novelty_score": {
+        "beta": 0.0594573609778236,
+        "bh_reject": false,
+        "p": 0.053524853153961716,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "realized_vol_20d": {
+        "beta": 0.007096322504893142,
+        "bh_reject": false,
+        "p": 0.7935161599570942,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      },
+      "vix_level": {
+        "beta": -0.020393545618609427,
+        "bh_reject": false,
+        "p": 0.35034317829033546,
+        "registered_direction": 1,
+        "verdict": "not significant"
+      }
+    }
+  },
+  "task_days": 95,
+  "terciles": {
+    "ambiguity": {
+      "cut_high": 0.6052631578947367,
+      "cut_low": 0.5,
+      "day_blocked": {
+        "hi": 1124993661947.2097,
+        "lo": -0.4588478023925992,
+        "undefined_draws": 14
+      },
+      "difference": -0.22024783266283365,
+      "estimable": true,
+      "event_clustered_registered": {
+        "hi": -0.011782610602817555,
+        "lo": -0.6366231971700372,
+        "undefined_draws": 11
+      },
+      "event_clustered_settlement": {
+        "hi": 0.3420622873376952,
+        "lo": -0.5873884994548172,
+        "undefined_draws": 0
+      },
+      "headroom_bottom": 0.2446011169879012,
+      "headroom_top": 0.02435328432506756,
+      "lower_headroom_in_top_tercile": true,
+      "n_bottom": 42,
+      "n_top": 25,
+      "task_days_defined": 73
+    },
+    "stress_vix_level": {
+      "cut_high": 15.72,
+      "cut_low": 14.32,
+      "day_blocked": {
+        "hi": 0.18739321175963006,
+        "lo": -1.8717045411027757,
+        "undefined_draws": 55
+      },
+      "difference": 0.08206268275335948,
+      "estimable": true,
+      "event_clustered_registered": {
+        "hi": 0.19558479463550435,
+        "lo": 0.0020334516525661265,
+        "undefined_draws": 0
+      },
+      "event_clustered_settlement": {
+        "hi": 0.4172589606169499,
+        "lo": -0.09283484067493644,
+        "undefined_draws": 3
+      },
+      "headroom_bottom": 0.0765883002369876,
+      "headroom_top": 0.15865098299034708,
+      "lower_headroom_in_top_tercile": false,
+      "n_bottom": 39,
+      "n_top": 33,
+      "task_days_defined": 95
+    }
+  },
+  "terciles_by_horizon_band": {
+    "15-45": {
+      "ambiguity": {
+        "cut_high": 0.5,
+        "cut_low": 0.5,
+        "estimable": false,
+        "task_days_defined": 20,
+        "why_not": "cut points coincide at 0.5000: no usable variation"
+      },
+      "stress_vix_level": {
+        "cut_high": 15.84,
+        "cut_low": 14.32,
+        "estimable": false,
+        "task_days_defined": 22,
+        "why_not": "bottom tercile holds 9 task-day(s)"
+      }
+    },
+    "3-14": {
+      "ambiguity": {
+        "cut_high": 0.6428571428571436,
+        "cut_low": 0.5,
+        "day_blocked": {
+          "hi": 1124993661947.1702,
+          "lo": -0.345867385117461,
+          "undefined_draws": 23
+        },
+        "difference": -0.17090642503325792,
+        "estimable": true,
+        "event_clustered_registered": {
+          "hi": -0.007187275615393238,
+          "lo": -0.6216498197525842,
+          "undefined_draws": 10
+        },
+        "event_clustered_settlement": {
+          "hi": 0.18832543463804938,
+          "lo": -0.5397805435464967,
+          "undefined_draws": 0
+        },
+        "headroom_bottom": 0.19311993028178187,
+        "headroom_top": 0.022213505248523946,
+        "lower_headroom_in_top_tercile": true,
+        "n_bottom": 25,
+        "n_top": 18,
+        "task_days_defined": 52
+      },
+      "stress_vix_level": {
+        "cut_high": 15.44,
+        "cut_low": 14.32,
+        "day_blocked": {
+          "hi": 0.3054554927416592,
+          "lo": -0.11869137499986476,
+          "undefined_draws": 21
+        },
+        "difference": 0.05426276214460701,
+        "estimable": true,
+        "event_clustered_registered": {
+          "hi": 0.17630555628161598,
+          "lo": -0.012963859243096409,
+          "undefined_draws": 0
+        },
+        "event_clustered_settlement": {
+          "hi": 0.31284003587958753,
+          "lo": -0.11207555663263226,
+          "undefined_draws": 5
+        },
+        "headroom_bottom": 0.07301188675800963,
+        "headroom_top": 0.12727464890261664,
+        "lower_headroom_in_top_tercile": false,
+        "n_bottom": 30,
+        "n_top": 24,
+        "task_days_defined": 70
+      }
+    }
+  }
+}
