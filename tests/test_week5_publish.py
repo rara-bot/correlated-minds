@@ -399,7 +399,10 @@ class TestCheck:
         assert w5.check(now=OPENS - timedelta(days=1)) == 1
         assert "window has not opened" in capsys.readouterr().out
 
-    def test_the_reminder_pulls_and_checks_before_publishing(self):
+    def test_the_reminder_pulls_and_checks_before_publishing(self, tmp_path, monkeypatch):
+        # Not published, whatever this checkout holds: from 2026-10-03 the real
+        # predictions/week5-prediction.json exists and the reminder has no steps.
+        monkeypatch.setattr(milestones, "PREDICTION_FILE", tmp_path / "week5-prediction.json")
         steps = milestones.week5(OPENS - timedelta(days=3)).how
         order = [next(i for i, s in enumerate(steps) if key in s)
                  for key in ("git pull --ff-only", "--check", "--publish", "git push")]
