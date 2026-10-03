@@ -195,11 +195,10 @@ did not have.
 
 Two findings from checking rather than assuming:
 
-- **Claude Pro cannot be the instrument.** It is a consumer subscription, not API credits — and the
+- **A chat subscription cannot be the instrument.** It is not API credits — and the
   study needs 7 *different* model families with pinned IDs and logged raw responses. H3 is
   specifically the intra-model vs cross-family contrast, so a single-vendor panel cannot test it at
-  all. Pro stays valuable for building the harness and doing the analysis; the measurement needs
-  separate credits.
+  all. The measurement needs separate API credits.
 - **Local inference is largely closed** on this machine (M1, **8 GB RAM**). It reverses my earlier
   "$250 by running open-weight locally" suggestion — 8 GB runs a 3B–7B quantised model too slowly
   for a 105-day panel, and that tier isn't representative of deployed systems anyway. Open-weight

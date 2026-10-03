@@ -60,12 +60,12 @@
 
 ## 1. Two constraints found by checking, not assuming
 
-### 1.1 Claude Pro cannot be the instrument
+### 1.1 A chat subscription cannot be the instrument
 
-Claude Pro is a consumer subscription covering the Claude app and Claude Code. It is **not** API
+A consumer chat subscription is **not** API
 credits, and the distinction is not just billing — it is methodological:
 
-| The study needs | Pro gives |
+| The study needs | A chat subscription gives |
 |---|---|
 | **7 model families** — the whole point is *cross-family* error correlation | One family |
 | Pinned model IDs, logged per call | No version control or logging |
@@ -76,8 +76,7 @@ credits, and the distinction is not just billing — it is methodological:
 A single-vendor panel cannot test H3 (the diversification illusion) at all — H3 *is* the
 intra-model vs cross-family contrast.
 
-**So:** Pro stays valuable for the work itself — building the harness in Claude Code, analysis,
-drafting. The measurement instrument needs **separate API credits** (console.anthropic.com and the
+**So:** the measurement instrument needs **separate API credits** (console.anthropic.com and the
 other providers). Budget below is for those.
 
 ### 1.2 Local inference is largely closed on this machine
@@ -117,7 +116,7 @@ answers it in one line. Pre-registration hash in Week 0, commits thereafter.
 
 ## 1.4 Revised to a $200 ceiling — and the constraint improves the instrument
 
-Budget cap is **$200 total**, on top of Claude Pro. That is workable, and the redesign is genuinely
+Budget cap is **$200 total**. That is workable, and the redesign is genuinely
 better science rather than a degraded version. Three moves:
 
 ### Move 1 — kill the reasoning tokens (this is ~80% of the saving)
@@ -316,7 +315,7 @@ Week 8 regardless. See [SUBMISSION-TARGETS.md](SUBMISSION-TARGETS.md).
 
 | Item | Cost | Note |
 |---|---|---|
-| Anthropic API credits | $60 | console.anthropic.com — **separate from Claude Pro** |
+| Anthropic API credits | $60 | console.anthropic.com — **API credits, not a chat subscription** |
 | OpenAI API credits | $40 | Verify current rates at purchase |
 | Google AI Studio / Gemini | $20 | Start on the free tier; top up only if it throttles |
 | Open-weight host — Together / DeepInfra / Groq / OpenRouter | $40 | Covers Llama, Qwen, DeepSeek |

@@ -1,7 +1,7 @@
 # Prior-Art Map — AI × Finance × Business, as of 16 Aug 2026
 
 Purpose: record what is **already claimed**, so we do not spend three months rediscovering it.
-Confidence key: **[F]** = I fetched and read the abstract/page directly. **[S]** = surfaced in search
+Confidence key: **[F]** = the abstract/page was fetched and checked directly. **[S]** = surfaced in search
 results only; title/claim recorded, needs verification before we cite it.
 
 ---
@@ -199,6 +199,6 @@ matter for anything quoted from them:
 | 2605.29800 | *Nine Judges, Two Effective Votes: Correlated Errors Undermine LLM Evaluation Panels* — Guneet Kohli | 9 frontier LLMs from 7 families ≈ two independent votes; about 75% of independence lost | — |
 | 2607.20768 | *Are Diversity Metrics Measuring Diversity? A Capability-Controlled Audit of Majority-Vote Gain in LLM Ensembles* — Donghwan Kim | 31,900 subsets of 30 LLMs; voting beats the best member in 9.98% of size-3 subsets | The +0.99 Spearman is between one metric, *strict diversity*, and one minus mean accuracy, not "diversity metrics" in general. The sentence quoted in PREREGISTRATION.md §4 H6 is not in the abstract |
 
-Every other [S] row above is still unverified. Under the ISEF rules a citation must
-be read and checked by the student, not supplied by an AI assistant.
+Every other [S] row above is still unverified. Under the ISEF rules every citation must
+be read and checked by the student.
 

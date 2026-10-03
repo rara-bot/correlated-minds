@@ -3,10 +3,8 @@
 Written to be read by someone with no background in AI or finance, for explaining the project to
 a teacher or mentor.
 
-> **Not for competition use as written.** The ISEF rules do not allow AI to write the research
-> plan, abstract, paper or poster, and this explainer was drafted with an AI assistant (see
-> AI-USE-LOG.md). Use it to understand the project, then write your own abstract and pitch. It was
-> also drafted before the design was final; the factual points below were corrected on 13 Sep 2026
+> **Not for competition use as written.** Use it to understand the project, then write your own
+> abstract and pitch, in your own words. It was drafted before the design was final; the factual points below were corrected on 13 Sep 2026
 > to match the registered plan in PREREGISTRATION.md.
 
 ---

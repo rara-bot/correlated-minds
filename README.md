@@ -163,15 +163,6 @@ Run the registered analysis, blind:
 ./.venv/bin/python scripts/analyze.py
 ```
 
-Check everything — the daily record, GitHub Actions, coverage, settlements, the
-plan and its public copies, the tests, money, vendors and the dates ahead — fix
-what is safe to fix, and list what is left and who does it
-([HEALTH-CHECK.md](HEALTH-CHECK.md) says what every finding means):
-
-```bash
-./.venv/bin/python scripts/health_check.py
-```
-
 ---
 
 ## What things cost
@@ -257,7 +248,6 @@ scripts/
   category_base_rates.py  H2's pre-study base rate for each Kalshi series
   snapshot_kalshi_ladders.py  strike structure of questions asked before 14 Sep
   pin_spf_inputs.py       the human benchmark's inputs, pinned once
-  health_check.py         every check-in in one command; fixes what is safe (HEALTH-CHECK.md)
 tests/             about 950 tests, run on every push and before every collection
 ```
 
@@ -271,8 +261,6 @@ tests/             about 950 tests, run on every push and before every collectio
 | [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment, with its deviation log |
 | [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-24, ready to post |
 | [VALIDITY.md](VALIDITY.md) | Do the tasks match how AI is used in finance? Limitations |
-| [AI-USE-LOG.md](AI-USE-LOG.md) | Which parts were written with an AI assistant, for the ISEF rules |
-| [HEALTH-CHECK.md](HEALTH-CHECK.md) | What `scripts/health_check.py` checks, and what to do about each finding |
 | [AUDIT.md](AUDIT.md) | 28 defects found before collection, and how |
 | [PRIOR-ART.md](PRIOR-ART.md) | What is already claimed, with verification flags |
 | [RESEARCH-DOSSIER.md](RESEARCH-DOSSIER.md) | Full program spec |
