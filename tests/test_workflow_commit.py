@@ -91,10 +91,12 @@ def runner_checkout(tmp_path):
 
 
 def _run_commit_step(work: Path):
-    # The waits are real minutes in CI; here they only need to happen.
+    # The waits are real minutes in CI; here they only need to happen. The run is
+    # started from `front`, as every scheduled run is (GitHub schedules from the
+    # default branch), so each test below also proves the day lands on `main`.
     script = "sleep() { :; }\n" + _run_script(_step("Commit the day"))
-    env = {"GITHUB_REF_NAME": "main", "PATH": subprocess.os.environ["PATH"],
-           "HOME": str(work.parent)}
+    env = {"RECORD_BRANCH": "main", "GITHUB_REF_NAME": "front",
+           "PATH": subprocess.os.environ["PATH"], "HOME": str(work.parent)}
     return subprocess.run(["bash", "-e", "-c", script], cwd=work, env=env,
                           capture_output=True, text=True)
 
@@ -137,6 +139,64 @@ class TestADayIsNeverReportedSavedWhenItWasNot:
         _git(work, "checkout", "--", "data/")
         done = _run_commit_step(work)
         assert done.returncode == 0 and "no new data" in done.stdout
+
+
+class TestTheRecordStaysOnMain:
+    # The repository's default branch is `front`, a copy of `main` for the front page
+    # (scripts/front_page.py). GitHub starts scheduled runs from the default branch,
+    # so a run that committed to the branch it started from would put the day on
+    # `front` -- off the record. Every run checks out `main` and commits to `main`.
+    def test_the_workflow_names_main_as_the_record(self):
+        assert re.search(r"^env:\n(?:  #.*\n)*  RECORD_BRANCH: main$", _text(), re.M)
+
+    def test_the_checkout_is_the_record_not_the_branch_that_started_the_run(self):
+        checkout = next(block for name, block in _steps() if name.startswith("actions/checkout@"))
+        assert re.search(r"^          ref: \$\{\{ env\.RECORD_BRANCH \}\}$", checkout, re.M)
+
+    def test_the_commit_pushes_to_the_record_branch_only(self):
+        script = _run_script(_step("Commit the day"))
+        assert '"${RECORD_BRANCH}"' in script and '"HEAD:${RECORD_BRANCH}"' in script
+        code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+        assert "GITHUB_REF_NAME" not in code
+
+    @needs_git
+    def test_a_run_started_from_front_commits_the_day_to_main(self, runner_checkout):
+        work, remote = runner_checkout
+        _git(work, "push", "-q", "origin", "HEAD:refs/heads/front")     # the front page exists
+
+        def read(*args):
+            return subprocess.run(["git", *args], cwd=remote, capture_output=True, text=True).stdout.strip()
+
+        front_before = read("rev-parse", "front")
+        done = _run_commit_step(work)
+        assert done.returncode == 0, done.stderr
+        assert read("log", "-1", "--format=%s", "main").startswith("data: collection for")
+        assert read("rev-parse", "front") == front_before
+
+
+class TestTheFrontPageFollowsTheRecord:
+    STEP_NAME = "Show the record on the front page"
+
+    def test_it_runs_after_the_day_is_committed_and_before_the_alarm(self):
+        names = _names()
+        assert names.index("Commit the day") < names.index(self.STEP_NAME) < \
+            names.index("Raise an alarm if a day is at risk")
+
+    def test_it_can_never_fail_the_run_or_be_skipped_by_a_failure(self):
+        block = _step(self.STEP_NAME)
+        assert re.search(r"^        continue-on-error: true$", block, re.M)
+        assert re.search(r"^        if: \$\{\{ !cancelled\(\) \}\}$", block, re.M)
+
+    def test_it_runs_the_front_page_script_as_the_collector(self):
+        block = _step(self.STEP_NAME)
+        assert re.search(r"^        run: python scripts/front_page\.py$", block, re.M)
+        for var in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+            assert re.search(rf"^          {var}: neff-collector$", block, re.M)
+        for var in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+            assert re.search(rf"^          {var}: actions@github\.com$", block, re.M)
+
+    def test_there_is_exactly_one(self):
+        assert _names().count(self.STEP_NAME) == 1
 
 
 class TestTheAlarmSeesTheCommit:

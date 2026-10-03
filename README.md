@@ -16,6 +16,13 @@ study data existed. It was registered on OSF the same day, three days before the
 first observation was collected on 1 Sep; it is public in this repository at
 commit `a300cb58b593`; and it was deposited on Zenodo on 1 Sep.
 
+**The record is the `main` branch.** This front page shows `front`, a copy of
+`main`'s files refreshed after every collection. Every forecast, committed in order
+before its outcome existed, is in [`main`'s history](https://github.com/rara-bot/correlated-minds/commits/main),
+and every commit id cited here, in the registration, in the addenda and in the
+Week-5 prediction is on `main`. A fresh clone checks out `front`; run
+`git switch main` to read the record's history.
+
 Two details a careful reader will find, both recorded in the plan's own deviation
 log (PREREGISTRATION.md §11, deviation 13):
 
@@ -248,6 +255,7 @@ scripts/
   category_base_rates.py  H2's pre-study base rate for each Kalshi series
   snapshot_kalshi_ladders.py  strike structure of questions asked before 14 Sep
   pin_spf_inputs.py       the human benchmark's inputs, pinned once
+  front_page.py           keep the front page (branch front) a copy of main
 tests/             about 950 tests, run on every push and before every collection
 ```
 

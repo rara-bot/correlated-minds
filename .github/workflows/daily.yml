@@ -56,6 +56,14 @@ permissions:
   contents: write
   issues: write     # the alarm below files a durable issue when a day is at risk
 
+env:
+  # The study's record. Every run checks this branch out and commits the day to
+  # it, whichever branch GitHub started the run from. Scheduled runs start from
+  # the default branch, `front`, which only shows `main` on the repository's
+  # front page (scripts/front_page.py says why); nothing is ever committed there
+  # except copies of `main`'s files.
+  RECORD_BRANCH: main
+
 jobs:
   collect:
     # A named image, not `ubuntu-latest`. GitHub moves `ubuntu-latest` to Ubuntu
@@ -72,6 +80,8 @@ jobs:
       # run. Each newer major changes nothing else this workflow uses.
       - uses: actions/checkout@v5
         with:
+          # The record, not whichever branch started the run (see RECORD_BRANCH).
+          ref: ${{ env.RECORD_BRANCH }}
           fetch-depth: 0
 
       - uses: actions/setup-python@v6
@@ -345,9 +355,12 @@ jobs:
           # on `sleep`, which succeeds, so three failed pushes finished green: the
           # day's data gone with the runner, the run reporting success, and no
           # alarm -- the alarm below reads this job's status.
+          #
+          # Always to the record branch, never to GITHUB_REF_NAME: a scheduled run
+          # starts from `front`, and a day pushed there would be a day off the record.
           for i in 1 2 3 4 5 6; do
-            if git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
-               git push origin "HEAD:${GITHUB_REF_NAME}"; then
+            if git pull --rebase --autostash origin "${RECORD_BRANCH}" && \
+               git push origin "HEAD:${RECORD_BRANCH}"; then
               echo "pushed on attempt ${i}"
               exit 0
             fi
@@ -356,6 +369,23 @@ jobs:
           done
           echo "::error::The day was collected but could not be pushed after 6 attempts. The data exists only on this runner and is gone when the job ends. Re-run now: Actions -> daily-collection -> Run workflow."
           exit 1
+
+      - name: Show the record on the front page
+        # The repository's front page is the `front` branch, whose only commits are
+        # copies of `main`'s files (scripts/front_page.py says why). This copies
+        # `main` there as it stands after today's commit, so the page, its README
+        # and the workflow GitHub schedules from it all match the record. It writes
+        # only to `front`, and it cannot fail the run: the day is already on `main`,
+        # and a front page a day behind is still the record, a day late.
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          GIT_AUTHOR_NAME: neff-collector
+          GIT_AUTHOR_EMAIL: actions@github.com
+          GIT_COMMITTER_NAME: neff-collector
+          GIT_COMMITTER_EMAIL: actions@github.com
+        run: python scripts/front_page.py
 
       - name: Raise an alarm if a day is at risk
         # A failed run sends one email, and ten of those went past unread in
