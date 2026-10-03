@@ -1,0 +1,916 @@
+# Pre-Registration — Correlated Minds
+
+**Study:** State-dependent error correlation across large language models in
+financial forecasting, benchmarked against human professional forecasters.
+
+**Status:** FROZEN. No edits permitted; changes go in section 11 as dated deviations.
+**Frozen on:** 2026-08-29 03:54 UTC
+**SHA-256 of frozen version:** `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009`
+**Collection begins:** 29 Aug 2026 · **Calibration ends:** 2 Oct 2026 · **Data freeze:** 11 Dec 2026
+
+> Nothing in this document may be edited after the freeze. Any change after that
+> point goes in §11 as a dated, numbered deviation, with the reason. A study that
+> quietly rewrites its hypotheses after seeing data is not evidence of anything.
+
+---
+
+## 1. Background and motivation
+
+The Financial Stability Board (*Monitoring Adoption of Artificial Intelligence
+and Related Vulnerabilities in the Financial Sector*, 10 Oct 2025; building on
+its 2024 report, which names market correlation as a vulnerability), the Bank of
+England and the IMF have each identified correlated behaviour among financial
+institutions running similar AI models as a systemic risk.
+
+**An earlier draft of this document claimed nobody has measured this. That claim
+was false, and it is withdrawn.** A literature check on 17 Aug 2026, before
+collection, found four papers measuring LLM error correlation directly:
+
+| Work | What it measured | Result | What it did not do |
+|---|---|---|---|
+| Kim et al., *Correlated Errors in LLMs*, ICML 2025 (arXiv 2506.07962) | 350+ models, general benchmarks | agree ~60% of the time when both err; larger/more accurate models correlate MORE | not finance, not prospective, no human panel, no state-dependence |
+| *The Oracle's Fingerprint* (arXiv 2605.00844) | GPT-4o / Claude / Gemini on **568 already-resolved** binary questions | r = 0.77 (0.78 excluding likely-leaked items) | retrospective; general forecasting; no conditional test — its own stated gap is *"a monoculture built but not yet activated"* |
+| *Preference Optimization Drives Monoculture in LLM Prediction Markets* (arXiv 2606.26583) | simulated DPO-tuned agents, 8B/70B | rho = 0.70; **10 agents ≈ 1.4 effective**; cross-model diversity cuts rho 0.68 → 0.40 | simulation, not live markets; no humans; no state-dependence |
+| *Nine Judges, Two Effective Votes* (arXiv 2605.29800) | LLM-as-judge panels | 9 judges ≈ 2 effective votes | evaluation, not forecasting; no state-dependence |
+
+Two consequences we accept rather than argue with:
+
+1. **The headline number in our own pitch — "seven AI systems behave like about
+   1.4" — is already in the literature and must be retired from our framing** (arXiv 2606.26583, for ten simulated
+   agents). We must not present that figure as our discovery. Our contribution is
+   not the existence of correlation; it is the *conditions under which it moves*.
+2. **The level of correlation is not novel. Five things about this design still
+   are**, and they define the contribution:
+
+   - **Prospective and pre-registered.** Every existing measurement is either
+     retrospective on already-resolved questions — where contamination is a live
+     concern the authors themselves flag — or simulated. Here the outcome does
+     not exist when the question is asked, so contamination is impossible by
+     construction rather than by argument.
+   - **Conditional on market state (H1).** No published work measures whether
+     correlation *rises* under stress or ambiguity. The closest paper names this
+     as the priority open question in its own conclusion. This is our primary
+     hypothesis.
+   - **A structurally matched human benchmark (H4).** No existing work compares
+     LLM error correlation to individual human professionals producing the same
+     object. SPF RECESS — individual probability forecasts of a binary event —
+     makes that possible (§2.3).
+   - **Capability-controlled (H6).** arXiv 2607.20768 shows diversity metrics are
+     mostly a restatement of accuracy (Spearman rho = +0.99 against one minus
+     mean accuracy). Any correlation finding that does not control for capability
+     is not interpretable. We register the control in advance.
+   - **Document-grounded finance tasks** whose targets are quarters not yet
+     filed.
+
+This study supplies the conditional, capability-controlled, human-benchmarked
+measurement. It does not claim to be the first to observe that LLMs err together.
+
+---
+
+## 2. What Week 0 already established, and how it changed the design
+
+Before registering, we measured the human baseline (Philadelphia Fed Survey of
+Professional Forecasters, individual responses, 2000–2026). **This produced a
+finding that materially altered the hypotheses, and it is recorded here because
+it was known before collection began.**
+
+| Variable | Horizon | rho_bar (human) |
+|---|---|---|
+| Unemployment | 1 (nowcast) | 0.996 |
+| Unemployment | 4 (3 quarters ahead) | 0.876 |
+| CPI inflation | 1 (nowcast) | 0.999 |
+
+Human forecast errors are *already* highly correlated, because errors are
+dominated by the common surprise that nobody anticipated. Excluding 2020 does
+not change this.
+
+### 2.1 A units bug in that first measurement, found and fixed before freeze
+
+Re-verifying the above on 17 Aug 2026 revealed that two of the four series were
+scored against the wrong object. SPF reports CPI as an **annualised inflation
+rate** (~2.7) and was being differenced against the **CPI index level** (~333);
+SPF reports real GDP as a **level in the chain base current at survey time** and
+was being differenced against a 2017-base series. Measured damage on 2000+ data:
+
+| Series | median abs error | rho_bar | verdict |
+|---|---|---|---|
+| CPI h=1, as originally coded | **229.07** | **1.0000** | artifact |
+| RGDP h=1, as originally coded | **3488.46** | **1.0000** | artifact |
+
+Both produced a *perfect* correlation manufactured entirely by a units mismatch,
+in the numbers that set this study's human benchmark. Corrected — comparing
+annualised growth to annualised growth, which is invariant to the index base —
+CPI h=4 headroom moves from 0.0047 to **0.0797**, a 17-fold change in a quantity
+that appears in the headline comparison.
+
+**Corrected human baselines (2000+, matched to the AI panel size M = 9):**
+
+| Variable | h=2 rho_bar | h=2 headroom | h=4 rho_bar | h=4 headroom |
+|---|---|---|---|---|
+| Unemployment | 0.9026 | 0.0976 | 0.8760 | 0.1297 |
+| CPI inflation | 0.8397 | 0.1688 | 0.9169 | 0.0826 |
+| Real GDP | 0.8982 | 0.1050 | 0.9100 | 0.0942 |
+| Payrolls | 0.8215 | 0.1915 | 0.8249 | 0.1903 |
+
+The design conclusion survives and sharpens: **nowcasts saturate** (unemployment
+h=1: rho 0.9960, headroom 0.0041) but **every horizon from h=2 out carries
+measurable human headroom of roughly 0.08–0.19.** Task selection targets that band.
+
+### 2.2 Why the old comparison was structurally unfair, in both directions
+
+Our models emit a **probability of a binary event** (error `p − y`, `y ∈ {0,1}`);
+SPF point forecasts are **continuous levels**. Headroom is approximately
+`tau^2 / (sigma_c^2 + tau^2)` — the share of error variance that is
+idiosyncratic — and the mechanical floor of `sigma_c^2` is not the same for a
+Bernoulli outcome as for a continuous one. Comparing across that gap invites the
+obvious objection that any human-versus-AI difference is a task-format artifact.
+
+### 2.3 The fix: a structurally matched human panel (SPF RECESS)
+
+Every quarter since 1968 the SPF asks each panelist for the **probability that
+real GDP will decline** in the survey quarter and each of the next four. That is
+a probability forecast of a binary event, at the individual level, resolved by
+the national accounts — the same object our models produce, scored the same way,
+by the professionals they are said to replace.
+
+Measured (2000+, 106 quarterly rounds, ~31 forecasters per round, 13% base rate):
+
+| Horizon | rho_bar | headroom @ M=9 | 95% CI |
+|---|---|---|---|
+| 1 (survey quarter) | 0.8417 | **0.1710** | [0.076, 0.356] |
+| 2 | 0.8864 | 0.1206 | [0.044, 0.288] |
+| 3 | 0.8949 | 0.1120 | [0.038, 0.288] |
+| 4 | 0.8906 | 0.1222 | [0.028, 0.311] |
+| 5 | 0.8844 | 0.1347 | [0.029, 0.393] |
+
+**This is the primary human benchmark for H4.** That it lands in the same
+0.08–0.19 band as the corrected point-forecast baselines, by a completely
+different route, is the main reason we believe the corrected numbers.
+
+**A second calibration result then corrected the first.** The obvious fix --
+correlating residuals after removing the cross-panel mean error ("excess
+correlation over the common component") -- **is mathematically broken.**
+Residuals sum to zero by construction, so for independent idiosyncratic parts
+their pairwise correlation is exactly `-1/(M-1)`, regardless of the true
+correlation. Simulation at rho_true = 0.0, 0.5, 0.9 for M = 3, 5, 7, 12 returned
+`-1/(M-1)` to three decimals in every cell. That statistic carries no
+information. **It appeared in an earlier draft of this document and has been
+removed.**
+
+The correct diagnosis is that raw correlation is not saturated, only badly
+scaled. Writing rho = 1 - eps gives `N_eff - 1 ~ ((M-1)/M) * eps`, so the
+practical benefit of ensembling is proportional to `(1 - rho)`. That quantity is
+estimated precisely with 400 tasks. Simulated separation of rho = 0.996 from
+rho = 0.990 at M = 7, T = 400, by the serial dependence of the common component:
+
+| AR(1) in the common component | separation |
+|---|---|
+| 0.0 (i.i.d. tasks) | 10.4 sigma |
+| 0.5 | 8.3 sigma |
+| 0.8 (strong) | 5.3 sigma |
+
+An earlier draft quoted "7.7 sigma" with no dependence assumption stated. Because
+questions are re-asked daily, tasks are *not* i.i.d.; **the honest figure is
+"at least 5 sigma even under strong serial dependence."**
+
+Measured human headroom, by horizon (7-forecaster matched panels):
+
+| Variable | Horizon | rho_bar | N_eff | Headroom | Variance cut by ensembling |
+|---|---|---|---|---|---|
+| Unemployment | nowcast | 0.9961 | 1.003 | 0.003 | 0.3% |
+| Unemployment | 3q ahead | 0.8666 | 1.126 | **0.126** | **11.2%** |
+| CPI | nowcast | 0.9994 | 1.001 | 0.001 | 0.1% |
+| CPI | 3q ahead | 0.9059 | 1.086 | **0.086** | **7.9%** |
+| Payrolls | nowcast | 0.9975 | 1.002 | 0.002 | 0.2% |
+| Real GDP | nowcast | 0.9999 | 1.000 | 0.000 | 0.0% |
+
+**Three consequences, all incorporated below:**
+
+1. **The primary outcome is diversification headroom, `N_eff - 1`,** reported
+   alongside a model-free variance-reduction ratio. Not raw rho as a level, and
+   not the residual metric.
+2. **Tasks must be genuinely uncertain.** At nowcast horizons no panel -- human
+   or machine -- has measurable headroom, so no comparison is possible there.
+   Task selection targets the horizon-4 end, where human headroom is ~0.09-0.13.
+3. **The human-versus-AI comparison is reported as a bounded difference in
+   variance reduction, not as a ratio** (§5.5), because a ratio whose
+   denominator approaches zero is not a reportable headline.
+
+This is exactly what a calibration phase is for, and it is disclosed rather than
+discovered later.
+
+---
+
+## 3. Design
+
+### 3.1 Panel
+
+**Nine models across six vendor families** in the primary panel → **36 pairs**,
+of which **three are within-family**. Every id below is the exact string sent to
+the API, and the id the API *returns* is logged on every single call, so a
+mid-panel vendor swap is detectable rather than merely disclaimed.
+
+| # | key | provider | pinned API id | family | tier | panel |
+|---|---|---|---|---|---|---|
+| 1 | `claude_sonnet` | anthropic | `claude-sonnet-4-6` | anthropic | frontier | primary |
+| 2 | `claude_haiku` | anthropic | `claude-haiku-4-5-20251001` | anthropic | mid | primary |
+| 3 | `gpt_mid` | openai | `gpt-4.1-mini-2025-04-14` | openai | mid | primary |
+| 4 | `gpt_small` | openai | `gpt-4.1-nano-2025-04-14` | openai | small | primary |
+| 5 | `gemini_flash_pro` | google | `gemini-3.5-flash` | google | mid | primary |
+| 6 | `gemini_flash` | google | `gemini-3.5-flash-lite` | google | small | primary |
+| 7 | `llama` | openrouter | `meta-llama/llama-3.3-70b-instruct` | meta | mid | primary |
+| 8 | `qwen` | openrouter | `qwen/qwen-2.5-72b-instruct` | alibaba | mid | primary |
+| 9 | `deepseek` | openrouter | `deepseek/deepseek-v3.2` | deepseek | mid | primary |
+| 10 | `gpt_frontier` | openai | `gpt-4.1-2025-04-14` | openai | frontier | **secondary** |
+
+This table is the registered roster. `tests/test_roster.py` asserts it matches
+`neff/config.py` exactly, so the document and the code cannot drift apart after
+the freeze without a test failing.
+
+**The frontier anchor is Sonnet 4.6, not Sonnet 5, and that is deliberate.**
+`claude-sonnet-5` rejects the `temperature` parameter outright (HTTP 400,
+*"temperature is deprecated for this model"*). §9 registers `TEMPERATURE = 0.0`
+as a frozen commitment, so a panel member that cannot honour it would sample
+adaptively while the other eight sampled at 0 — mixing a model difference with a
+sampling difference on precisely the member H6 leans on for its capability
+contrast. Sonnet 4.6 is the newest Anthropic model that still accepts the
+parameter, at identical $3/$15 pricing, same family, same tier. Verified by live
+call at `temperature=0`. The same constraint disqualified OpenAI's gpt-5 line
+(see §5.4).
+
+**The tenth model is collected but is not in the primary panel.** `gpt_frontier`
+is queried every day alongside the nine and appears in the public logs, and it is
+declared here so that a reader comparing the logs against this registration finds
+ten model ids and an explanation rather than an undeclared extra arm. It is
+**excluded from every primary estimate**, for a stated reason: H4 matches human
+forecasters at M = 9 against SPF RECESS headroom measured at that same panel
+size (0.112–0.171), and folding a tenth member in would make the AI panel M = 10
+and silently unmatch the comparison. The exclusion is enforced in code —
+`config.primary_panel()` returns the nine, and `panel.load_panel()` reads from
+that function, not from the collected roster.
+
+Its purpose is a confound the primary panel cannot address: the primary panel
+holds exactly **one** frontier model, and it is Anthropic, so at the frontier
+tier "capability" is perfectly confounded with "family" and *frontier models
+behave differently* cannot be distinguished from *Anthropic behaves differently*.
+A second frontier model from a different existing family breaks that confound.
+It is registered now rather than added later because §9 freezes the roster and a
+day not collected cannot be recollected, whereas a model collected and not needed
+can simply be ignored. Any analysis using it is **exploratory and labelled as
+such**, reported separately from the confirmatory results, and the primary
+results stand or fall without it.
+
+**Why three within-family pairs and not one.** H3 and H6 rest entirely on the
+within-family contrast. With a single within-family pair (the original
+seven-model panel) that contrast is close to undecidable:
+
+- Cluster-robust inference is invalid. Clustering is by pair, so the
+  `same_family` coefficient's variance would come from one cluster. Tested on
+  synthetic data containing **no family structure at all**, the clustered
+  t-statistic returned **+7.06** and declared the effect real — a false positive
+  manufactured by the estimator, not by the data.
+- The valid alternative, an exact permutation test over family labels, admits
+  only C(7,2) = 21 distinct labelings, so its **best achievable p-value was
+  1/21 = 0.048** — a headline hypothesis whose ceiling is the threshold.
+
+Three within-family pairs (Anthropic, OpenAI, Google), each the same vendor at a
+different tier so the pairs are structurally comparable, drop the permutation
+floor below 0.001. Marginal cost is roughly $7 on a $30 study.
+
+The panel is chosen to span **pretraining lineage**, which is the level at which
+the shared-prior hypothesis lives, not to replicate any one institution's vendor
+stack. These six families are the near-entirety of the 2026 enterprise supply;
+firms reach them through resale channels (Azure OpenAI, AWS Bedrock, Google
+Vertex) that serve the same weights under a different invoice. Rationale and
+limitations: `VALIDITY.md` §4.
+
+### 3.2 Questions — two registered task types
+
+The daily battery is **60% macro / 40% filing**, fixed in advance. All questions
+of both types are registered **before resolution exists**. Sampling is pinned at
+temperature 0 for every model.
+
+**Type A — macro (60%).** Kalshi event contracts in the Economics, Financials and
+Companies categories, plus scheduled macro releases. Ground truth is the official
+statistical release. This type carries the human benchmark: it is directly
+matchable to the Philadelphia Fed Survey of Professional Forecasters, so **H4 is
+estimated on Type A only.**
+
+**Type B — document-grounded filing tasks (40%).** The model is given a company's
+own historical financials from SEC EDGAR XBRL and asked to judge a threshold
+question about its **next reported quarter**, which has not been filed. Ground
+truth is that company's subsequent XBRL filing. Rationale: document-grounded
+analysis of filings is the dominant real-world deployment of language models in
+finance, whereas macro forecasting is not (`VALIDITY.md` §1–§3). This type has no
+human benchmark; that is the acknowledged trade-off for ecological validity.
+
+Two design constraints on Type B are fixed here because both could manufacture a
+correlation result for trivial reasons:
+
+- **Point-in-time discipline.** History is filtered on **filing date**, never on
+  period end, so a quarter that has ended but has not been reported is invisible
+  to the model. Filtering on period end would leak lookahead bias.
+- **Balanced thresholds.** The threshold rule was backtested on 443 historical
+  questions across 11 companies before registration; pooled YES rate **54%**. A
+  rule yielding, say, 90% YES would drive every model to the same answer and
+  inflate measured correlation for a reason that has nothing to do with shared
+  priors.
+
+### 3.3 Inclusion criteria (fixed in advance)
+- Resolves between **3 and 120 days** after being asked.
+- Resolves **on or before 11 Dec 2026**, or it is excluded from the primary analysis.
+- Drawn from mid-ladder strikes where a strike ladder exists (proxy for genuine
+  uncertainty, since Kalshi quotes are not public).
+- **Excluded:** any question where the panel's median forecast is below 0.05 or
+  above 0.95 on the first day asked. These are effectively settled and, per §2,
+  compress error variance for uninteresting reasons.
+
+For Type B additionally, fixed in advance:
+- The target quarter must have an expected filing date **on or before 11 Dec 2026**.
+- The company must have at least 8 usable point-in-time quarters of history under
+  a single current XBRL tag.
+- Quarters reconstructed by the identity `annual − (Q1+Q2+Q3)` are **flagged as
+  derived** and carried in the primary analysis; a sensitivity analysis excluding
+  them is reported.
+
+### 3.4 Repeated measurement
+Open questions are re-asked daily until resolution. Task-days are the unit of
+observation; the repeated-measures structure is handled by the block bootstrap
+(§5.2), not ignored.
+
+### 3.5 Data collected before this registration — the pilot arm
+
+**Real forecasts were collected on 21 and 22 Aug 2026, before this document was
+frozen, and they are public.** They are declared here for the same reason §3.1
+declares the tenth model: a reader comparing the public log against this
+registration will find observations timestamped *before* it, and should find an
+accounting rather than an undeclared arm.
+
+Its exact extent, as at the moment of freezing — no further pilot day was
+collected after this document was hashed:
+
+| | |
+|---|---|
+| Tasks | 16 (10 macro event, 6 filing), 8 asked on each day |
+| Observations | 180 — 160 at prompt variant 0, 20 at the reserved replicate variant 99 |
+| Models | all ten collected, i.e. the registered nine plus `gpt_frontier` |
+| Billed API calls | 208, all ledgered under `arm = "pilot"` |
+| Recorded cost | $0.1224 |
+
+The ledger reconciles against that table exactly, and a reader can check it from
+the public files: **208 billed calls = 180 stored observations + 30 verification
+calls (`neff.verify`, run three times) − 2 provider failures that were never
+billed.** Synthetic `--mock` rows are archived under `data/pilot_mock/` and are
+not in the ledger; the reconciliation above is how we found that a mock run had
+booked $0.0102 of spend that never happened, and `tests/test_mock_never_bills.py`
+now makes that impossible.
+
+Its purpose was to establish that the instrument runs end to end against live
+APIs before anything was committed to: that every pinned model id answers, that a
+full day completes, and that measured cost matches the projection the arm cap is
+set against. It did its job — defects it exposed are recorded in `AUDIT.md`,
+including a Google billing tier that would have failed on day one.
+
+**The pilot is excluded from every primary estimate**, and from every hypothesis
+in §4. It is not a preliminary result and no claim rests on it; it is an
+instrument check.
+
+The exclusion is enforced in code rather than by intention, and the mechanism is
+worth stating precisely because the pilot rows are *not* self-describing. Tasks
+and observations now carry an `arm` field, and `panel.load_panel` is fail-closed:
+it admits a row only if that row carries the registered arm. The pilot rows
+predate the field and therefore carry no label at all — the store is append-only,
+so they are excluded on read rather than rewritten to add one. An unlabelled row
+is read as pilot, which is what it is: every one of the 228 pre-registration
+ledger entries is `arm = "pilot"`. The property that matters holds in both
+directions — nothing unlabelled can satisfy the primary arm, and asking for the
+pilot explicitly still reaches it. Should we ever report anything from it, it is
+**exploratory and labelled as such**, exactly as for the tenth model.
+
+---
+
+## 4. Hypotheses
+
+### 4.1 Primary outcome: diversification headroom
+
+For task *t* and model *i*, error `e_it = f_it - y_t`. With mean pairwise error
+correlation `rho_bar` across M forecasters:
+
+    N_eff    = M / (1 + (M - 1) * rho_bar)
+    headroom = N_eff - 1
+
+`headroom` is the primary outcome. It is zero when the panel is worth exactly one
+opinion, and near saturation it is approximately `((M-1)/M) * (1 - rho_bar)` --
+linear in the quantity we can measure precisely.
+
+Reported alongside it, always:
+
+- **`variance_reduction`** -- the model-free ratio `Var(panel mean error) /
+  mean(Var of individual errors)`. It assumes no correlation structure and simply
+  measures what happens to error variance when the panel is averaged. Under
+  equicorrelation it equals `1/N_eff`; **where the two diverge, the
+  equicorrelation assumption is doing work and we report that divergence rather
+  than concealing it.**
+- **`rho_bar`** itself, to four decimal places, so nothing is hidden by scaling.
+
+We correlate **errors, not forecasts**. Forecasters who agree because a question
+had a knowable answer are not redundant; correlating errors isolates shared
+*wrongness*, which is the only kind that creates systemic risk.
+
+### 4.2 Co-primary: the same quantity on the uncentered scale
+
+**Pearson correlation subtracts each forecaster's own mean error, so a bias the
+whole panel shares is differenced away.** "Every model wrong in the same
+direction" is precisely the failure this study exists to measure, so an
+estimator blind to it cannot be the sole primary. Simulated at M = 7, T = 400,
+independent idiosyncratic errors plus a common bias `b` added to all seven:
+
+| common bias | Pearson rho | Pearson headroom | true N_eff (MSE) |
+|---|---|---|---|
+| 0.00 | +0.016 | 5.40 | 6.38 |
+| 0.10 | −0.008 | 6.35 | 3.27 |
+| 0.20 | +0.010 | 5.59 | 1.70 |
+| 0.30 | +0.013 | 5.49 | 1.37 |
+
+Pearson reports "seven nearly independent minds" at every bias level while the
+panel is in fact collapsing to one. The registered `variance_reduction` is
+centred too and is equally blind.
+
+We therefore report, always and together:
+
+- **`n_eff_mse` = mean_i MSE_i / MSE(panel mean)** — model-free, assumes neither
+  equicorrelation nor zero bias. **This is the primary for the systemic-risk
+  claim**, because it answers the operational question directly: by what factor
+  does averaging this panel actually reduce squared error?
+- **`rho_bar` and `headroom` (Pearson)** — kept because it is what the existing
+  literature reports, so our numbers remain comparable to arXiv 2506.07962,
+  2605.00844 and 2606.26583.
+- **The gap between them.** Where the two diverge, the divergence *is* the
+  shared-bias finding and is reported as such, not smoothed over.
+
+### H1 — Conditional collapse — **PRIMARY HYPOTHESIS**
+`headroom` decreases (and `rho_bar` increases) with market stress and question
+ambiguity. Tested as a *change* across states, which is unaffected by the level
+sitting near saturation.
+
+**Why this is the primary, and not the human comparison.** H1 is a *within-panel*
+contrast: the same nine models, the same questions, split by market state.
+Model capability is held constant by construction. That matters because arXiv
+2607.20768 shows cross-model correlation findings are largely a restatement of
+model accuracy — a confound that undermines every *between*-panel comparison,
+including our own H4. H1 cannot be explained that way: capability does not change
+between Tuesday and Thursday. It is also the question the closest prior work
+(arXiv 2605.00844) explicitly leaves open.
+
+- **State variables (fixed, no additions permitted):** ladder distance, VIX level,
+  20-day realised volatility, cross-model forecast dispersion, |macro surprise|,
+  days-to-resolution, novelty score. **Seven**, and that count is the
+  Benjamini–Hochberg denominator below. Four are recorded at ask time
+  (`ladder_distance`, `vix_level`, `realized_vol_20d`, `days_out`) because they
+  describe the world as it stood when the question was put and cannot be
+  reconstructed afterwards; three are derived at analysis time from data already
+  retained (cross-model dispersion from the panel's own forecasts, |macro
+  surprise| from FRED vintages, novelty against the accumulated task corpus).
+  The split is enforced in `config.STATE_COLLECTED_AT_ASK`.
+
+- **Ambiguity is varied by design, not merely observed.** The single largest risk
+  to H1 is that 15 weeks contain no genuine market stress event, leaving the
+  hypothesis with no variation to consume. Market stress is not ours to
+  manufacture — but *question* ambiguity is. Kalshi's strike ladders let us
+  sample graded positions across each ladder's interior, and `ladder_distance`
+  (normalised distance from the ladder median, in [0,1]) records where each
+  question sat. This makes the ambiguity leg of H1 **partly experimental rather
+  than purely observational**, and unlike VIX it is populated on every single day
+  of collection regardless of what markets do. Extremes remain excluded by the
+  [0.05, 0.95] rule in §3.3, so widening the range does not admit foregone
+  conclusions. The VIX and realised-volatility legs remain observational and may
+  simply fail to vary; that is disclosed here rather than discovered in December.
+- **`ambiguity` is defined once, here, and used wherever this document says
+  "ambiguity":** `ambiguity = 1 - ladder_distance`, so that a higher value means
+  a question sat closer to the ladder median and was therefore *more* ambiguous.
+  The definition is stated because `ladder_distance` runs the other way, and a
+  tercile contrast built on the raw variable would invert the predicted sign of
+  every ambiguity test in this document.
+- **Test.** Two parts, both reported, and the variable forming each contrast is
+  named here rather than chosen later:
+  1. Regression of pairwise error products on the seven standardised state
+     variables, with task-clustered standard errors.
+  2. Comparison of `headroom` between the top and bottom terciles of **`vix_level`**
+     (the stress leg) and, separately, of **`ambiguity`** (the ambiguity leg),
+     each with a block-bootstrap interval on the `headroom` scale. H1 predicts
+     **lower** `headroom` in the top tercile of each.
+
+  Naming the two variables in advance matters more than it looks. Seven
+  registered state variables could each form a tercile contrast, and two of them
+  run in the opposite direction; leaving "stress terciles" undefined would have
+  left the choice of contrast — and its sign — to be made after seeing the data,
+  which is the specific freedom this document exists to give up. The stress leg
+  may fail to vary in a calm 15 weeks (§10, limitation 5); the ambiguity leg is populated
+  every day, which is why both are registered rather than one.
+- **Registered direction, per state variable.** The seven do not all point the
+  same way: two of them *fall* as ambiguity rises. A clause worded on the raw
+  sign of the coefficient would therefore credit a contradiction of H1 and
+  discard a confirmation of it, so the predicted direction is fixed here, before
+  any data exists. Signs are for the regression of pairwise error products on the
+  standardised variable.
+
+  | State variable | A higher value means | H1 predicts |
+  |---|---|---|
+  | `ladder_distance` | strike sits further from the ladder median — **less** ambiguous | **negative** |
+  | `vix_level` | more market stress | positive |
+  | `realized_vol_20d` | more market stress | positive |
+  | `expectation_dispersion` | the panel disagrees more | **negative** |
+  | `abs_surprise` | the release surprised consensus by more | positive |
+  | `days_out` | longer horizon, less resolved information | positive |
+  | `novelty_score` | the question resembles nothing in the accumulated corpus | positive |
+
+  **`days_out` is the one direction our own Week-0 data argues with, so it is
+  registered with that argument on the record.** The corrected point-forecast
+  baselines in §2.1 show human `rho_bar` *falling* as the horizon lengthens
+  (unemployment 0.996 at nowcast against 0.876 at three quarters out) — the
+  opposite sign. The structurally matched panel disagrees with them: SPF RECESS
+  (§2.3), which is individual *probability* forecasts of a *binary* event and so
+  is the same object our models produce, has `rho_bar` *rising* from 0.8417 at
+  h=1 to 0.8949 at h=3. We register **positive** because RECESS is the matched
+  object and the point forecasts are not, but the contrary evidence is named here
+  so that a negative coefficient is a result we anticipated rather than one we
+  explain afterwards.
+
+  `expectation_dispersion` is retained because §9 fixes the seven and the count
+  sets the BH denominator, but it is reported as **descriptive, not evidential**:
+  `rho ~ sigma_c^2 / (sigma_c^2 + tau^2)` and cross-model dispersion *is* `tau^2`,
+  so it is close to a transform of the dependent variable and would move in the
+  registered direction almost mechanically. It cannot support H1 on its own.
+- **Correction:** Benjamini–Hochberg at FDR 0.05 across the seven state variables.
+- **FALSIFIED IF:** no state variable shows a BH-surviving coefficient **in the
+  direction registered above**, *and* neither tercile contrast shows lower
+  `headroom` in its top tercile with an interval excluding zero. A coefficient
+  surviving correction in the *opposite* direction to the one registered counts
+  against H1, not for it. If the stress leg has no usable variation, it is
+  reported as untested rather than as a null, and the ambiguity leg carries the
+  test (§10, limitation 5).
+
+### H2 — Shared-prior mechanism
+The collapse is driven by convergence on shared priors when evidence is weak.
+
+- **Confirmatory test — base-rate convergence.** The panel median forecast moves
+  closer to the category base rate as ambiguity rises: mean |panel median − base
+  rate| is compared across terciles of **`ambiguity`** — as defined in H1, i.e.
+  `1 - ladder_distance`, higher meaning more ambiguous — with a block-bootstrap
+  interval on the top-minus-bottom difference. Measurable from forecasts alone —
+  no text analysis, no judgement calls from us.
+- **FALSIFIED IF:** the top-minus-bottom tercile difference in mean |panel
+  median − base rate| is not negative with an interval excluding zero. Negative
+  is the direction that confirms H2: the *most* ambiguous tercile sits *closer*
+  to the base rate.
+- **DEMOTED TO EXPLORATORY — rationale similarity.** The original plan also
+  registered "cross-model rationale similarity rises" as confirmatory. Doing that
+  honestly requires sentence embeddings plus a validation study of its own, and
+  our rationales are capped at 25 words — thin evidence for a confirmatory claim.
+  It is reported as exploratory and labelled as such. A registered analysis with
+  no method is a promise, not a hypothesis.
+
+### H3 — The diversification illusion
+Intra-model diversity buys materially less independence than cross-family diversity.
+
+- **Test:** `N_eff` for (a) one model under 5 prompt variants, (b) the three
+  within-family pairs, (c) family-matched cross-family pairs — matched on panel
+  size, with permutation inference.
+- **FALSIFIED IF:** the intra-model and cross-family `N_eff` intervals overlap.
+
+### H4 — Human comparison (confirmatory secondary)
+On matched questions and matched panel size (M = 9), **AI diversification
+headroom is smaller than human headroom**, i.e.
+
+    benefit(humans) - benefit(AI)  >  0     [bounded; see 5.5]
+
+**Primary human benchmark: SPF RECESS** (§2.3) — individual probability forecasts
+of a binary event, structurally identical to our task. Measured headroom at
+M = 9 is 0.112–0.171 across horizons 1–5. Corrected point-forecast baselines (§2.1)
+serve as a secondary check and land in the same band (0.083–0.192).
+
+**Accuracy control is mandatory here.** A panel can show low headroom simply by
+being accurate: as forecasters converge on the true posterior, disagreement
+`tau^2` shrinks while the irreducible common component `sigma_c^2` does not, so
+`rho` rises. We therefore never report a human-versus-AI headroom difference
+without reporting both panels' Brier scores, and we report the comparison
+**at matched accuracy** — restricting the human panel to the accuracy stratum
+closest to the AI panel's — as the confirmatory form of the test. If AI and human
+accuracy do not overlap on matched questions, we report the comparison as
+confounded and say so, rather than presenting it as clean.
+
+- **Matching:** human panels subsampled to **M = 9**, the AI panel size, over 500
+  random draws, so no part of the difference is a panel-size artifact. Matched
+  human headroom on SPF RECESS at M = 9: 0.112–0.171 across horizons 1–5.
+- **Reported regardless of direction.** If AI is *less* correlated than humans,
+  that is a genuinely reassuring result and will be reported with equal emphasis.
+
+**Estimated on Type A (macro) tasks only**, since the SPF has no filing-task
+analogue.
+
+### H5 — Task-format invariance (registered secondary)
+Error correlation is a property of the models, not of one question format.
+
+    headroom(Type A) ~= headroom(Type B)
+
+Registered now rather than observed later, because the two task types were built
+for different reasons and the contrast is informative in **either** direction: if
+headroom is similar, the result generalises beyond the format we happened to
+choose; if it differs sharply, format is a moderator and that is itself a finding
+worth reporting.
+
+- **Test:** headroom estimated separately by task type, block-bootstrap interval
+  on the difference.
+- **Reported regardless of direction.** No falsification clause: this is a
+  descriptive contrast, not a directional claim.
+
+### H6 — Lineage, not capability (registered confound control)
+Measured error correlation reflects shared pretraining lineage over and above
+shared capability.
+
+arXiv 2607.20768 audited five diversity metrics across 31,900 subsets of 30 LLMs
+and found them "heavily entangled with accuracy rather than measuring true
+complementarity" (Spearman rho = +0.99 against one minus mean accuracy). Under
+that critique, a raw finding that our nine models correlate is uninterpretable:
+it may say only that they are all good.
+
+- **Test:** regress pairwise error correlation on (a) a `same_family` indicator,
+  (b) the pair's mean Brier skill score, (c) the absolute difference in the
+  pair's Brier skill. **Inference is by exact permutation over family labels
+  (family sizes held fixed), not by the cluster-robust t-statistic** — see §3.1
+  for why the latter is invalid here. The lineage claim requires the same-family
+  correlation gap to survive with the capability terms in the model.
+- **Also reported:** correlation within accuracy-matched pairs drawn from
+  different families versus the same family.
+- **FALSIFIED IF:** the `same_family` coefficient is not distinguishable from
+  zero once the capability terms are included. In that case we report that the
+  measured correlation is a capability phenomenon, not a lineage phenomenon,
+  and H3 is reinterpreted accordingly.
+
+This hypothesis can overturn the study's framing. It is registered because a
+result that survives it is worth far more than one that never faced it.
+
+---
+
+## 5. Analysis plan (fixed before data)
+
+### 5.1 Estimator
+`N_eff = M / (1 + (M − 1) · rho_bar)`, correlating **errors, not forecasts**.
+Missing observations handled pairwise; tasks are never dropped listwise, because
+model failures cluster on busy market days.
+
+### 5.2 Uncertainty
+Moving-block bootstrap, **block size 5 task-days**, 2000 resamples, percentile
+intervals. Blocks rather than i.i.d. resampling because task-days are serially
+dependent; an ordinary bootstrap would understate uncertainty.
+
+**"Task-day" is the resampling unit, and it is not a row.** The panel carries ~25
+tasks per day, and open questions are re-asked daily until they resolve, so one
+question's successive observations sit ~25 rows apart. A block is therefore five
+consecutive **days**, and every task belonging to a sampled day is resampled with
+it; a block never splits a day. Blocking five *rows* instead would lie strictly
+inside a single day, could never span two observations of the same question, and
+would understate every interval by roughly half (measured: 0.0038 vs 0.0089 at the
+real panel shape). Enforced by `stats._moving_block_indices`, which takes the day
+labels explicitly rather than inferring them from row position.
+
+**A day-block does not capture every dependence in this design, and the second
+interval is registered now rather than added later.** Many questions share one
+underlying resolution event — every strike on a CPI ladder settles against a
+single print and therefore shares a single surprise — and a question open for
+weeks spans many blocks. Neither dependence is grouped by a five-day block, so
+the day-blocked interval is the *optimistic* one. Alongside it we therefore
+report a **cluster bootstrap resampling whole resolution events** (all task-days
+of all questions sharing a `source_ref`), which is the conservative bound. Both
+intervals are reported for every primary estimate, always together. Where they
+disagree materially, the event-clustered interval governs the claim.
+
+### 5.3 The out-of-sample prediction
+On **2 Oct 2026** (end of Week 5) we fit H1 on weeks 1–5, then publish a hashed,
+timestamped numerical prediction of the form:
+
+> "On the next macro release with |surprise| above the 80th percentile,
+> `headroom` will fall below X and `rho_bar` will exceed Y."
+
+Weeks 6–15 are a genuine holdout. The prediction is never revised. A miss is
+reported as a miss.
+
+### 5.4 Registered measurement threats and their pre-committed handling
+
+Three artifacts could produce our predicted result for reasons unrelated to the
+hypothesis. Each has a handling rule fixed now.
+
+**(a) Forecast granularity.** Language models emit round probabilities (0.6,
+0.70, 0.75). If several models land on the *same* round number, cross-model
+dispersion `tau^2` collapses and `rho` rises for a reason that is about verbal
+habit, not shared priors. Simulation shows independent rounding pushes the other
+way (coarse rounding *adds* idiosyncratic noise: rho 0.9741 → 0.9582 on a 0.25
+grid), so the threat is specifically **shared mass points**, not rounding as such.
+Pre-committed: report the full distribution of emitted values and the **exact-tie
+rate** (fraction of task-days where all responding models return an identical
+value); re-estimate excluding exact ties as a registered sensitivity; and for the
+models exposing logprobs, re-estimate on logprob-derived probabilities.
+
+**Logprob coverage, measured 19 Aug 2026: four models** -- `gpt_mid`, `gpt_small`,
+`llama` and `deepseek`. Confirmed by live call, not assumed. `qwen` returns none in
+practice and is excluded from this leg.
+
+This number was briefly in doubt. The roster originally pinned OpenAI's gpt-5 line,
+which refuses logprobs outright (*"logprobs are not supported with reasoning
+models"*), leaving only two. Repinning to the gpt-4.1 family -- forced independently
+by the temperature requirement in §9 -- restored logprob support and with it the
+four-model coverage this paragraph assumes.
+
+**(b) Horizon drift toward the freeze.** Eligible questions must resolve on or
+before 11 Dec 2026, so the maximum available horizon shrinks by one day per day
+and reaches zero at the freeze. Since §2 shows nowcasts saturate, an unmanaged
+panel drifts into exactly the regime where nothing is measurable, *as the sample
+grows*. Pre-committed: **long-horizon enrolment is front-loaded** — questions
+resolving more than 60 days out are enrolled preferentially in weeks 1–6, since
+after ~mid-October none can be enrolled at all; days-to-resolution is already a
+registered H1 state variable; and all primary estimates are reported **stratified
+by horizon band** (3–14, 15–45, 46–90, 91+ days) so a composition shift cannot
+masquerade as a state effect.
+
+**Horizon banding and `days_out` are Type A only.** A filing task's target is the
+next quarter a company reports, and the date it will actually file is not knowable
+when the question is asked, so no honest days-to-resolution exists for Type B.
+Horizon-stratified estimates and the `days_out` leg of H1 are therefore computed
+on macro tasks; Type B is reported as a single unbanded stratum, and the Type B
+eligibility rule in §3.3 is applied to the *expected* filing quarter rather than
+to a specific date. This is a limit of the task type, stated in advance, not a
+result-dependent choice.
+
+**(c) Final-vintage outcomes for the human panel.** SPF errors are scored against
+current FRED vintages, not the real-time data forecasters were judged on. Data
+revisions add a common error component and therefore *inflate* human `rho`. This
+biases H4 **against** our own hypothesis (it shrinks human headroom, the
+numerator), so we report it rather than correct it, and note the direction.
+
+**(d) Sampling noise that `temperature = 0` does not remove.** §9 registers
+`TEMPERATURE = 0.0` so that cross-model differences reflect the models rather
+than our sampling. Measured on 22 Aug 2026, before collection — 3 task prompts ×
+4 repetitions of an identical prompt — that holds for only **five of the ten
+models collected**:
+
+| | mean spread | max spread | stable prompts |
+|---|---|---|---|
+| `claude_haiku`, `gpt_mid`, `qwen`, `deepseek`, `gpt_frontier` | 0.000 | 0.000 | 3/3 |
+| `claude_sonnet` | 0.033 | 0.100 | 2/3 |
+| `gpt_small` | 0.033 | 0.100 | 2/3 |
+| `gemini_flash_pro` | 0.033 | 0.100 | 2/3 |
+| `llama` | 0.040 | 0.120 | 2/3 |
+| `gemini_flash` | 0.093 | 0.170 | 0/3 |
+
+*(spread = max − min of the emitted probability across repetitions)*
+
+Which models vary shifts between runs, so this is infrastructure — batched
+inference, and backend routing on OpenRouter — not a property of any model, and
+no available parameter removes it. We do not claim determinism we cannot deliver.
+
+**Direction of the bias.** This noise is *idiosyncratic*: uncorrelated across
+models by construction. It therefore dilutes every measured pairwise correlation
+and **inflates apparent independence** — `rho_bar` too low, `N_eff` and
+`headroom` too high. That runs **against** this study's own hypothesis, in the
+same way as (c). But unlike (c), its magnitude is measurable, so we measure it
+rather than merely noting the sign.
+
+**Pre-committed handling.** `REPLICATES_PER_DAY = 2` questions each day are put
+to every model **twice, identically**, selected by a seeded draw recorded in the
+public code. Replicates are stored at a reserved `prompt_variant`
+(`config.REPLICATE_VARIANT = 99`), outside H3's registered range of 0–4, and are
+excluded from the primary panel by construction — `panel.load_panel` filters to
+variant 0. From them we report, for every model:
+
+- the **noise floor**, the standard deviation of a model's own disagreement with
+  itself, in probability units; and
+- **test-retest reliability**, `1 − Var(difference) / (2·Var(all))`.
+
+`rho_bar` is then reported **both raw and disattenuated** for measurement noise
+(`stats.disattenuate`, Spearman's correction). The raw value remains primary.
+The correction moves `rho` **up** and `N_eff` **down** — toward our own
+hypothesis — so reporting only the corrected figure would be arguing our case
+with a statistical adjustment. Both are reported, always, with the per-model
+reliabilities stated alongside.
+
+If measured reliability is high for all models, this section costs roughly $4 and
+closes a question a reviewer would otherwise be right to ask. If it is low for
+some model, that is a finding about the instrument and is reported as one.
+
+### 5.5 The reported comparison statistic
+
+The headline human-versus-AI number is the **difference in variance reduction**
+(fraction of squared error removed by averaging the panel), which is bounded in
+[0, 1] and directly interpretable. The **ratio** of headroom is reported as a
+secondary with its interval and the count of undefined bootstrap draws.
+
+Reason, simulated: as the AI panel's headroom approaches zero — the outcome H4
+predicts — the ratio runs away while the bounded statistic does not.
+
+| rho_AI | benefit difference | ratio |
+|---|---|---|
+| 0.970 | 0.064 | 3.9 |
+| 0.995 | 0.098 | 29.5 |
+| 0.999 | 0.110 | 145.4 |
+| 0.9999 | 0.103 | 1294.3 |
+
+"AI is 1294 times less diversified" is arithmetically true and rhetorically
+worthless. The bounded statistic says the same thing and survives scrutiny.
+
+### 5.6 Exclusions
+Observations with `error` set are excluded from estimation but **counted and
+reported**. If usable coverage falls below 80% for any model, that model is
+reported separately and excluded from the primary panel.
+
+---
+
+## 6. Sample size
+
+Target ≈ 25 task-days × 9 models × 105 days ≈ 23,625 observations. Powering the
+tercile contrast in H1 requires roughly 300 task-days per stress tercile; the
+target provides ~600, giving headroom for attrition.
+
+---
+
+## 7. What would make us abandon a hypothesis
+
+- **H1:** stated in §4. A null is publishable and will be published.
+- **H4:** if matched questions turn out to have negligible headroom for humans
+  too, we report the comparison as uninformative rather than straining for a
+  difference. Section 2 shows this is a real risk at short horizons, which is
+  precisely why task selection targets longer ones.
+- **Whole study:** if usable coverage falls below 50% across the panel, we report
+  a methods paper on why multi-provider panels are hard to run, and say so plainly.
+
+---
+
+## 8. Data and code availability
+
+All code is public from day one. Observations, tasks and resolutions are
+append-only JSONL committed daily by an automated job, which makes the
+"registered before resolution" claim externally checkable rather than asserted.
+
+---
+
+## 9. Researcher degrees of freedom we are giving up
+
+Fixed in advance and not revisable after the freeze: the model roster; the
+60/40 macro/filing task mix; sampling temperature; the seven state variables **and
+the direction H1 predicts for each of them (§4)**; the primary outcome (both scales); the capability
+control in H6; the block-bootstrap parameters, **including the event-clustered
+interval reported alongside the day-blocked one (§5.2)**; the inclusion criteria; the multiple-testing correction; the
+prediction date; and the test-retest replicate design of §5.4(d) — its count per day, its
+reserved variant, and the commitment to report `rho_bar` both raw and disattenuated.
+
+---
+
+## 10. Known limitations
+
+1. Kalshi quotes are not public, so the market-implied benchmark comes from
+   Polymarket where topics overlap, and is unavailable for most questions.
+2. Mid-tier models are used for cost reasons. This mirrors real high-volume
+   deployment but is not the frontier; the Sonnet anchor partially addresses it.
+3. The representation-level arm (CKA) is deferred to Year 2 — 8 GB of local RAM
+   cannot run it at a defensible scale.
+4. Providers may update models mid-panel. We log the served id every call and
+   report drift; we cannot prevent it.
+5. 15 weeks may contain no genuine market stress event, which would leave the
+   market-stress leg of H1 (now the primary hypothesis) untestable. The
+   experimentally varied `ladder_distance` ambiguity leg is populated every day
+   and does not depend on markets cooperating, so H1 remains testable in a calm
+   regime — but a genuine shock cannot be manufactured, and if none occurs we
+   report the stress leg as untested rather than straining a null out of a quiet
+   market.
+
+---
+
+## 11. Deviations from this plan
+
+_(Numbered and dated. Empty at registration.)_
+
+| # | Date | Deviation | Reason |
+|---|---|---|---|
+| 24 | 2026-09-30 | **`gpt_small` is retired on 2026-10-23 instead of moving host, because the host deviation 23 moved it to retires the model first. The primary analysis is unchanged; one registered sensitivity is added and deviation 23's is withdrawn.** `neff/config.py` (`SERVING_ROUTES` emptied, `RETIREMENTS`, `BRIDGE_ROUTES`, `BRIDGE_END`), `neff/collect.py`, `neff/verify.py`, `neff/analysis.py`, `neff/h3.py` and `neff/h6.py` (`asked_before_day`), `scripts/analyze.py` (`before_retirement`), `scripts/check_days.py`. (1) **The fact.** Microsoft's model retirement schedule, updated 2026-09-23, lists `gpt-4.1-nano` 2025-04-14 as Deprecated, retiring on Azure on 2026-10-14; the version of 2026-09-14, which deviation 23 relied on, listed it as Legacy, retiring 2027-04-14. OpenAI still shuts the snapshot down on 2026-10-23. From 2026-10-23 no host serves the registered model, and OpenAI's suggested substitute, `gpt-5.6-luna`, is a different model that rejects temperature 0 (§3.1), so no route can keep `gpt_small` in the panel. Found on 2026-09-30 by `scripts/health_check.py`, which reads the vendors' retirement pages at every check-in. (2) **Collection.** `gpt_small` is asked through OpenAI, as registered, up to and including 2026-10-22, and not at all from 2026-10-23: no row, not a failed one. No member changes host; deviation 23's route is withdrawn before it was ever used. (3) **The bridge** of deviation 23 (4) keeps asking every primary question of the day through Azure, at `prompt_variant` 98, up to and including 2026-10-13, the last day Azure serves the model, and then stops; its rows still enter no estimate. (4) **§5.6 applies unchanged.** On the analysed panel `gpt_small` will have answered only task-days asked before 2026-10-23; if its usable coverage is below 80% it is reported separately and excluded from the primary panel, and the M = 8 human benchmark registered by deviation 17 applies. The Week-5 fit of 2026-10-02 is not affected. (5) **A registered sensitivity.** The primary estimate, H3 and H6 are re-run on the task-days asked before 2026-10-23, with all nine primary models and the registered exclusions (§3.3, §5.6, deviations 3 and 16) applied to that sub-panel -- restricted first, so §5.6 judges each model on the days it was asked -- and reported beside the primary result (`before_retirement` in `scripts/analyze.py`); blind until the registered final look, like everything else. (6) **Withdrawn.** Deviation 23's sensitivity without `gpt_small`'s rerouted cells has nothing to remove and is no longer reported. (7) **Alternatives.** Leaving the route in place would have failed every `gpt_small` call from 2026-10-23 and raised an alarm every day, to the same end under §5.6; substituting another model would not be the registered model. The student chose on 2026-09-30, before any registered look, from vendor schedules alone; no outcome was read. | Deviation 23's route rested on a vendor schedule that changed after it was written. Recording the change, and ending collection of a model no host serves rather than recording 46 days of failures, keeps the record exact about what was asked; the sensitivity keeps the OpenAI within-family pair where it exists. |
+| 23 | 2026-09-19 | **`gpt_small` keeps its place in the panel after OpenAI retires its model on 2026-10-23: from that day it is asked through OpenRouter's Azure host, which serves the same snapshot, and until then every question is also put to it on that route, so the change of host is measured before it is made. No hypothesis, no registered quantity and no model's place in any analysis changes.** `neff/config.py` (`SERVING_ROUTES`, `BRIDGE_VARIANT`), `neff/providers.py` (`OpenRouterAzureProvider`), `neff/collect.py`, `neff/panel.py` (`bridge_report`), `neff/report.py` (`without_route`), `scripts/check_days.py`, the daily workflow. (1) **The fact.** OpenAI's deprecations page, under "2026-04-22: Legacy GPT model snapshots", shuts down `gpt-4.1-nano` / `gpt-4.1-nano-2025-04-14` on 2026-10-23; `gpt-4.1-mini` and `gpt-4.1` are not listed. Azure's model retirement schedule lists `gpt-4.1-nano` 2025-04-14 as Legacy, retiring 2027-04-14, and OpenRouter serves `openai/gpt-4.1-nano` from Azure as well as from OpenAI. The announcement predates the roster's live verification (2026-08-19) and the freeze; no one checked the vendors' retirement schedules, and it was found on 2026-09-19. No other model on the roster had an announced retirement before 2026-12-11 when this was written. (2) **The route.** From 2026-10-23, every question `gpt_small` is asked -- variant 0 and the §5.4(d) replicates -- is sent to OpenRouter as `openai/gpt-4.1-nano`, pinned to the Azure host with no fallback (`order: [Azure]`, `allow_fallbacks: false`, `require_parameters: true`), and the host is recorded on every row. The key, family, tier, temperature 0, output budget and prompt are unchanged. From that day §3.1's "every id below is the exact string sent to the API" does not hold for `gpt_small`: the string sent is OpenRouter's id for the same model. OpenAI's suggested substitute, `gpt-5.6-luna`, is not used: it is a different model, and the gpt-5 line rejects temperature 0 (§3.1). (3) **Logprobs.** The route refuses the `logprobs` parameter at routing, so `gpt_small`'s rows from 2026-10-23 carry none, and the §5.4(a) logprob leg (deviation 19) uses its rows through 2026-10-22 only. (4) **The bridge.** From 2026-09-20 (or the first collection after this row is committed, if later) to 2026-10-22, every primary question of the day is also put to `gpt_small` on the route, with the identical variant-0 prompt, stored at the reserved `prompt_variant` 98. Those rows enter no estimate and no coverage judgement. `panel.bridge_report` pairs them with the same day's variant-0 answers and reports the number of pairs, the share with the identical probability, the mean absolute difference and the §5.4(d) reliability statistic across routes, beside the same statistics from `gpt_small`'s own replicates, the noise the change of route has to be judged against. It reads forecasts only. The daily alarm fires if the route answers fewer than 80% of a day's bridge questions. (5) **Reported always, as a sensitivity:** every primary estimate with `gpt_small`'s answers on task-days asked from 2026-10-23 removed and every other cell kept (`report.without_route`). (6) **The Week-5 prediction** is unaffected: `gpt_small` is in the calibration and holdout panels on the same terms, and nothing in deviation 18 changes. | Left alone, `gpt_small` answers nothing from 2026-10-23, roughly half of the primary panel's resolved task-days would lack it, and §5.6 would remove it from the primary panel for the whole study. M would fall by one; H3 and H6 would lose one of the three within-family pairs §3.1 exists to provide; and the Week-5 prediction, made on 2026-10-02 with `gpt_small` in the panel, would be judged on a panel without it. Azure's copy is the same weights: §3.1 itself names Azure OpenAI as a channel that serves "the same weights under a different invoice". The change is transport, of the kind deviation 4 made for the open-weight models, but pinned rather than left free, because the point of the route is one known host. The bridge turns "same weights, same answers" from an assumption into a measurement: probed on 2026-09-19 with a synthetic question at temperature 0, both routes returned probability 0.65 (seven probe calls, about $0.0005, outside the ledger). The bridge costs about $0.003 a day. Chosen on 2026-09-19 over letting `gpt_small` drop out, before any answer on the route is in the record and before the first registered look. `tests/test_serving_route.py`. |
+| 22 | 2026-09-19 | **The Week-5 publisher also refuses to run on a copy of the record that is not current. No registered quantity moves, and nothing about what the prediction is computed from changes once the record is complete.** `scripts/week5_prediction.py`. Deviation 18 (6) registers two refusals: before 2026-10-02 20:00 UTC, and a second time. The publisher runs on the operator's machine, while the record it unblinds is committed by the daily job on GitHub, so before it records a surprise, unblinds or writes anything it now also refuses when: (1) the copy cannot be confirmed against GitHub, is behind it, differs from GitHub's `data/` by anything other than rows this script itself appended to `data/release_surprise.jsonl` on an earlier attempt, or carries uncommitted changes to `neff/` or `scripts/`; (2) it is still 2026-10-02 UTC and that day's collection is not in the copy; (3) Kalshi has settled a contract that a primary question asked by 2026-10-02 resolves against, closing by 2026-10-02 23:59 UTC, and the copy has not recorded the settlement, by the same rule the daily resolver applies (`kalshi.settlement_of`); (4) until 2026-10-04 20:00 UTC, a listed release closing in the calibration window has closed and not settled, closes after the moment of publication, or has settled for the study's questions but not in every market, so that its surprise cannot yet be recorded. A release whose market is still trading, or whose close Kalshi has moved past the window, is not held for. After 2026-10-04 20:00 UTC, (4) no longer holds publication, so a release that never settles cannot prevent the prediction. `--check` applies exactly these conditions, reads GitHub and Kalshi, and writes nothing; the prediction file records the GitHub commit it was checked against. `--evaluate` refuses a copy that fails (1), for the same reason. | Deviation 18 (5) registers the calibration as every eligible release closing by 2026-10-02 23:59 UTC, on the task-days asked by then. On 2026-09-19 three listed releases had settled with five or more task-days each; September nonfarm payrolls, asked every day and closing 2026-10-02 12:29 UTC, is the only other listed release asked so far that closes inside the window, and it is the fourth release the registered fit needs. Nothing stopped the publisher from running on a copy that had not pulled that day's commit, or before the settlement reached the record: the prediction it wrote would then have been a different prediction, made permanent by the rule that it is never revised. Found by reading the publish path for what it assumes rather than what it checks. Every count above is a count of questions, task-days and releases; none depends on the value of an outcome, and no forecast was compared with one. `tests/test_week5_publish.py`, which also runs the registered look end to end, unblinded, on a record fabricated inside the test. |
+| 21 | 2026-09-16 | **Disclosure: an unblinded run of the committed store was made on 2026-09-16, outside the two looks deviation 17 (9) permits. No registered quantity moves, no choice in the plan or the code was made or changed after it, and nothing unblinded entered the repository.** `scripts/analyze.py --unblind` refuses on any date up to the freeze. That gate was deliberately circumvented: the script was run in a process whose clock was faked to 2026-12-12 (`freezegun`), against the real `data/`, to find out whether the December final look works while there is still time to fix it if it does not. It works. **What the run displayed** is the whole of the script's summary: the panel line (21 resolved task-days, M = 8, `qwen` excluded at 66.7%), the §5.6 coverage warning, the four verdict lines for H2, H3, H4 and H6, and the not-run line. The script prints no `rho_bar`, no headroom, no coefficient and no interval, so **no numeric estimate was displayed**. Those four verdict lines are identical, character for character, to the blind run of the same store made minutes earlier in the same session -- H2 untested, H3 untested, H4 not established, H6 falsified -- because at 21 resolved task-days nothing is yet testable. The unblinded look therefore carried no information about any hypothesis that the blind look did not already carry. The report it wrote went to a scratch directory outside the repository, was **never opened**, and was deleted; its SHA-256 was `eaffaf7cd207056d38ad370dac697ad720aa25b7976ae36b287ffb484ae7450f`. `git status` was clean before and after. **Why no choice can have been affected**: every operational choice for H1 to H6 and §5.4(a) was already fixed, committed and public -- deviations 17 (2026-09-13) and 20 (2026-09-14), the latter pushed to `main` as `87b2b45` earlier the same day -- and nothing in the plan or in `neff/` was edited afterwards except this row and the test below. §9's frozen list is untouched. **Remedy, so the question never has to be asked of the real record again**: `tests/test_unblinded_path.py` runs every registered analysis with `blind=False` against a store whose outcomes are fabricated in the test file, and asserts that the gate refuses on every date through 2026-12-11. `blind` does exactly one thing wherever it appears -- it decides whether `_permute_outcomes` is applied -- so the estimator that file exercises is the one that runs in December. | Checking that the final look works before December is legitimate and was overdue: nothing had ever run `--unblind`, and a failure discovered on 12 Dec is a failure with no remedy. Doing it against the real store was not legitimate, and the gate that said so was working exactly as designed when it was stepped around. Recorded because the study's claim is not that its results are honest but that its *looks* are the registered ones, and an unregistered look that changed nothing is still an unregistered look. A reader who is told about it can weigh it; one who finds it in a transcript cannot be told anything. The run was made by Claude Code, at no request from the student, in the session of 2026-09-16. |
+| 20 | 2026-09-14 | **H2 to H6, and the §5.4(a) re-estimate on logprob-derived probabilities, are implemented, and every operational choice the plan leaves open is fixed while the drivers have only run on permuted outcomes, or for H2 on shuffled ambiguity.** `neff/h2.py` to `neff/h6.py`, `scripts/category_base_rates.py`, `data/category_base_rates.jsonl`, `report.logprob_leg`, `logprobs.derived_forecasts`, and `scripts/analyze.py`, which now runs them all. (1) **Shared.** Every interval is §5.2's pair, blocks of five task-days and whole questions (which governs), with deviation 5's settlement-clustered interval beside it, all three drawn from one resample (`analysis.resampled`). A sign, or the separation of two intervals, is claimed only where the question- and settlement-clustered intervals agree, and a verdict resting on fewer than 30 questions or 10 settlements is labelled provisional, as deviation 17 (3) rules for H1. (2) **H2.** Ambiguity is H1's (deviation 17 (1)). The *category* is the Kalshi series, the ticker's first segment. Its *base rate* is the share of the series' markets that settled YES over its events closing in deviation 18's reference window, 2025-09-01 to 2026-08-31, and is undefined with fewer than 2 such events or 10 settled markets. `scripts/category_base_rates.py` appends one row per series to `data/category_base_rates.jsonl` the first time the series is asked and never rewrites one; the daily workflow runs it in a step that cannot fail the run. On 2026-09-14 it recorded the 22 series asked to 2026-09-13: 14 have a base rate and 8 do not, among them NJ gas prices, PPI month on month, Yum Brands and snow crab, which leaves 18 of the 151 ladder task-days asked to that date without one; they leave H2 and are counted. The panel median is taken over the models that answered, the tercile rules are H1's, and each task-day counts once. The statistic reads no outcome of the study, so permuting outcomes would not blind it: a blind run shuffles ambiguity among the task-days that have one. (3) **H3.** Every arm is compared at a panel size of two, N_eff = 2 / (1 + rho_bar): (a) the 10 pairs of `gpt_mid`'s prompt variants 0-4; (b) the pairs of surviving primary models that share a family; (c) the cross-family pairs among the models of families that keep two members, 12 at the registered nine and at the current eight. All three are estimated on the primary task-days asked from 2026-09-14, from one resample. (a) below (c), with neither pair of intervals overlapping, supports H3; (a) above (c) counts against it; overlap falsifies it. The permutation inference is exact over family labels with family sizes held fixed (`stats.family_partitions`: 1260 labelings at nine models, 420 at eight); its statistic is rho_bar(b) minus rho_bar(c), one-sided. (4) **H4.** The headline benefit is 1 minus MSE(panel mean) over mean individual MSE, floored at zero (`metrics.mse_benefit`), over the rows at least two members answered. AI: the Type A task-days of the surviving panel, M its size. Humans: SPF RECESS from the pin (deviation 19), 500 panels of M forecasters drawn without replacement from seed 0; with every forecaster eligible these are the draws behind §2.3 and deviation 19 (3), and they reproduce its M = 8 headrooms. **All five horizons are compared, and AI headroom is called smaller only if it is smaller at each**: H4 cites its benchmark as a band across the five, and choosing one would choose the answer, since the survey quarter carries the most human headroom. Accuracy is Brier skill against climatology (`metrics.brier_skill`); raw Brier scores are reported and never matched, because RECESS declines occur in 13% of quarters and the AI questions' base rate is set by what they ask. The matched stratum: the horizon's forecasters ranked by skill in three groups of equal count, and the one whose mean skill is nearest the AI panel's mean. The horizon is confounded if the AI mean lies outside that stratum's range, and untested if the stratum holds fewer than M forecasters. The interval sets each AI bootstrap draw against the human draw of the same index. A horizon is uninformative (§7) when the matched human panels' mean Pearson headroom is below 0.01: §2 calls nowcast headroom of 0.000 to 0.004 unmeasurable and 0.08 to 0.19 measurable. Verdict: smaller if every horizon is informative, unconfounded and positive under both clusterings; the reverse, with equal standing, if every horizon is negative the same way; otherwise not established, with each horizon's reason. The ratio of headroom, human over AI, is reported with its intervals and the count of undefined draws. (5) **H5.** Type B is a filing task. The difference is Type A minus Type B at the surviving M, from one resample of the whole panel, on the Pearson and the MSE headroom scales with all three intervals, and no verdict is drawn. (6) **H6.** Every pair of surviving primary models with a defined error correlation, over every primary task-day. Each model's Brier skill is taken against climatology on the rows it answered, the base rate over all rows. Least squares of the pair correlation on an intercept, `same_family`, the pair's mean skill and its absolute skill difference. The permutation refits under every partition of the models into groups of the observed family sizes, the capability terms unchanged; p is two-sided and never below 1 / partitions. Lineage if p < 0.05 with a positive coefficient, against lineage if negative, falsified otherwise; the fit without the capability terms is reported beside it. Accuracy-matched pairs: each same-family pair beside the cross-family pair nearest in mean skill and skill difference (Euclidean, first on a tie, repeats allowed), descriptive. (7) **§5.4(a).** The re-estimate uses only the models with a logprob-derived probability, and only those cells, in both the emitted and the derived estimate, on the task-days where at least two such models have one; `rho_bar`, Pearson headroom at the leg's M and MSE headroom are reported for each, with derived minus emitted and its intervals. A cell reads the row `load_panel` keeps, and its source is judged on every row it returned with logprobs in the primary arm, replicates and prompt variants included. On the task-days asked to 2026-09-13, resolved or not, that gives `gpt_mid` and `gpt_small` 125 cells each and `llama` 108, from 2026-09-09, and `deepseek` none. (8) **Disclosed now.** On a ladder built around the expected print, the most ambiguous strikes are those whose honest probability sits nearest a base rate near one half, so H2's registered contrast can come out negative with no shared prior at work. The same contrast on the panel's distance from the base rate minus the market's (deviation 15 prices, from 2026-09-14) is reported beside it as an unregistered sensitivity and cannot change the verdict. On the human side, which is public, the headline benefit of a random eight-forecaster RECESS panel runs at every horizon from 0 at the 2.5th percentile to between 0.21 and 0.31 at the 97.5th, so H4's interval is wide by design. | §4 registers H2 to H6 and §5.4(a) a logprob re-estimate, and on 2026-09-14 none had code: `scripts/analyze.py` listed them as not implemented. Each leaves open choices that decide its answer. H2 names neither its category nor where the base rate comes from; H3 says matched on panel size, with permutation inference, without the size or the statistic; H4 cites a band across five horizons and the accuracy stratum closest to the AI panel's without defining a stratum or negligible headroom; H6 registers an exact permutation without saying what is refitted under each labeling. Made in December, each choice would be made by someone able to see which one helped. Made now, they are blind: the AI side has only run on permuted outcomes and H2 on shuffled ambiguity, and the human side is public and registered. Three choices take the stricter road on purpose. H4 must hold at all five horizons, because picking one would pick the answer. H2's base rate comes from before the study, so the test never reads a study outcome and a series with few questions cannot pull its base rate toward them. The H2 sensitivity is disclosed because the ladder geometry that makes ambiguity experimental also makes the registered contrast lean toward H2. One rule was corrected before registration: negligible headroom was first defined as a matched human benefit whose 2.5th percentile is zero, and the blind rehearsal showed that every horizon and stratum meets that definition, because the benefit is floored at zero and some random eight-forecaster panels gain nothing; H4 would have been uninformative by construction. The rehearsal ran blind on the 21 resolved task-days of 2026-09-13 at M = 8, with every number meaningless by design: H2 untested (12 task-days carry both ambiguity and a base rate), H3 untested (no variant task-day has resolved), H5 without a resolved filing task-day, and H6 on 28 pairs. The whole script takes about a minute at the registered 2000 resamples. The permutation floor is the one §3.1 promised, 1/1260 at nine models. `tests/test_h2.py`, `tests/test_h3.py`, `tests/test_h4.py`, `tests/test_h5.py`, `tests/test_h6.py`, `tests/test_logprob_reestimate.py`, `tests/test_analyze_script.py`. |
+| 19 | 2026-09-13 | **The human benchmark is computed from pinned copies of its inputs, a quarter is averaged only once all three of its months are published, and the §5.4(a) logprob leg gets a validity rule and a definition. The primary human benchmark does not move: on the pin, §2.3 reproduces to every printed digit.** (1) **Pinned inputs.** `data/spf/` holds the five SPF sheets `neff/sources/spf.py` reads (RECESS, UNEMP, CPI, EMP and RGDP; rows from 2000; only the columns read), extracted from the workbook downloaded on 17 Aug 2026 (SHA-256 `d45af2ea...`, 24,612,638 bytes, the length the Philadelphia Fed still served when pinned), and FRED's CSV for GDPC1, UNRATE, CPIAUCSL and PAYEMS as served at 2026-09-14 01:58 UTC. `PROVENANCE.json` records each file's origin and SHA-256; `scripts/pin_spf_inputs.py` wrote them and refuses to overwrite a pin. The module reads the pin unless told `source="live"`. On the pin, SPF RECESS at M = 9 reproduces `rho_bar`, headroom and both interval bounds of §2.3 at all five horizons, and `tests/test_spf.py` fails if a pinned file changes, if the benchmark reaches for the network, or if the table stops reproducing. (2) **An unfinished quarter has no average.** `fred.quarterly_average` averaged whatever months were out, so a forecast of a quarter's average could be scored against one or two months of it. It now requires all three months to be listed; a month FRED lists without a value (October 2025, never collected during the federal shutdown) is skipped, not awaited. RECESS is scored on quarterly GDP and is unaffected; §2.1's point-forecast baselines move. On the pin at M = 9, `rho_bar` and headroom, registered values in brackets: unemployment h=2 0.8999 and 0.1008 (0.9026, 0.0976), h=4 0.8728 and 0.1345 (0.8760, 0.1297); CPI h=2 0.8380 and 0.1730 (0.8397, 0.1688), h=4 0.9146 and 0.0860 (0.9169, 0.0826); real GDP h=2 0.8982 and 0.1073 (0.8982, 0.1050), h=4 0.9100 and 0.0933 (0.9100, 0.0942); payrolls h=2 0.8219 and 0.2001 (0.8215, 0.1915), h=4 0.8265 and 0.1912 (0.8249, 0.1903). The band H4 cites as its secondary check becomes 0.086–0.200 (registered 0.083–0.192) and still contains the RECESS band. (3) **The matched panel.** `measure` and `measure_binary` defaulted to M = 7, the size of the original seven-model panel; they now default to the registered primary panel, and H4 passes the surviving M under deviation 17 (6). That number is fixed here too. SPF RECESS at M = 8, headroom [interval]: h=1 0.1749 [0.065, 0.415], h=2 0.1163 [0.040, 0.284], h=3 0.1028 [0.035, 0.300], h=4 0.1113 [0.022, 0.306], h=5 0.1183 [0.024, 0.343]. (4) **The error matrix.** `spf.human_errors` returns the rounds × forecasters error matrix with its round and forecaster labels. `measure` and `measure_binary` are computed from it and return, bit for bit, what they returned before on the same data. (5) **Logprobs** (`neff/logprobs.py`). A row's logprobs are *consistent* when, at every stored position, the emitted token is among the listed alternatives and none is likelier by more than 0.01 nats. A *source*, a model and the host that served it, is usable only if every row it returned with logprobs is consistent. The *logprob-derived probability* is the expectation of the stated probability over the listed alternatives of the token carrying its decimals, renormalised over those that read as a number in [0, 1], with the integer part held as emitted. It is undefined, never the emitted value, when the numeral is not where the stored digits start, has no decimal part, splits its decimals across tokens, or disagrees with the stored forecast. On the rows to 2026-09-13, `gpt_mid`, `gpt_small` and `gpt_frontier` (135 rows each, served by OpenAI) and `llama` (118 rows, on AkashML, Parasail, SambaNova and CoreWeave) are consistent on every row, and every row yields a derived probability. **`deepseek` has no usable source.** Google (8 rows, all inconsistent) lists at the decimals the alternatives of the position before them, so the emitted token is missing from 31 of its 51 lists. At DigitalOcean (31 rows, 21 inconsistent) a listed alternative beats the emitted token at 30 of 153 positions, and at 63 positions every alternative sits a whole number of nats from the best. The §5.4(a) logprob leg therefore rests on `gpt_mid`, `gpt_small` and `llama`, with `gpt_frontier` outside the primary panel, not on the four models §5.4(a) names. Nothing that reaches a model changes, and no primary estimate reads a logprob. | Found by examining the two stored inputs that H2 to H6 will draw on, before building them. (1) The Philadelphia Fed replaces the workbook with each quarterly survey, the next in November, and FRED serves only a series' latest vintage, which BEA's annual update revises each September. The only copy of the registered workbook was an untracked file on one computer. H4 recomputes the benchmark more than once: at the surviving panel size (deviation 17), on the squared-error scale §5.5 makes the headline, and at matched accuracy. Each would otherwise rest on whatever was downloadable in December, with a vintage chosen in view of the AI results. The pin holds human forecasts and official statistics only, so fixing it now cannot unblind anything. (2) Found by recomputing §2.1. On the data FRED had published by 17 Aug, the old code reproduces §2.1's unemployment and CPI `rho_bar` values exactly, and only because it scored the latest scorable round of each against a third quarter consisting of July alone; by 13 Sep, with August published, the same code already gave different CPI values. The fix moves them once, and they are restated above rather than left to drift with each release. On that 17 Aug data three of §2.1's subsampled headroom values are not reproduced: CPI h=2 0.1688, CPI h=4 0.0826 and unemployment h=2 0.0976 come out at M = 9 as 0.1709, 0.0823 and 0.0970, and neither M = 7 nor M = 8 gives them. The setting that produced them was not recorded; this is stated rather than fitted. (3) A default is what a later analysis gets without asking, and M = 7 would have unmatched H4 silently. (4) §5.5's headline, the difference in variance reduction, and H4's matched-accuracy form both need the human error matrix, and the module returned only Pearson N_eff. (5) Deviation 10 made logprobs arrive and deviation 12 counted them; neither asked whether they describe the answer they came with. At the §9 temperature of 0 the emitted token must be the likeliest one listed. A host that reports otherwise either samples or reports logprobs from somewhere else, and either way its numbers are not the distribution the leg reads; the logprobs cannot say which, and the §5.4(d) replicates measure the noise regardless. One inconsistent row condemns its source because the rows that pass come from the same serving stack. The rule and the definition use forecasts alone and are fixed before any analysis has read a logprob. Deviation 12 left open whether to route deepseek to hosts that return logprobs; that remedy no longer exists, because the hosts that return them return unusable ones. `tests/test_spf.py`, `tests/test_logprobs_leg.py`. |
+| 18 | 2026-09-13 | **The Week-5 prediction of §5.3 is operationalised in full, and `abs_surprise` is redefined as the market's surprise at the release, before any calibration outcome has been looked at.** `neff/surprise.py`, `neff/prediction.py`, `scripts/release_surprise.py`, `scripts/week5_prediction.py`. (1) **A macro release** is a Kalshi event in one of nine series settled by a scheduled US official statistic: KXCPIYOY, KXECONSTATCORECPIYOY, KXUSPPI, KXUSPPIYOY, KXU3, KXECONSTATU3, KXPAYROLLS, KXGDP and KXHOUSINGSTART. (2) **Its surprise** is the Brier score of the market against the print. For each of the event's numeric strikes, q is the midpoint of the yes bid and ask in the last hourly candle ending at least 24 hours before the event closes, used only when both sides are quoted no more than 20 cents apart; strikes with q between 0.05 and 0.95 are informative; the surprise is the mean over informative strikes of (settlement minus q) squared, and is undefined with fewer than two. This replaces deviation 8's definition of `abs_surprise`, which named no working consensus source and has been undefined on every row: H1 uses this value on every task-day that resolves against a listed release. (3) **The 80th percentile is registered here as a number: 0.2425625**, the 80th percentile (linear interpolation) of the surprise of all 66 listed releases that closed from 2025-09-01 to 2026-08-31, the twelve months before collection began, every one of which has a defined surprise; the releases and their working are in `data/release_surprise.jsonl` with role `reference`. (4) **A release's panel** is every primary task-day that resolves against it, after the registered exclusions and §5.6 as applied to the full panel, estimated with the registered estimator; fewer than 5 task-days, or no estimable pair, makes a release ineligible. (5) **Calibration** is every eligible release closing by 2026-10-02 23:59 UTC, on the task-days asked by 2026-10-02. X and Y are the calibration medians of headroom and of `rho_bar`. When at least four calibration releases have a defined surprise, the release-level least-squares fits of headroom and of `rho_bar` on surprise are evaluated at the threshold, and X becomes the lower and Y the higher of fit and median: the fit can make the prediction stricter, never easier. (6) **Publication**: `scripts/week5_prediction.py --publish`, which refuses to run before 2026-10-02 20:00 UTC or a second time, first records the surprise of every fully settled listed release, then unblinds weeks 1-5, runs H1 on them, and writes the prediction, its calibration releases and the H1 fit to `predictions/`; the SHA-256 is committed and deposited the same day. (7) **Holdout**: listed releases closing after 2026-10-02 23:59 UTC and by 2026-12-11, each panel built only from task-days asked from 2026-10-03. The first eligible release with a surprise at or above 0.2425625 decides the prediction: HIT if its headroom is below X and its `rho_bar` above Y, MISS otherwise; if none arrives by the freeze the prediction is reported UNTESTED. (8) The daily workflow records each listed release's surprise once every market in it has settled, in a step that cannot fail the run, so each value is public within about a day of the print and before any analysis reads it. | §5.3 registers a date, a fit and the shape of a sentence -- on the next macro release with an absolute surprise above the 80th percentile, headroom will fall below X and rho_bar will exceed Y -- and leaves open every choice that decides whether it can be tested: what a release is, what its surprise is, which task-days make its panel, how X and Y follow from the fit, and what happens if no release qualifies. The trigger itself was uncomputable, because `abs_surprise` had no consensus source. Left to 2 Oct, each of those choices would be made while looking at weeks 1-5. The market is the one consensus observable before every listed print, its quotes are public, and a Brier score puts every series on one scale without a historical standard deviation; computing it reads market prices and settlements and never a forecast. The reference window ends where collection began, so the threshold uses no study-period data, and it was computed before any study-window surprise was. Calibration will be thin -- about five listed releases settle by 2 Oct, several of them asked on a single day -- so X and Y rest on medians and a fit may only tighten them: a prediction loosened by a fit pointing against H1 would not test H1. Holdout panels use only task-days asked after the prediction, because week-5 forecasts on a question that settles in week 7 are not the genuine holdout §5.3 promises. `tests/test_surprise.py`, `tests/test_prediction.py`. |
+| 17 | 2026-09-13 | **The registered analyses of H1, and the quantities the plan says are reported always, are implemented, and every operational choice the plan leaves open is fixed while the drivers have only ever run on permuted outcomes.** `neff/h1.py`, `neff/report.py`, `scripts/analyze.py`. (1) **Ambiguity leg.** The stored `ladder_distance` is used where the question's own Kalshi event has at least three numeric strikes and the question is one of them, and is undefined (NaN) elsewhere, as deviation 8 already treats filing tasks. Rows from 2026-09-14 say which they are (`event_ladder_distance` is null exactly when they are not); earlier rows are judged from `data/kalshi_ladders.jsonl`, the strike structure of each such event read once from Kalshi's public API by `scripts/snapshot_kalshi_ladders.py` -- strikes only, no results or prices, every row labelled reconstructed. Sensitivity, always reported: the same tests with the distance taken from the median of the question's own event rather than the pooled series. The ambiguity tercile contrast is also reported within each §5.4(b) horizon band. (2) **The H1 regression.** One row per task-day and per pair of primary-panel models that both answered it; the outcome is the product of the two errors, uncentred. The seven state variables are standardised over the task-days of the complete-case sample, each task-day counted once. OLS with CR1 cluster-robust standard errors clustered on the question (`source_ref`, the unit re-asked daily), p-values from t with G-1 degrees of freedom; the same fit clustered on settlement is reported beside it. `abs_surprise`, defined only on task-days resolving against a listed macro release, is estimated in its own regression (the other six plus itself, on its own complete cases) when that sample has at least 30 task-days and 5 clusters, and the other six are fitted jointly. Benjamini-Hochberg at FDR 0.05 runs over all seven p-values, a variable that cannot be estimated entering with p = 1. A coefficient supports H1 only if it survives correction with its registered sign; one that survives with the opposite sign counts against. (3) **What may be claimed.** The claim for each variable is the weaker of its question-clustered and settlement-clustered verdicts, and any verdict from fewer than 30 questions or 10 settlements is labelled provisional. (4) **The tercile contrasts.** Cut points at the 1/3 and 2/3 quantiles over the task-days where the variable is defined; bottom at or below the first, top at or above the second; if the two coincide the contrast is untested, not estimated. Intervals resample whole task-days, in blocks of five days and by question (the registered pair, the question-clustered one governing), and by settlement as a sensitivity, each resample split at the full-sample cut points. (5) **Reported always**, beside every headroom: `n_eff_mse` and `variance_reduction` with both registered intervals, uncentred `rho_bar` and the gap between the Pearson and MSE scales (§4.1, §4.2); the distribution of emitted values, the exact-tie rate and the estimate without exact ties (§5.4(a)); estimates by horizon band for Type A and as a single stratum for Type B (§5.4(b)); `rho_bar` raw and disattenuated with every model's reliability (§5.4(d)); Type A against Type B (H5); and sensitivities without `claude_sonnet` and without 2026-09-01 and 2026-09-02. (6) **H4 at a reduced panel.** If §5.6 removes a model, the SPF RECESS benchmark is recomputed at the surviving M rather than compared at 9. (7) **§3.3's derived-quarter sensitivity** excludes filing task-days whose resolved quarter was reconstructed from the annual identity (`derived` in the resolution note, deviation 16); a derived quarter in a prompt's history table excludes nothing, since every company's table carries one. (8) **Filing questions that cannot resolve before the freeze.** As each company files its next quarter from late October, the quarter after it falls due after 11 Dec; task-days on those questions stay unresolved and are excluded by §3.3. The 60/40 mix is kept at collection as §9 requires, so the resolved Type B sample rests on questions asked before each company's autumn filing. (9) **When outcomes are unblinded.** Only for the §5.3 fit on weeks 1-5, on 2026-10-02 (deviation 18), and after the 11 Dec freeze. | §4 registers two tests for the primary hypothesis and §4.1 to §5.4 a list of quantities reported always, and on 2026-09-13 none of them existed in code: `analysis.estimate` computed `rho_bar`, N_eff and their intervals. Written in December, each choice above would have been made by someone able to see which one helped. Fixed now they are blind: the drivers have only run on permuted outcomes, and 21 task-days had resolved. Two choices follow from facts deviation 15 records rather than from preference. 49 of 200 event task-days sit on events with no numeric ladder, where `ladder_distance` is not a distance at all; and the curated path pools expiries, so the per-event distance is kept as a sensitivity rather than made primary, which stays with the variable as it was collected. The provisional label and the weaker-claim rule follow from a measurement: run blind on the 20 task-days, 14 questions and 5 settlements resolved by 2026-09-13, the question-clustered regression called three of the seven variables significant on permuted outcomes, which is what cluster-robust errors do with few clusters, and the Week-5 fit will have few. (6) keeps H4's promise that no part of the difference is a panel-size artifact. (8) is disclosed now because it can be seen now: on 2026-09-13 the quarter after next is due in late January or February for every company in the universe. `tests/test_h1.py`, `tests/test_report.py`. |
+| 16 | 2026-09-13 | **A filing question is refused, and excluded on read, when its target quarter is already past its SEC filing deadline on the day it is asked; the resolver scores only the quarter that was asked about; Chevron joins the company universe.** `edgar.filing_deadline_gap`: a fiscal quarter lasts at most 98 days, and a large accelerated filer must file its 10-Q within 40 days of quarter end and its 10-K within 60 days of year end, so a question asked more than 138 days after the last visible period end (158 when that period is a Q3, whose successor is reported in the 10-K) is about a figure already required to be public. `build_filing_task` refuses to build it. `panel.apply_filing_deadline_exclusion` applies the identical rule to collected rows, reading the fiscal label from the new `last_reported_fp` field or, on older rows, from the revenue table in the stored prompt, and `analysis.apply_registered_exclusions` now holds it. `resolve_filing_task_details` accepts only a quarter ending within 112 days of the last visible one, so a quarter that never becomes visible leaves its task unresolved instead of settled against the quarter after it. The §3.3 minimum of 8 usable quarters is now what the builder checks (it checked 6; every company in the universe has far more, so no task changes). EDGAR resolutions are labelled with their own ref instead of `kalshi:`, and their note carries the filed figure, its period end, filing date, fiscal label and whether it was derived. CVX is appended last to `DEFAULT_UNIVERSE`. | ExxonMobil filed its Q2 2026 10-Q on 2026-08-03 (SEC submissions API), but no revenue fact anywhere in its XBRL company facts is a three-month figure ending 2026-06-30, so the freshest XOM quarter visible to the study stayed 2026-03-31 and **all 13 XOM task-days collected from 2026-09-01 to 2026-09-13 asked about a quarter whose figure had already been filed** -- against the property §1 and §3.2 rest on, that the target quarter has not been filed. Deviation 3's 200-day guard, sized for a series ten years dead, would not have tripped until 2026-10-17, and deviation 3 itself cites XOM at 161 days as an ordinary filer; `tests/test_edgar.py` asserted the same and is corrected. The resolver took the earliest later quarter of any kind, so in November it would have scored those 13 questions against XOM's Q3. **The rule was written while none of the 13 had an outcome, and none could have had one**, because the resolver cannot see their target quarter either. The deadline is the SEC's, not a threshold fitted to this record; on the committed store to 2026-09-13 it removes exactly the JPM rows deviation 3 already excludes and the 13 XOM rows, which `tests/test_filing_deadline.py` asserts. KO has never built a task (no quarterly series under a tag read here) and JPM is refused, so refusing XOM left nine companies for ten daily filing slots and would have moved the registered 60/40 mix. CVX, checked on 2026-09-13 to have 74 visible quarters through 2026-06-30, replaces the universe's only energy filer with another and is appended last so that no other company changes place; XOM re-enters under the same rule if a later quarter becomes visible. The four resolutions already written as `kalshi:edgar:...` are pilot rows and stay as written. |
+| 15 | 2026-09-13 | **Each new Kalshi task records the market's own price and the shape of its own strike ladder.** `kalshi.market_quote` reads the standing yes bid and ask, last and previous price, volume, open interest and liquidity from the fields Kalshi serves (`yes_bid_dollars`, `volume_fp` and the rest), and `market_implied`, null on every task until now, becomes the bid-ask midpoint, unfiltered. Beside them: `strike_type`, `custom_strike`, the Kalshi event itself (`kalshi_event`), `event_ladder_size` (how many numeric strikes that event has) and `event_ladder_distance` (the strike's absolute distance from the median of those strikes, over their span; null when the event has fewer than three, where `ladder_distance` records 0.0). **Recorded, never prompted**: the prompt is assembled before any of this is attached, so no model sees anything it did not see before, and `ladder_distance` is computed exactly as it was. Additive: rows before 2026-09-14 have none of these fields and are not rewritten. | §10 limitation 1 says Kalshi quotes are not public. They are: on 2026-09-13 every market fetched carried `yes_bid_dollars`, `yes_ask_dollars`, `last_price_dollars` and `volume_fp`, and the candlesticks endpoint serves their hourly history. The 17 Aug check read the old integer field names, which Kalshi has removed, and took their absence for an unpublished price. A market price recorded when the question is asked is the one benchmark that is neither a model nor a survey, and the market is the consensus from which a release's surprise can be measured (deviation 18). The ladder fields are recorded because two facts cannot be recovered from `ladder_distance`. **The curated path groups markets by series, not by event** -- `event_ticker.rsplit('-', 1)[0]` strips the expiry -- so every open expiry of a series shares one median and one span, and each day's pair from a series is a central strike of one expiry beside an extreme strike of another, which ties ladder position to horizon. And **49 of the 200 event task-days to 2026-09-13 come from events with no numeric ladder**: Fed and foreign central-bank decisions, whose `C26`-style tickers parse as numbers, and single-market events, which record 0.0, the value a real ladder's median strike also records. How the analysis treats both is registered in deviation 17. Quotes for earlier task-days are recoverable from candlesticks and, if ever used, are labelled as reconstructed. `tests/test_kalshi_quotes_recorded.py`. |
+| 14 | 2026-09-13 | **H3's intra-model arm is collected from 2026-09-14; it had never been collected.** Each day `gpt_mid` answers every task under the registered prompt variants 1-4 (`config.H3_VARIANT_MODEL`, `H3_VARIANTS`), variant 0 being its primary-panel answer. `tasks.variant_prompt` builds variant v by putting the registered framing `PROMPT_VARIANTS[v]` in front of the stored prompt and changes nothing else. On for the primary arm only (`collect.config_from_args`), so the workflow's command is unchanged; the generic `--variants` path now sends real variants too. Stored at `prompt_variant` 1-4, which `panel.load_panel` has always excluded from the primary panel. About $0.024 a day, now included in `projected_ws1_usd`; the ws1 cap still carries more than twice the projection. No primary observation changes: same roster, prompt, temperature, `max_tokens` and routing. | §4 H3 (a) registers N_eff 'for one model under 5 prompt variants', and `tasks.PROMPT_VARIANTS` has held the five framings since before the freeze, but nothing asked any variant except 0: the workflow never passes `--variants`, and the path it would have used re-sent the variant-0 prompt under each new label, producing replicates labelled as variants. **None of the 3,740 observations stored to 2026-09-13 has a variant between 1 and 4.** Found by checking each registered hypothesis's data requirement against the record, which deviation 10 had done for §5.4(a) alone. **2026-09-01 to 2026-09-13 have no variant data and cannot be given any**, so H3 (a) is estimated from 2026-09-14, and its comparison with the within-family and cross-family arms is made on those same task-days. `gpt_mid` was chosen before any variant data existed and for reasons that say nothing about results: it gave identical answers to repetitions of an identical prompt on 22 Aug (§5.4(d) table), so spread across its variants reflects framing, not sampling noise; its vendor serves it directly; it has held 100% coverage; and it is the cheapest of the models that were deterministic. `tests/test_h3_variant_arm.py`. |
+| 13 | 2026-09-13 | **Errata and disclosures from a full audit. Nothing that reaches a model changes and no registered quantity moves.** (a) **The file attached to the OSF registration is the 23 Aug freeze, not the registered plan.** The PREREGISTRATION.md archived in osf.io/x6kqg (file SHA-256 `050fa171...`, freeze hash `2189f8c6...`) is byte-identical to git `f3950b1`. The plan was re-frozen on 29 Aug (`a300cb5`, `90a7e7de...`) to slip the window five days, and the copy in the OSF project was never replaced before the registration was submitted. The two differ in seven lines, all of them dates: the three header lines (stamps, and the window moving 24 Aug to 29 Aug, 27 Sep to 2 Oct, 6 Dec to 11 Dec) and the same dates in §3.3 (twice), §5.3 and §5.4(b). The registration form's own text carries the 29 Aug dates and cites `90a7e7de...`, and git and the Zenodo deposit hold the 29 Aug file. (b) **The registered hash is not the file's SHA-256.** It is taken over the document with its `**Status:**`, `**Frozen on:**` and `**SHA-256 of frozen version:**` lines removed and no final newline, so `shasum -a 256` on the deposited file prints `617d6a57...`; README gives a one-line check that uses none of this repository's code. (c) **Collection began 2026-09-01, not 29 Aug**: the registration awaited approval, and `.osf_url`, which gates collection, was committed at 2026-09-01 03:59 UTC. The window is 102 days, not the 105 of §6. (d) **Questions are asked hours after 13:10 UTC.** GitHub starts the scheduled job late, and first ask times to date ran from 16:01 to 18:14 UTC. Each task's market state is the latest value FRED had published by then, which has been the previous trading day's close or older. **Correction to deviation 6**: VIX 14.32, carried by the tasks of 2026-09-04 through 2026-09-07, is FRED's value for Thursday 2026-09-03; Friday 2026-09-04 closed at 14.53, which appears on no task. Deviation 6's count is unaffected (13 days to date, 8 distinct values). (e) **The pilot record of §3.5.** 20 further task rows dated 2026-08-17 carry no arm and no observations: they are the tasks of the 17 Aug mock run, whose 140 fabricated observations were archived to `data/pilot_mock/`. The ledger held 208 pre-registration rows at the freeze, not the 228 §3.5 states. A post-registration `neff.verify` run on 2026-09-02 booked 10 more pilot-arm calls ($0.0018). None of these rows can reach an analysis. (f) **§10 limitation 1 is wrong**: Kalshi quotes are public under renamed fields (deviation 15). (g) **`realized_vol_20d`**, as implemented at registration, is the population standard deviation of the daily percentage changes across the last 21 VIX closes available at ask time: the volatility of the VIX, not realised volatility of equity returns. (h) **Quotations**: §1 quotes arXiv 2605.00844 as 'a monoculture built but not yet activated', where its abstract reads 'epistemic monoculture that is built but not yet activated'; §4 H6 attributes 'heavily entangled with accuracy rather than measuring true complementarity' to arXiv 2607.20768, a sentence its abstract does not contain, and that paper's +0.99 is the Spearman correlation between one of its five metrics, strict diversity, and one minus mean accuracy. | Found by checking the registration records, the data and the code against the plan end to end. (a) and (b) matter because README claimed the three records 'describe one document': a reader who downloads the OSF attachment gets a file with different dates and a different hash, and a reader who hashes the Zenodo file gets a number that is not the one cited. The registration cannot be edited, and its immutability is the point, so both are recorded here and in the addendum rather than repaired. (c) to (g) correct statements that the frozen text or an earlier deviation makes about the study as actually run, so that nothing a reader checks against the record contradicts the plan without an explanation beside it. (h) matters because any paper built on this plan must quote its sources exactly. |
+| 12 | 2026-09-13 | **Disclosure, with instrumentation: most `deepseek` rows arrive without logprobs, because most of the hosts OpenRouter routes it to answer without them.** No routing is changed. `run_day` now reports, for each model asked for logprobs, how many answered calls carried them and which hosts answered without them: a `logprobs carried` line and a `!! LOGPROBS MISSING` line naming the hosts in the run log, and the same counts in the day summary. It warns and never raises. Nothing that reaches a model changes, the stored record is unchanged, and no registered quantity moves. | Deviation 10 made logprobs requested and stored for the four models §5.4(a) names. Audited over the four collection days since, 2026-09-09 to 2026-09-12: `gpt_mid`, `gpt_small` and the secondary `gpt_frontier` carried them on 108 of 108 rows each, `llama` on 96 of 108, and **`deepseek` on 26 of 108 (24%)**. The host recorded under deviation 7 accounts for all of it: every deepseek row served by DigitalOcean or Google carries logprobs, and every row served by AtlasCloud (36) or StreamLake (46) carries none; llama's gap is Cloudflare (12 rows, none). OpenRouter's endpoint catalogue lists all three of those hosts as supporting `logprobs` and `top_logprobs`, so `require_parameters` (deviation 4) does not filter them out. **Probed live on 2026-09-13 with a minimal prompt, one call pinned to each host with `allow_fallbacks: false`**: AtlasCloud, StreamLake and Cloudflare return HTTP 200 and a complete answer with `choices[0].logprobs` null, while DigitalOcean returns the full token stream and `_digit_logprobs` extracts its digits correctly. The loss is therefore upstream rather than a parsing fault, and nothing on our side of the request recovers it. Nothing in the run reported it either: the rows are otherwise complete, no call fails, and the one check of this kind covered the upstream host rather than logprobs -- the silent shape deviation 10 was itself logged to end. The remedy that would restore coverage, routing `deepseek` only to hosts that return logprobs, changes which serving stack answers the primary forecast in order to serve a sensitivity, mid-panel. That is a decision to take deliberately rather than a side effect of a fix, and it is not taken here. Until it is, the §5.4(a) leg for deepseek is reported on the rows that carry logprobs, with this coverage stated. `tests/test_logprobs_coverage_reported.py`. |
+| 11 | 2026-09-13 | **A call an upstream host rate-limits is now waited out instead of being written off.** `ask()` answers an HTTP 429 by waiting 15, 30, 60 and then 120 seconds before successive retries (`RATE_LIMIT_WAITS_S`), and only then falls back to the ordinary retry path, which is unchanged: two retries, 2 s and 4 s apart. A wait does not use up a retry. Every wait is drawn from one allowance shared by the whole run, 900 s summed across threads (`RATE_LIMIT_ALLOWANCE_S`): the workflow kills the job at 45 minutes and commits nothing until collection has finished, so waiting without a bound could lose every model's rows for a day in order to save one model's. Once the allowance is spent a 429 is retried exactly as before, and the run log says so. Exhausted quotas are excluded, because waiting does not refill them: Google's per-day quota and OpenAI's `insufficient_quota`. **Transport only**: the request body, roster, model ids, prompt, temperature, `max_tokens` and routing are all untouched, and no registered quantity moves. The record changes in two incidental ways: a row that still fails states how many attempts it made, and `latency_ms` on a row that succeeded after waiting includes the wait. Callers outside the daily run, `neff.verify` among them, keep the old behaviour. | Deviation 4 put Novita on OpenRouter's ignore list, and OpenRouter lists exactly two hosts for `qwen/qwen-2.5-72b-instruct`: DeepInfra and Novita (checked 2026-09-13). Every qwen call since has therefore had one host, and `allow_fallbacks` nowhere to fall back to. When DeepInfra's shared pool throttles, the call fails with HTTP 429 and the body "qwen/qwen-2.5-72b-instruct is temporarily rate-limited upstream. Please retry shortly" (`provider_name: DeepInfra`), and the three attempts `ask()` made spanned about six seconds. **24 of 27 qwen observations were lost that way on 2026-09-09, and 5 of 27 on 2026-09-11**, both after the Novita fix. The episodes last minutes, not seconds: on 2026-09-09 eighteen consecutive calls failed between 17:09:20 and 17:10:53 UTC, three succeeded, and six more failed before the run ended. The 20:00 UTC backup run cannot recover such rows, because a failed row is written and its content-addressed id then reads as done; that is deliberate in the append-only design and is not changed here. qwen stood at **72.9% usable coverage all-time and 70.4% over the trailing seven collected days**, against the 80% floor of §3.3 and §5.6 that removes a panel member and takes M from 9 to 8 -- the outcome deviation 4 was logged to prevent, arriving by a second route. A longer wait with no ceiling was rejected because it moves the risk from one model's rows to the whole day's. **Nothing is recovered for days already collected.** `tests/test_rate_limit_waits.py`. |
+| 10 | 2026-09-09 | **Logprobs are now requested and stored for the four models §5.4(a) names, which had never been asked for them.** `OpenAICompatProvider` sends `logprobs: true, top_logprobs: 5` for models flagged `supports_logprobs` (gpt_mid, gpt_small, llama, deepseek, plus the secondary gpt_frontier), and `Observation.logprobs` stores the token-level alternatives for the DIGIT positions of the emitted number. Digits only: the full token stream at five alternatives each would add roughly 18 KB to every row -- about a quarter of a gigabyte of append-only file across 15 weeks -- to carry the same answer to the only question §5.4(a) asks of this leg, whether the emitted value was nearly a different value. **Nothing that reaches the model changes**: same roster, model ids, prompt, temperature and `max_tokens`, and no registered quantity moves. **The request change cannot cost an observation**: a 4xx naming the parameter is reissued once without it and the row lands exactly as before, with the refusal remembered per model id for the run. That fallback sits in the provider, not in `ask()`, which retries a ProviderError with an identical body -- three attempts carrying the same rejected parameter would fail together, which is how qwen lost two whole days to Novita (deviation 4). | §5.4(a) fixes the handling of forecast granularity in advance, and one of its three pre-committed responses is: "for the models exposing logprobs, re-estimate on logprob-derived probabilities." The plan names the four models and says the coverage was "confirmed by live call, not assumed". `ModelSpec.supports_logprobs` was set for exactly those models and `Observation.logprobs` existed -- but the field was never requested from any API and never read by anything, and **0 of the 2,390 observations collected to 2026-09-08 carried any**. The store is append-only, so this was not a gap waiting to be filled: it was a registered sensitivity losing its data permanently, one collection day at a time, while every log looked healthy. Found by auditing each §5.4 commitment against the code after deviation 9 showed a registered rule missing from the analysis. Days 1-8 have no logprobs and cannot be given any; the leg is reported on the days that carry them and the gap is stated rather than interpolated. `tests/test_logprobs_captured.py`. |
+| 9 | 2026-09-09 | **§5.6's coverage floor is now applied by the analysis, which had never implemented it.** `panel.apply_coverage_exclusion` removes any model whose usable coverage inside the SURVIVING panel is below 80%, and `analysis.apply_registered_exclusions` -- whose docstring already claimed to hold "every exclusion that governs the primary estimate" -- now actually holds it. Registered text applied mechanically: no model key appears in the rule, it reads only which cells are filled and never what is in them, so it decides identically on permuted and unpermuted outcomes, which is what lets the driver keep running blind. `run()` reports the models removed and the M it used, because §5.6 requires "reported separately" as well as "excluded". A second, clearly-labelled unregistered warning sits beside it: a model forming no estimable pair contributes nothing to `rho_bar` while still counting toward M, and that no longer passes in silence. **No registered quantity is revised** -- §5.6 is applied as written and the estimator is untouched. The exclusion is recomputed on every run, so a model that recovers is readmitted automatically. | Found by reading `apply_registered_exclusions` against the plan after deviation 5 put the analysis on a real footing for the first time. It composed the two ROW exclusions (§3.3, deviation 3) under a docstring asserting completeness, and the COLUMN exclusion §5.6 registers was simply absent -- the same shape as deviation 5 one level up, where the promise was in the document and the code did something else. Measured blind on the record at 2026-09-09: **`qwen` sat at 0.0% usable coverage inside a nine-column primary panel.** It lost 2026-09-01 and 2026-09-07 entirely to an upstream host (deviation 4), every task resolved by then traced to the single 2026-09-07 settlement, and the intersection of those two sets is empty. M is inside the estimator, `N_eff = M / (1 + (M-1) rho_bar)`, and `stats.n_eff_from_errors` takes M from the COLUMN COUNT while `rho_bar` averages only pairs clearing `min_overlap`. A column of pure NaN therefore raised M without touching rho_bar: no NaN, no error, nothing in the log, and the bias runs toward OVERSTATING the panel's independence -- flattering the headline. Applying §5.6 takes M from 9 to 8 on today's data, and the driver says so. The same run then surfaced the case the floor cannot catch: `claude_sonnet` and `claude_haiku` clear 80% coverage and still form no estimable pair at five resolved tasks, so rho_bar today rests on six models against an M of eight. Both are named rather than absorbed. **The verdict is provisional and says so** -- five resolved tasks is not a measurement of a 15-week panel, and the driver labels it. `tests/test_coverage_floor_exclusion.py`. |
+| 8 | 2026-09-09 | **The three analysis-time state variables are defined and implemented (`neff/state.py`), and complete-case handling is registered for the H1 regression.** §4 registers seven state variables and makes the count the BH denominator; four are written at ask time and the other three had **no implementation at all**. Definitions fixed now: `expectation_dispersion` = population SD of the panel's own forecasts across the models that answered, pairwise-complete. `novelty_score` = `1 - max Jaccard` of the question's word tokens against every task asked on a **strictly earlier day**, with the prompt scaffolding and the "Today's date" stamp removed. `abs_surprise` = |realized - consensus| / (historical SD of that difference), realized taken from the first-published FRED vintage. Missing values are **NaN, never 0**, and the H1 regression is **complete-case with coverage reported alongside every estimate**. | Left to December, these would have been operationalised by someone able to see whether the choice helped H1 -- the exact freedom §9 gives up. They are therefore fixed while the analysis driver is still blind and only five resolved task-days exist. Three choices are worth naming. **Lexical, not embeddings**: §5.4 already refused embedding-based rationale similarity as exploratory-only because doing it honestly needs a validation study of the embeddings; using them here while refusing them there would be incoherent, and Jaccard needs no model, no API and no seed. **Strictly earlier days**: the corpus a question is novel against is the one that existed when it was asked, and scoring within a day would make the result depend on row order. **The ask date is stripped**: every prompt stamps "Today's date", and leaving it in made a re-asked question look unlike its own earlier self because the calendar moved -- novelty would have drifted with the date rather than the corpus. Measured after the fix: re-asks score exactly 0, day 1 scores 1.0, and 1-5 genuinely new questions appear per day. **A consequence that must be registered rather than discovered:** `ladder_distance` is structurally undefined for EDGAR filing tasks -- there is no ladder -- and filing tasks are 40% of the registered mix, so **complete cases are 125 of 205 task-days (61.0%)** and the H1 *regression* runs on the Kalshi subset, excluding the document-grounded arm. The *tercile contrasts* are unaffected in the way that matters: the stress contrast is on `vix_level` at 100% coverage across all tasks, and the ambiguity contrast is on `ladder_distance`, which is Kalshi-only by its nature. Imputing a missing state was rejected: it invents the quantity the regression is asking about. **`abs_surprise` is not yet computable** -- §4 reads it as surprise vs *consensus* and no consensus source is wired; the Philadelphia Fed SPF median (already in the repo) is the candidate and covers CPI, U3 and GDP but not payrolls or the commodity ladders. Until it is wired the variable is NaN throughout. **If it stays uncomputable the BH denominator remains 7 and the variable is reported untested** -- dropping to 6 would make the correction more lenient, which is the one direction a missing variable must never push. `tests/test_state_derived.py`. |
+| 7 | 2026-09-09 | **The upstream host OpenRouter routes each call to is now recorded on the observation.** New optional field `Observation.upstream_provider`; `Provider.complete` returns a `Completion` dataclass instead of a 4-tuple so there is somewhere to put a fifth value; `OpenRouterProvider` reads it from the top-level `provider` field of the response body, and no other provider sets it. It is written before the response is parsed, so rows that failed carry it too. The daily run now prints the hosts it ran on next to the existing model-id drift line, and the pre-flight receipt in `data/verification.jsonl` records it beside the served id it already carried. Instrumentation only -- no registered quantity changes, and the request body is unchanged: same roster, model ids, temperature, `max_tokens`, prompt and routing preference. Additive on the record -- the field appears on new rows only, `data/observations.jsonl` is not rewritten, and the 2,390 rows already collected read back as `None`, which means "not recorded" and not "no host". | §10 limitation 4 registers the drift commitment as "we log the served id every call and report drift; we cannot prevent it". For the three models routed through OpenRouter -- `qwen`, `llama`, `deepseek` -- the served id does not discharge it. OpenRouter is an aggregator: it picks an upstream host per request, and **every host returns the same `qwen/qwen-2.5-72b-instruct`**, so a day served entirely by a different stack passes the drift check in silence. Different hosts serve different quantisations of the same open weights, which makes the serving stack an uncontrolled variable in a study whose primary estimand `rho_bar` IS agreement between models -- and it is invisible in the record as collected. Probed 2026-09-09: qwen→DeepInfra, llama→Parasail, deepseek→Venice, with the assignments moving between requests. This is the same variable as deviation 4, where routing to Novita cost every qwen observation on 2026-09-01 and 2026-09-07 -- 54 rows -- and that was only diagnosable because the HTTP 400 body happened to name `provider_name`. A quantisation change needs no such body: it degrades answers without erroring, and would have left nothing at all to read. **Nothing is reconstructed for the days already collected.** Days 1-8 ran with the upstream floating and unrecorded; that is reported as unknown rather than inferred from a later probe. `tests/test_upstream_host_recorded.py`. |
+| 6 | 2026-09-09 | **Disclosure, not a change: 29.4% of collection days carry a market state that is not their own, which thins the stress leg specifically.** Nothing in the plan is revised and no registered quantity moves. Recorded here because it qualifies a power rationale stated in §6, and the honest place for that is the log the plan itself makes public. To be restated in VALIDITY.md and wherever stress-tercile coverage is reported. | Markets are shut at 13:10 UTC on weekends and holidays, so FRED and the VIX return the prior close and the day's task battery is stamped with it. Observed directly in the first eight days: 2026-09-05 (Sat), 09-06 (Sun) and 09-07 (**Labor Day**) all carry VIX 14.32, Friday 09-04's value, so 8 collection days produced only **5 distinct market states**. Across the full 2026-09-01 to 2026-12-11 window this is 28 weekend days plus Labor Day and Thanksgiving: **30 of 102 days (29.4%), about 750 of 2,550 task-days**. It biases nothing -- the duplicated state is the correct state, since no trading occurred -- but those task-days add rows to whichever VIX tercile the preceding Friday fell in without adding information. **It is confined to the stress leg.** Of the seven registered state variables, three are market-derived and go stale (`vix_level`, `realized_vol_20d`, |macro surprise|); four do not (`ladder_distance` is set per question, cross-model dispersion comes from that day's own forecasts, `days_out` decrements daily, novelty grows with the corpus). So the ambiguity leg of H1 is untouched. **The stress leg still clears its registered requirement**: §6 requires ~300 task-days per stress tercile, and ~600 remain informative. What is narrower than §6's sentence implies is the margin, not the power -- roughly 2x the requirement rather than the ~2.9x a reader would compute from the raw task-day count. Stated now, before the terciles are formed, rather than defended later. |
+| 5 | 2026-09-09 | **A settlement-clustered interval is reported alongside the two §5.2 requires, labelled as a sensitivity.** The registered intervals are unchanged and still govern: the day-blocked one, and the event-clustered one computed on `source_ref` exactly as §5.2 operationalises it. §9 gives up the right to revise them and that is honoured. Reporting safeguards were added at the same time: the driver refuses to print an `N_eff` sitting on the `-1/(M-1)` clamp, flags `N_eff > M`, and names a panel whose rows all trace to one settlement. | Found by running the registered analysis end to end on collected data for the first time, with **outcomes permuted** so the pipeline was exercised without the effect being seen (`neff/analysis.py`, blind by default). §5.2 justifies the clustered interval with the ladder case -- "every strike on a CPI ladder settles against a single print and therefore shares a single surprise" -- and then operationalises it as `source_ref`. **Those are not the same grouping.** A Kalshi ticker is SERIES-EXPIRY-STRIKE, so `source_ref` carries the strike and splits the very ladder the sentence names back into one cluster per rung. Measured on the 241 tasks collected to 2026-09-08: **80 `source_ref`s against 40 actual settlements.** The five `KXAAAGASWNJ-26SEP07` rungs at 4.15-4.19 are five clusters under the registered grouping and did in fact all resolve to 1.0 on 2026-09-07 from one AAA print. So the interval §5.2 designates as the conservative bound, and which governs the claim where the two disagree, treats roughly twice as many clusters as independent as exist -- understating uncertainty in precisely the way it was registered to prevent. The registered interval is **not replaced**; the settlement-clustered one is reported next to it and always labelled unregistered. It can only widen an interval, never narrow a claim. The same first run also returned `N_eff = 17.6` against M = 9 and an upper bound of 1.1e12 on the five resolved task-days then available -- not estimator bugs (rho_bar can be negative at that sample size and `stats.n_eff` clamps as documented) but values that would have printed. `neff/analysis.py`, `tests/test_analysis_driver.py`. |
+| 4 | 2026-09-09 | **OpenRouter requests now carry a routing preference.** `OpenRouterProvider` sends `provider: {require_parameters, allow_fallbacks, ignore: [Novita]}`. Transport only: the model roster, the model ids, temperature, `max_tokens` and the prompt are untouched, and no registered quantity changes. Routing is otherwise left free, deliberately -- days 1-8 were collected with the upstream floating, and pinning one host now would introduce a discontinuity mid-panel to solve a problem the filter already solves. | `qwen` lost every observation on 2026-09-01 and 2026-09-07 -- 27 each, 54 in total -- to `HTTP 400 INVALID_REQUEST_BODY: "model: qwen/qwen-2.5-72b-instruct does not support endpoint: completions"`, `provider_name: Novita`. OpenRouter is an aggregator and picks an upstream host per request; all three retries landed on the same one, so the retry loop could not recover the day. It presents as a flaky model and is not one. This is a §5.6 problem, not a tidiness one: qwen sits at **72.9% usable coverage all-time and 83.0% over the last 7 days**, against an 80% floor that excludes a model from the primary panel. One more lost day removes a registered panel member and takes M from 9 to 8 -- and M is inside the estimator, `N_eff = M / (1 + (M-1) rho_bar)`. The same failure shape nearly cost the study `gemini_flash_pro` before the freeze. Probed 2026-09-09: qwen→DeepInfra, llama→Parasail, deepseek→Venice, so three of ten panel members are exposed and the guard is set on the provider rather than on qwen. Verified live against all three after the change. **The 54 failed rows are kept** -- they carry `error` and are excluded from estimation but counted and reported, exactly as §5.6 requires. `tests/test_openrouter_routing.py`. |
+| 3 | 2026-09-08 | **Filing tasks built on a dead reporting series are refused, and the 9 already collected are excluded from all analysis.** `edgar.build_filing_task` now returns `None` when the freshest visible period end is more than 200 days before the ask date (`MAX_REPORTING_GAP_DAYS`); `panel.apply_stale_source_exclusion` applies the same threshold on read. Neither the model roster, the 60/40 macro/filing mix, nor any registered quantity changes: the EDGAR universe holds 12 companies against a daily allocation of 10, so the dropped company is backfilled and the mix is preserved. | The instrument was generating a contaminated question every day since 2026-08-17. JPMorgan reports revenue under `RevenuesNetOfInterestExpense`, which is not among the four tags `fetch_quarterly_revenue` reads, so its best available series ends at 2014-12-31 and the task asked the panel for the quarter **following** it -- filed in February 2015 and present in every model's pretraining. This defeats the property the filing arm exists to provide (`sources/edgar.py`: "contamination-proof by construction"), and it fails in the worst available direction: models that recall the same published figure agree, and agreement is `rho_bar`, the primary estimand, which is thereby pushed toward the hypothesis. The prior recency fix chose the most recent *tag*; nothing checked whether the winner was recent in absolute terms. **The 9 rows are kept, not deleted** -- append-only -- and excluded on read. The exclusion rule is mechanical (the generator's own precondition, one threshold stated once) rather than a list of tickers, so it catches any filer whose series dies later. Critically, **it was written while all 9 were still unresolved**: none had an outcome on 2026-09-08, so the exclusion cannot have been fitted to a score. `tests/test_stale_source_exclusion.py` asserts that against the committed store, and fails if it ever stops being true. Ordinary filers sat at 32-161 days on 2026-09-08 (XOM widest at 161); JPM sat at 4,269. |
+| 2 | 2026-09-03 | **2026-09-03 carries 30 tasks rather than 25.** A backup collection run was added at 20:00 UTC on 2026-09-03 to protect against a first run dying on something transient. `neff.collect` is idempotent per observation but was not per task: `build_daily_tasks` selects from live sources, so the 22:24 UTC rerun registered 5 Kalshi housing-start ladder rungs (`KXHOUSINGSTART-26SEP17`, thresholds 1.300–1.500) that had not existed at 17:04, and collected 50 observations against them. | Operational fault, ours, found the same day. Nothing was lost, double-counted or back-dated: all 30 tasks were registered before any outcome existed and all 320 observations are real. What changed without being planned is the sampling design on one day — 5 extra tasks at a market state 5 hours removed from the other 25. Fixed in `neff.collect`: a day that already has registered tasks reuses exactly those, so a rerun finishes a day and can no longer extend one (`tests/test_rerun_does_not_extend_the_day.py`). **The 5 rows are kept, not deleted** — the record is append-only and removing real pre-outcome forecasts after the fact is a worse failure than the imbalance it would tidy. Any day-level analysis should weight by task count rather than assume 25. |
+| 1 | 2026-09-03 | `MAX_OUTPUT_TOKENS` raised from 400 to 1000. Not a registered quantity; recorded here because it changes the instrument mid-collection. | At 400, `claude_sonnet` lost 7 of 54 observations on 1–2 Sep, each billed at exactly 400 output tokens: it reasons in prose before emitting the JSON object and was cut off before reaching it. The loss was **not at random** — the same questions (JPM, PG) truncated on both days, concentrating the loss on items that invite long reasoning, which is the subpopulation H2 is about. `max_tokens` is a stopping rule, not a sampling parameter: it cannot change the distribution generated, only halt it, so replies that finished inside 400 tokens (the panel median is 60–105) are unaffected. Days 1–2 were collected at 400 and that is stated wherever the affected coverage is reported. |

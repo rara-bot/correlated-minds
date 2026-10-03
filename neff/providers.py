@@ -1,0 +1,999 @@
+"""Multi-provider LLM client for the panel.
+
+Everything here exists to make seven different APIs produce ONE comparable
+observation. Design requirements, each driven by a way the study could otherwise
+be corrupted:
+
+  - PINNED MODEL IDS, and we log whatever id the API actually served. Providers
+    silently upgrade models behind aliases; a swap mid-panel would corrupt a
+    longitudinal correlation study in a way that is nearly undetectable after
+    the fact. The same argument reaches one level further down: where the API is
+    an aggregator, the served id does not identify the machine that ran the
+    weights, so we log the upstream host it names as well.
+
+  - STRUCTURED OUTPUT. We correlate decisions, not prose. A rigid JSON schema
+    removes extraction error and stops free-text length differences across
+    families from leaking into the measurement.
+
+  - PRE-FLIGHT COSTING. Every call is priced and checked against the ledger
+    BEFORE it is issued, so a retry loop cannot drain the budget overnight.
+
+  - NO SILENT FAILURES. A refusal, a timeout, or a malformed response is recorded
+    as an Observation with `error` set, never dropped. A dropped call is a hole
+    in the panel that looks identical to "the model had nothing to say", and
+    those holes would cluster on exactly the busy market days our hypothesis is
+    about.
+
+  - IDENTICAL SAMPLING. temperature=0 everywhere. Prompt-variant diversity for
+    H3 is manipulated explicitly; it must never leak in through sampling noise.
+"""
+
+import json
+import os
+import re
+import threading
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+import httpx
+
+from .config import MAX_OUTPUT_TOKENS, TASKS_PER_DAY, TEMPERATURE, ModelSpec
+from .ledger import BudgetExceeded, Ledger
+from .store import Observation, observation_id
+
+# The schema every model must fill. Kept deliberately small: four fields, no
+# nesting. Larger schemas produce more parse failures, and a parse failure is a
+# missing observation.
+RESPONSE_INSTRUCTIONS = """\
+You are producing a calibrated forecast for a research study.
+
+Respond with ONLY a JSON object, no prose before or after, in exactly this form:
+
+{"probability": <number between 0 and 1>,
+ "direction": "<yes|no>",
+ "confidence": <number between 0 and 1>,
+ "rationale": "<one sentence, at most 25 words>"}
+
+- "probability" is your probability that the stated outcome occurs.
+- "direction" is "yes" if probability > 0.5, otherwise "no".
+- "confidence" is how sure you are of your own probability estimate.
+- Do not hedge by answering 0.5 unless you genuinely have no information.
+"""
+
+
+class ProviderError(RuntimeError):
+    """Non-retryable provider failure."""
+
+
+@dataclass
+class Completion:
+    """One call's result, in the form the observation record needs it.
+
+    A dataclass rather than a tuple because what we need to know about a call is
+    not a fixed-width thing. It began as (text, model_id, in, out); recording the
+    upstream host made it five, and the next provider quirk worth logging will
+    make it six. Widening a tuple silently breaks every call site that unpacks it
+    by position, and one of those call sites bills the study's budget.
+
+    `upstream_provider` is optional because most providers serve their own
+    models and the question does not arise for them.
+    """
+
+    text: str
+    model_id: str
+    input_tokens: int
+    output_tokens: int
+    upstream_provider: Optional[str] = None
+    logprobs: Optional[List[Dict[str, Any]]] = None
+
+
+# How many alternatives to ask for at each token position. 5 is enough to see
+# whether the emitted digit was nearly a different digit, which is the whole
+# question 5.4(a) asks of this leg, and small enough that the stored record stays
+# a record rather than a payload.
+TOP_LOGPROBS = 5
+
+# Positions kept per response. Replies land in 60-105 output tokens and only the
+# digits matter (below), so this is a ceiling against a pathological response,
+# not a working limit.
+MAX_LOGPROB_POSITIONS = 24
+
+
+def _digit_logprobs(payload: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """Token-level alternatives for the positions that carry the NUMBER.
+
+    5.4(a) registers a re-estimation "on logprob-derived probabilities" for the
+    models that expose them. What that needs is the distribution over the emitted
+    VALUE -- whether `0.62` was nearly `0.72` -- so the useful positions are the
+    ones bearing digits, in `"probability": 0.62` and `"confidence": 0.7`.
+
+    Everything else in the reply is JSON scaffolding whose logprobs answer no
+    registered question. Keeping only the digits is what makes this affordable to
+    store: the full token stream with five alternatives each would add roughly
+    18 KB to every row, which over 15 weeks is a quarter-gigabyte of
+    append-only file to carry the same information.
+
+    Returns None rather than [] when the provider sent nothing, so "not offered"
+    stays distinguishable from "offered and empty".
+    """
+    choices = payload.get("choices") or []
+    if not choices:
+        return None
+    content = ((choices[0].get("logprobs") or {}).get("content")) or []
+    if not content:
+        return None
+
+    out: List[Dict[str, Any]] = []
+    for position in content:
+        token = str(position.get("token", ""))
+        if not any(ch.isdigit() for ch in token):
+            continue
+        alternatives = [
+            [str(alt.get("token", "")), round(float(alt.get("logprob", 0.0)), 4)]
+            for alt in (position.get("top_logprobs") or [])
+            if isinstance(alt, dict)
+        ]
+        out.append({
+            "t": token,
+            "lp": round(float(position.get("logprob", 0.0)), 4),
+            "top": alternatives,
+        })
+        if len(out) >= MAX_LOGPROB_POSITIONS:
+            break
+    return out or None
+
+
+def _rejects_logprobs(response) -> bool:
+    """Is this failure specifically about the `logprobs` parameter?
+
+    Narrow on purpose. A blanket "retry without logprobs on any error" would
+    silently drop the registered leg the first time a host rate-limited, and
+    nothing would say the data had stopped arriving. Only a 4xx that names the
+    parameter counts; a 429 or a 500 is left to the ordinary retry path.
+    """
+    if not (400 <= int(getattr(response, "status_code", 0)) < 500):
+        return False
+    try:
+        body = str(response.text)[:2000].lower()
+    except Exception:                                          # noqa: BLE001
+        return False
+    return "logprob" in body
+
+
+def _upstream_host(payload: Dict[str, Any], field: Optional[str]) -> Optional[str]:
+    """The upstream host an aggregator named for this call, if it named one.
+
+    Deliberately strict. A missing host is a gap in the log; a WRONG host is a
+    confounder recorded as if it were controlled, which is worse. OpenRouter
+    answers with a bare name ("DeepInfra"), so anything that is not a non-empty
+    string -- notably the routing-preference object we send under the same key --
+    is read as "not stated" rather than coerced into a value.
+    """
+    if not field:
+        return None
+    value = payload.get(field)
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
+
+
+# `"direction": "yes, confidence": 0.7`  ->  `"direction": "yes", "confidence": 0.7`
+# The value capture forbids both quotes and commas, so it can only ever match a
+# single unquoted word run into the next key -- not a legitimate string that
+# happens to contain a comma.
+_UNTERMINATED_STRING = re.compile(
+    r':\s*"([^",]*),\s*([A-Za-z_][A-Za-z0-9_]*)"\s*:'
+)
+
+
+def _extract_json(text: str) -> Optional[Dict[str, Any]]:
+    """Pull the first JSON object out of a response.
+
+    Models wrap JSON in markdown fences, add a preamble, or append a note,
+    despite instructions. Being tolerant here converts would-be missing
+    observations into usable ones, which directly protects statistical power.
+    """
+    if not text:
+        return None
+
+    candidate = text.strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", candidate, re.DOTALL)
+    if fenced:
+        candidate = fenced.group(1).strip()
+
+    try:
+        parsed = json.loads(candidate)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    # Fall back to the first balanced {...} block.
+    start = candidate.find("{")
+    while start != -1:
+        depth = 0
+        for i in range(start, len(candidate)):
+            if candidate[i] == "{":
+                depth += 1
+            elif candidate[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        parsed = json.loads(candidate[start : i + 1])
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except json.JSONDecodeError:
+                        break
+        start = candidate.find("{", start + 1)
+
+    # LAST RESORT: repair a specific, observed malformation.
+    #
+    # Llama intermittently omits the closing quote on a string value, which
+    # swallows the following key into it:
+    #
+    #   {"probability": 0.83, "direction": "yes, confidence": 0.7, ...}
+    #                                           ^ closing quote missing
+    #
+    # Measured across the 21-22 Aug pilots: 2 of 16 llama calls, ~12%, both with
+    # exactly this shape. The model's answer is unambiguous -- 0.83, yes, 0.7 --
+    # and only the punctuation is wrong, so discarding it throws away a perfectly
+    # good observation.
+    #
+    # That matters more for this model than most: `llama` is the panel's ONLY
+    # Meta model, so a sustained 12% loss walks it toward the 80% coverage floor
+    # in PREREGISTRATION.md 3.3, and dropping it would take the panel from six
+    # vendor families to five.
+    #
+    # Applied ONLY after strict parsing has already failed, so it can never
+    # reinterpret JSON that was valid to begin with.
+    repaired = _UNTERMINATED_STRING.sub(r': "\1", "\2":', candidate)
+    if repaired != candidate:
+        return _extract_json(repaired)
+
+    return None
+
+
+def _coerce_probability(value: Any) -> Optional[float]:
+    """Accept 0.72, '0.72', '72%', or 72 and return 0.72."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    else:
+        text = str(value).strip().rstrip("%")
+        try:
+            number = float(text)
+        except ValueError:
+            return None
+        if "%" in str(value):
+            number /= 100.0
+    # A bare "72" almost certainly means 72%.
+    if number > 1.0:
+        number = number / 100.0 if number <= 100.0 else 1.0
+    return max(0.0, min(1.0, number))
+
+
+class Provider(ABC):
+    """One vendor's API."""
+
+    name = "base"
+
+    @abstractmethod
+    def complete(
+        self, spec: ModelSpec, prompt: str, max_tokens: int, timeout: float
+    ) -> "Completion":
+        """Issue one call and return what was served."""
+
+    @staticmethod
+    def _key(*names: str) -> Optional[str]:
+        for name in names:
+            value = os.environ.get(name)
+            if value:
+                return value.strip()
+        return None
+
+
+class AnthropicProvider(Provider):
+    name = "anthropic"
+    URL = "https://api.anthropic.com/v1/messages"
+
+    def complete(self, spec, prompt, max_tokens, timeout):
+        key = self._key("ANTHROPIC_API_KEY")
+        if not key:
+            raise ProviderError("ANTHROPIC_API_KEY not set")
+
+        response = httpx.post(
+            self.URL,
+            headers={
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": spec.model_id,
+                "max_tokens": max_tokens,
+                "temperature": TEMPERATURE,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=timeout,
+        )
+        if response.status_code != 200:
+            raise ProviderError(f"anthropic HTTP {response.status_code}: {response.text[:300]}")
+
+        payload = response.json()
+        text = "".join(
+            block.get("text", "")
+            for block in payload.get("content", [])
+            if block.get("type") == "text"
+        )
+        usage = payload.get("usage", {})
+        return Completion(
+            text=text,
+            model_id=payload.get("model", spec.model_id),
+            input_tokens=int(usage.get("input_tokens", 0)),
+            output_tokens=int(usage.get("output_tokens", 0)),
+        )
+
+
+class OpenAICompatProvider(Provider):
+    """OpenAI's chat-completions shape.
+
+    Also serves OpenRouter and most open-weight hosts, which deliberately mirror
+    this API. One implementation therefore covers four of our seven families.
+    """
+
+    name = "openai"
+    URL = "https://api.openai.com/v1/chat/completions"
+    KEY_NAMES = ("OPENAI_API_KEY",)
+
+    # Merged into the request body. Empty for direct vendor APIs, which serve
+    # their own models; only aggregators need to say HOW to route.
+    EXTRA_BODY: Dict[str, Any] = {}
+
+    # Response key naming the upstream host that served the call. None for a
+    # direct vendor API: OpenAI IS the host, so there is nothing to disambiguate
+    # and any key of this name in its response would mean something else.
+    UPSTREAM_FIELD: Optional[str] = None
+
+    def __init__(self) -> None:
+        # Model ids observed to reject `logprobs`, remembered for this run only.
+        # Per-run rather than persisted: a host that gains support is asked again
+        # tomorrow instead of being written off for the study.
+        self._logprobs_refused: set = set()
+
+    # OpenAI renamed this for the gpt-5 line: `max_tokens` now returns HTTP 400
+    # "Unsupported parameter ... Use 'max_completion_tokens' instead". OpenRouter
+    # still accepts the old name and normalises it, so this differs by PROVIDER,
+    # not by model -- which is why it is a class attribute rather than a branch on
+    # spec.model_id.
+    MAX_TOKENS_PARAM = "max_completion_tokens"
+
+    def _body(self, spec, prompt, max_tokens, with_logprobs: bool) -> Dict[str, Any]:
+        body = {
+            "model": spec.model_id,
+            self.MAX_TOKENS_PARAM: max_tokens,
+            "temperature": TEMPERATURE,
+            "messages": [{"role": "user", "content": prompt}],
+            **self.EXTRA_BODY,
+        }
+        if with_logprobs:
+            body["logprobs"] = True
+            body["top_logprobs"] = TOP_LOGPROBS
+        return body
+
+    def complete(self, spec, prompt, max_tokens, timeout):
+        key = self._key(*self.KEY_NAMES)
+        if not key:
+            raise ProviderError(f"{self.KEY_NAMES[0]} not set")
+
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+        # LOGPROBS ARE ASKED FOR, BUT NEVER AT THE PRICE OF THE OBSERVATION.
+        #
+        # 5.4(a) registers a re-estimation on logprob-derived probabilities for
+        # the models that expose them. The field was never requested, so that leg
+        # had no data at all -- and the store is append-only, so every day it
+        # stayed unasked is a day that can never have it.
+        #
+        # Asking is a request change on a live panel, so it is built unable to
+        # cost anything. If a host rejects the parameter we reissue the SAME call
+        # without it, and the observation lands exactly as it would have before.
+        # The fallback belongs here rather than in `ask()`, which retries a
+        # ProviderError with an identical body: three attempts would carry the
+        # same bad parameter and fail together, which is exactly how qwen lost
+        # two whole days to Novita (11, deviation 4). The refusal is remembered
+        # per model id, so only the first call of a run pays for the discovery.
+        want = bool(getattr(spec, "supports_logprobs", False)) and (
+            spec.model_id not in self._logprobs_refused
+        )
+        response = httpx.post(
+            self.URL, headers=headers,
+            json=self._body(spec, prompt, max_tokens, want), timeout=timeout,
+        )
+        if want and response.status_code != 200 and _rejects_logprobs(response):
+            self._logprobs_refused.add(spec.model_id)
+            want = False
+            response = httpx.post(
+                self.URL, headers=headers,
+                json=self._body(spec, prompt, max_tokens, False), timeout=timeout,
+            )
+        if response.status_code != 200:
+            raise ProviderError(f"{self.name} HTTP {response.status_code}: {response.text[:300]}")
+
+        payload = response.json()
+        choices = payload.get("choices") or []
+        text = choices[0].get("message", {}).get("content", "") if choices else ""
+        usage = payload.get("usage", {})
+        return Completion(
+            text=text,
+            model_id=payload.get("model", spec.model_id),
+            input_tokens=int(usage.get("prompt_tokens", 0)),
+            output_tokens=int(usage.get("completion_tokens", 0)),
+            upstream_provider=_upstream_host(payload, self.UPSTREAM_FIELD),
+            logprobs=_digit_logprobs(payload) if want else None,
+        )
+
+
+class OpenRouterProvider(OpenAICompatProvider):
+    name = "openrouter"
+    URL = "https://openrouter.ai/api/v1/chat/completions"
+    KEY_NAMES = ("OPENROUTER_API_KEY",)
+    # Verified 19 Aug 2026: OpenRouter accepts the original name across all four
+    # models we route through it, including the OpenAI ones.
+    MAX_TOKENS_PARAM = "max_tokens"
+
+    # ROUTING IS NOT NEUTRAL. OpenRouter is an aggregator: it picks an upstream
+    # host per request, and the choice is invisible unless you ask for it.
+    # Probed 2026-09-09, one model per host: qwen -> DeepInfra,
+    # llama -> Parasail, deepseek -> Venice. Those assignments can change
+    # between requests, and when qwen was routed to Novita the call failed with
+    #
+    #     HTTP 400 INVALID_REQUEST_BODY -- "model: qwen/qwen-2.5-72b-instruct
+    #     does not support endpoint: completions"  (provider_name: Novita)
+    #
+    # for every retry, because all three attempts landed on the same upstream.
+    # That cost the whole of 2026-09-01 and 2026-09-07 -- 27 observations each,
+    # every qwen row for the day. It reads as a flaky model and is not one.
+    #
+    # `require_parameters` drops hosts that cannot serve the request as sent;
+    # `ignore` names the one already observed to fail; `allow_fallbacks` keeps
+    # the remaining hosts available so this cannot become a single point of
+    # failure. Routing is deliberately left free otherwise: days 1-8 were
+    # collected with it floating, and pinning one host now would put a
+    # discontinuity mid-panel to fix a problem the filter already solves.
+    EXTRA_BODY = {
+        "provider": {
+            "require_parameters": True,
+            "allow_fallbacks": True,
+            "ignore": ["Novita"],
+        }
+    }
+
+    # AND BECAUSE ROUTING IS LEFT FREE, IT HAS TO BE RECORDED.
+    #
+    # The filter above removes one known-bad host and stops there, deliberately:
+    # days 1-8 were collected with the upstream floating and pinning one host now
+    # would put a discontinuity mid-panel. What that leaves is a variable that
+    # moves per request and, until this field, was written down nowhere -- while
+    # PREREGISTRATION.md 10 (limitation 4) promises "we log the served id every
+    # call and report drift". The served id is `qwen/qwen-2.5-72b-instruct`
+    # whichever host answers, so on its own it does not discharge that promise
+    # here: hosts serve different quantisations of the same open weights, and
+    # the study's estimand is agreement BETWEEN models.
+    #
+    # OpenRouter names the host it chose in a top-level `provider` field on the
+    # response body (verified live, 2026-09-09). It shares its name with the
+    # routing preference we SEND under EXTRA_BODY above; the two are unrelated,
+    # which is why `_upstream_host` accepts only a bare string.
+    UPSTREAM_FIELD = "provider"
+
+
+class OpenRouterAzureProvider(OpenRouterProvider):
+    """OpenRouter, pinned to Azure's deployment of the model (PREREGISTRATION.md 11, deviation 23).
+
+    For a model its vendor retires mid-collection while Azure keeps serving the same
+    snapshot (`config.SERVING_ROUTES`). The general OpenRouter routing is left free
+    on purpose (deviation 4); this one is pinned, because the point of the route is
+    one known host: `allow_fallbacks: False` means that if Azure cannot answer, the
+    call fails and is recorded as a failure rather than answered by some other
+    stack. `require_parameters` keeps temperature 0 a condition of routing, not a
+    request a host may ignore. Probed 2026-09-19: it answers with host "Azure" and
+    refuses `logprobs` at the routing step, so the route's specs never ask for them.
+    """
+
+    name = "openrouter_azure"
+    EXTRA_BODY = {
+        "provider": {
+            "order": ["Azure"],
+            "allow_fallbacks": False,
+            "require_parameters": True,
+        }
+    }
+
+
+def google_daily_quota(response_json: Dict[str, Any]) -> Optional[int]:
+    """The per-day request quota named in a Google 429, if it names one.
+
+    Google's 429 body carries a QuotaFailure detail with the exact limit. Reading
+    it turns "rate limited, try later" into "this key can make 20 requests a day
+    against this model", which is a completely different piece of information --
+    the first is transient, the second means the study as designed cannot run.
+    """
+    for detail in (response_json.get("error", {}) or {}).get("details", []) or []:
+        if "QuotaFailure" not in str(detail.get("@type", "")):
+            continue
+        for violation in detail.get("violations", []) or []:
+            if "PerDay" not in str(violation.get("quotaId", "")):
+                continue
+            try:
+                return int(violation.get("quotaValue"))
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _google_quota_message(response, spec: ModelSpec) -> str:
+    """Turn a Google 429 into a message that names the actual problem.
+
+    MEASURED 21 Aug 2026: `gemini-3.5-flash` on the free tier allows **20
+    requests per day per model**. The study asks each model TASKS_PER_DAY = 25
+    questions every day. 25 > 20, so this model could never exceed 80% coverage
+    even on a perfect day, and PREREGISTRATION.md 3.3 excludes any model below
+    that floor from the primary panel.
+
+    It is half of the Google within-family pair, so losing it costs H3 one of its
+    three within-family pairs -- the exact structural weakness that took the
+    panel from seven models to nine in the first place (AUDIT.md finding 6).
+
+    The fix is not in this codebase: enable billing on the Google Cloud project.
+    Priced with thinking off, the model costs about $3 for the entire 15-week
+    study. But it has to be done BEFORE the roster is frozen, because if it
+    cannot be done the roster is what has to change.
+    """
+    try:
+        payload = response.json()
+    except Exception:                                          # noqa: BLE001
+        return f"google HTTP 429: {response.text[:300]}"
+
+    quota = google_daily_quota(payload)
+    if quota is None:
+        return f"google HTTP 429 (rate limited): {response.text[:250]}"
+
+    verdict = (
+        f"FREE-TIER DAILY QUOTA: {quota} requests/day for {spec.model_id}. "
+        f"The panel asks {TASKS_PER_DAY} questions/day, so this model can reach at "
+        f"most {min(quota, TASKS_PER_DAY) / TASKS_PER_DAY:.0%} coverage"
+    )
+    if quota < TASKS_PER_DAY:
+        verdict += (
+            " -- below the 80% floor in PREREGISTRATION.md 3.3, which would drop it "
+            "from the primary panel. Enable billing on the Google Cloud project "
+            "(about $3 for the whole study) or change the roster BEFORE the freeze."
+        )
+    return f"google HTTP 429: {verdict}"
+
+
+class GoogleProvider(Provider):
+    name = "google"
+    URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+    def complete(self, spec, prompt, max_tokens, timeout):
+        key = self._key("GOOGLE_API_KEY", "GEMINI_API_KEY")
+        if not key:
+            raise ProviderError("GOOGLE_API_KEY not set")
+
+        # EXTENDED THINKING IS OFF FOR THE REASONING MODEL IN THIS FAMILY, AND
+        # THE FIELD IS OMITTED ENTIRELY FOR THE ONE THAT REJECTS IT.
+        #
+        # 1. Correctness. On Gemini, `maxOutputTokens` is a budget SHARED between
+        #    internal thinking and the visible answer, and the model expands its
+        #    thinking to fill whatever it is given. Measured on a real task prompt
+        #    at the collection budget of 400: thoughts=383, visible=13,
+        #    finishReason=MAX_TOKENS, and the answer arrived cut off mid-object as
+        #    `{"probability": 0.92,`. The 21 Aug pilot scored `gemini_flash_pro`
+        #    at 0/8 usable -- over 15 weeks, below the 80% coverage floor of
+        #    PREREGISTRATION.md 3.3, dropped from the primary panel, taking one of
+        #    H3's three within-family pairs with it.
+        #
+        # 2. Comparability -- the same argument that repinned the Anthropic anchor
+        #    in AUDIT.md finding 13. Eight panel members answer directly. A ninth
+        #    doing extended reasoning is not a model difference, it is a MODE
+        #    difference, and it would load onto exactly the cross-model
+        #    correlations H6 uses for its capability contrast. TEMPERATURE=0 is
+        #    registered so differences reflect the models rather than our
+        #    sampling; running one member in a different inference mode defeats
+        #    that by another route.
+        #
+        # Measured with thinking off: thoughts=0, visible=71, parses cleanly, and
+        # $0.00116/call against $0.00840 -- 7x cheaper on the panel's most
+        # expensive output rate.
+        #
+        # The field is per-model because `gemini-3.5-flash-lite` -- the other half
+        # of the same within-family pair -- answers HTTP 400 `Request contains an
+        # invalid argument` when `thinkingConfig` is present at all. Sending it
+        # provider-wide fixed one Google model by breaking the other.
+        generation_config = {
+            "temperature": TEMPERATURE,
+            "maxOutputTokens": max_tokens,
+        }
+        if spec.thinking_budget is not None:
+            generation_config["thinkingConfig"] = {"thinkingBudget": spec.thinking_budget}
+
+        response = httpx.post(
+            self.URL.format(model=spec.model_id),
+            headers={"Content-Type": "application/json", "x-goog-api-key": key},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": generation_config,
+            },
+            timeout=timeout,
+        )
+        if response.status_code == 429:
+            raise ProviderError(_google_quota_message(response, spec))
+        if response.status_code != 200:
+            raise ProviderError(f"google HTTP {response.status_code}: {response.text[:300]}")
+
+        payload = response.json()
+        candidates = payload.get("candidates") or []
+        text = ""
+        finish = ""
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text = "".join(part.get("text", "") for part in parts)
+            finish = str(candidates[0].get("finishReason") or "")
+        usage = payload.get("usageMetadata", {})
+
+        # Thinking tokens are BILLED AS OUTPUT and were not being counted. The
+        # ledger read `candidatesTokenCount` alone, so a call that burned 867
+        # thinking tokens and emitted 65 visible ones was recorded as 65 -- a 14x
+        # undercount on the panel's most expensive output rate ($9/Mtok). The
+        # $200 cap is enforced against RECORDED spend, so an undercount here is
+        # not a bookkeeping nit: it is the cap silently ceasing to protect the
+        # account it exists to protect. This is the failure mode config.py's own
+        # header warns about -- "a wrong PRICE fails silently and quietly drains
+        # the budget while every log looks healthy."
+        output_tokens = int(usage.get("candidatesTokenCount", 0)) + int(
+            usage.get("thoughtsTokenCount", 0)
+        )
+
+        # A truncated response is a silent data-quality failure: the JSON parser
+        # simply returns None and the observation is dropped, with nothing in the
+        # log saying why. Name it.
+        if finish == "MAX_TOKENS":
+            raise ProviderError(
+                f"google response truncated at maxOutputTokens={max_tokens} "
+                f"(finishReason=MAX_TOKENS, visible={usage.get('candidatesTokenCount', 0)} "
+                f"tokens, thinking={usage.get('thoughtsTokenCount', 0)}). Raise the "
+                f"budget or reduce thinkingBudget."
+            )
+
+        return Completion(
+            text=text,
+            model_id=payload.get("modelVersion", spec.model_id),
+            input_tokens=int(usage.get("promptTokenCount", 0)),
+            output_tokens=output_tokens,
+        )
+
+
+class MockProvider(Provider):
+    """Deterministic offline provider.
+
+    Lets the entire pipeline -- task construction, calling, parsing, scoring,
+    storage, cost accounting -- be tested end to end with zero spend and zero
+    keys. Every model family gets its own reproducible bias so the resulting
+    fake panel has realistic, non-degenerate correlation structure to test the
+    estimator against.
+    """
+
+    name = "mock"
+
+    def complete(self, spec, prompt, max_tokens, timeout):
+        import hashlib
+
+        seed = int(
+            hashlib.sha256(f"{spec.key}|{prompt}".encode("utf-8")).hexdigest()[:8], 16
+        )
+        family_bias = (
+            int(hashlib.sha256(spec.family.encode()).hexdigest()[:4], 16) % 100
+        ) / 500.0
+        probability = round(min(0.95, max(0.05, (seed % 1000) / 1000.0 * 0.7 + family_bias)), 3)
+
+        text = json.dumps(
+            {
+                "probability": probability,
+                "direction": "yes" if probability > 0.5 else "no",
+                "confidence": round(0.4 + (seed % 50) / 100.0, 2),
+                "rationale": f"mock response from {spec.key}",
+            }
+        )
+        return Completion(
+            text=text,
+            model_id=f"{spec.model_id}-mock",
+            input_tokens=len(prompt) // 4,
+            output_tokens=40,
+        )
+
+
+PROVIDERS: Dict[str, Provider] = {
+    "anthropic": AnthropicProvider(),
+    "openai": OpenAICompatProvider(),
+    "openrouter": OpenRouterProvider(),
+    "openrouter_azure": OpenRouterAzureProvider(),
+    "google": GoogleProvider(),
+    "mock": MockProvider(),
+}
+
+
+# A RATE LIMIT IS WAITED OUT, NOT COUNTED AS A FAILURE.
+#
+# A 429 means "not now", and `ask()` used to answer it like any other failure:
+# three attempts, two and four seconds apart. Six seconds outlasts nothing. Since
+# Novita went on the ignore list (PREREGISTRATION.md 11, deviation 4), OpenRouter
+# has had exactly one host for qwen -- DeepInfra -- so `allow_fallbacks` has
+# nowhere to go when that host's shared pool throttles:
+#
+#     HTTP 429 -- "qwen/qwen-2.5-72b-instruct is temporarily rate-limited
+#     upstream. Please retry shortly"  (provider_name: DeepInfra)
+#
+# On 2026-09-09 eighteen consecutive qwen calls failed that way between 17:09:20
+# and 17:10:53 UTC, and the day lost 24 of its 27 qwen observations; 2026-09-11
+# lost 5 more. qwen was already under the 80% coverage floor that removes a
+# panel member (3.3, 5.6). The evening backup run cannot recover such a row: it
+# is written as a failure, and its content-addressed id then reads as done. So
+# the wait has to happen here, inside the call. The schedule's 225 s horizon
+# outlasts the 93 s streak above.
+RATE_LIMIT_WAITS_S = (15.0, 30.0, 60.0, 120.0)
+
+# WAITING HAS ITS OWN WAY TO LOSE A DAY. The workflow kills the job at 45
+# minutes, and nothing is committed until collection has finished, so a run held
+# past that loses every model's rows rather than one model's. Every wait is
+# therefore drawn from one allowance for the whole run, summed across threads:
+# at most fifteen minutes added to a collection that normally takes four. Once
+# it is spent, a 429 is retried exactly as before, and the run log says so.
+RATE_LIMIT_ALLOWANCE_S = 900.0
+
+# A quota is not a queue. These 429s mean the allowance for the day or the
+# account is gone, and waiting inside one run cannot bring it back -- spending
+# the run's allowance on them would only starve the rate limits that do pass.
+# Google names a per-day quota through `_google_quota_message`; OpenAI answers
+# an account that is out of credit with a 429 of type `insufficient_quota`.
+_QUOTA_EXHAUSTED = ("DAILY QUOTA", "insufficient_quota")
+
+# Every provider above builds its message as `<name> HTTP <status>: <body>`.
+# Anchored at the start so that a 429 quoted inside another error's body does not
+# count.
+_HTTP_429 = re.compile(r"^\w+ HTTP 429\b")
+
+
+def _rate_limited(exc: BaseException) -> bool:
+    """Is this failure a rate limit that waiting can outlast?
+
+    Narrow on purpose, like `_rejects_logprobs`: a transport error, a 400, a 500
+    and an exhausted quota all keep the ordinary retry path.
+    """
+    if not isinstance(exc, ProviderError):
+        return False
+    message = str(exc)
+    if not _HTTP_429.match(message):
+        return False
+    return not any(marker in message for marker in _QUOTA_EXHAUSTED)
+
+
+class RateLimitAllowance:
+    """How long one run may spend waiting out rate limits, shared by its threads."""
+
+    def __init__(self, seconds: float = RATE_LIMIT_ALLOWANCE_S) -> None:
+        self.seconds = float(seconds)
+        self.waited_s = 0.0
+        self.waits = 0
+        self.refused = 0
+        self._lock = threading.Lock()
+
+    def take(self, wanted: float) -> float:
+        """Reserve up to `wanted` seconds. Returns what was granted, possibly 0."""
+        with self._lock:
+            granted = max(0.0, min(float(wanted), self.seconds - self.waited_s))
+            if granted > 0:
+                self.waited_s += granted
+                self.waits += 1
+            else:
+                self.refused += 1
+            return granted
+
+    def summary(self) -> Dict[str, float]:
+        with self._lock:
+            return {
+                "waits": self.waits,
+                "waited_s": round(self.waited_s, 1),
+                "allowance_s": self.seconds,
+                "refused": self.refused,
+            }
+
+
+def ask(
+    spec: ModelSpec,
+    task_id: str,
+    prompt: str,
+    ledger: Ledger,
+    arm: str,
+    prompt_variant: int = 0,
+    max_tokens: int = MAX_OUTPUT_TOKENS,
+    timeout: float = 90.0,
+    use_mock: bool = False,
+    max_retries: int = 2,
+    rate_limits: Optional[RateLimitAllowance] = None,
+) -> Observation:
+    """Ask one model one question and return an Observation.
+
+    Never raises for provider trouble -- failures come back as an Observation
+    with `error` populated. The panel must record that a model was asked and did
+    not usefully answer; that is data, not an absence of data.
+
+    `rate_limits` is the run's allowance for waiting out a 429 (see
+    RATE_LIMIT_WAITS_S). Without one, a rate limit is retried like any other
+    failure, which is what every caller outside the daily run still gets.
+    """
+    provider_name = "mock" if use_mock else spec.provider
+    provider = PROVIDERS.get(provider_name)
+
+    obs = Observation(
+        obs_id=observation_id(task_id, spec.key, prompt_variant),
+        task_id=task_id,
+        model_key=spec.key,
+        model_id_returned="",
+        provider=provider_name,
+        prompt_variant=prompt_variant,
+        forecast=None,
+        direction=None,
+        confidence=None,
+        arm=arm,
+    )
+
+    if provider is None:
+        obs.error = f"unknown provider {provider_name!r}"
+        return obs
+
+    # Pre-flight cost check. Estimate high on output so we never discover the
+    # breach after the money is spent.
+    estimated = spec.price.estimate(
+        input_tokens=len(prompt) // 4 + 200, output_tokens=max_tokens
+    )
+    try:
+        ledger.check(estimated, arm=arm)
+    except BudgetExceeded as exc:
+        obs.error = f"budget: {exc}"
+        return obs
+
+    started = time.time()
+    last_error = ""
+    calls = retries = waits = 0
+
+    while True:
+        calls += 1
+        try:
+            result = provider.complete(spec, prompt, max_tokens, timeout)
+        except (ProviderError, httpx.RequestError) as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+            # A rate limit is waited out first, on the run's shared allowance
+            # (see RATE_LIMIT_WAITS_S). A wait does not use up a retry.
+            if (rate_limits is not None and waits < len(RATE_LIMIT_WAITS_S)
+                    and _rate_limited(exc)):
+                granted = rate_limits.take(RATE_LIMIT_WAITS_S[waits])
+                if granted > 0:
+                    waits += 1
+                    time.sleep(granted)
+                    continue
+            # Everything else, and a rate limit the allowance can no longer
+            # cover, gets the ordinary retries exactly as before.
+            if retries < max_retries:
+                retries += 1
+                time.sleep(2.0 * retries)
+                continue
+            break
+
+        text = result.text
+        input_tokens = result.input_tokens
+        output_tokens = result.output_tokens
+
+        obs.model_id_returned = result.model_id
+        # Recorded HERE, before parsing, so it lands on failed observations too.
+        # A row that came back unusable is exactly the row whose serving stack
+        # someone will want to look up -- that is how deviation 4 was diagnosed --
+        # and an attribution that only survives on the successes is no use for it.
+        obs.upstream_provider = result.upstream_provider
+        obs.logprobs = result.logprobs
+        obs.input_tokens = input_tokens
+        obs.output_tokens = output_tokens
+        obs.raw_response = text[:4000]
+        obs.latency_ms = int((time.time() - started) * 1000)
+
+        actual = spec.price.estimate(input_tokens, output_tokens)
+        if use_mock:
+            # A MOCK CALL SPENDS NOTHING, SO IT MUST NOT BOOK SPEND.
+            #
+            # The ledger is the budget ENFORCEMENT mechanism, not a log:
+            # `Ledger.check` raises `BudgetExceeded` rather than warning, and
+            # the arm caps are hard stops. Money that was never spent still
+            # consumes that headroom, so phantom rows do not merely make the
+            # accounting untidy -- they bring forward the day collection halts.
+            #
+            # This has happened twice. The 17 Aug mock run booked $0.055 and was
+            # archived by hand (commit 38ff332, "Reset ledger: archive phantom
+            # spend from the mock run"). That commit's own message says "the mock
+            # provider still prices and records its calls" -- the cause was
+            # understood and left in place, so the 22 Aug mock run booked another
+            # $0.0102 straight back into the same file, where it sat until the
+            # pre-freeze reconciliation found a 48-row gap between the ledger and
+            # observations.jsonl. Archiving without fixing this is why it recurred.
+            #
+            # `obs.usd` still carries the notional price, because the mock
+            # observation is the input to day-pricing and a synthetic row with no
+            # cost would understate it. The mock rows live in data/pilot_mock/ and
+            # are filtered from analysis by `panel.load_panel`; the difference is
+            # that a notional price on an archived synthetic row is a projection,
+            # while a row in data/ledger.jsonl is a claim that money moved.
+            obs.usd = actual
+        else:
+            try:
+                ledger.record(
+                    model=spec.key,
+                    arm=arm,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    usd=actual,
+                )
+                obs.usd = actual
+            except BudgetExceeded as exc:
+                # The call already happened; record the observation but flag it.
+                obs.error = f"budget breached on record: {exc}"
+
+        parsed = _extract_json(text)
+        if parsed is None:
+            # Name the cause, not the symptom. A reply cut off at the token cap
+            # parses to None in exactly the same way malformed JSON does, but the
+            # two mean opposite things: one is a model that will not follow the
+            # output format, the other is a model that had more to say than
+            # MAX_OUTPUT_TOKENS allowed. Told apart, the first is a roster
+            # problem and the second is a budget dial.
+            #
+            # This is not hypothetical. `claude_sonnet` lost 7 observations
+            # across 1-2 Sep 2026 -- every one of them billed at exactly 400
+            # output tokens against MAX_OUTPUT_TOKENS = 400, every one of them
+            # filed as "unparseable response", and the coverage report read as
+            # though Sonnet could not emit JSON. It emits JSON perfectly well in
+            # 60-105 tokens; it occasionally reasons out loud first and runs out
+            # of room before reaching the object.
+            #
+            # Read from the billed output count rather than a stop-reason field
+            # because the four providers spell that four different ways, and a
+            # count we already record cannot drift out of sync with one we do
+            # not. `google` never reaches here -- it raises on finishReason
+            # first (see GoogleProvider.complete) -- which is why this stays a
+            # check in the shared path rather than a fifth per-provider branch.
+            if output_tokens and output_tokens >= max_tokens:
+                obs.error = (obs.error or "") + (
+                    f" | truncated at max_tokens={max_tokens}"
+                    f" ({output_tokens} output tokens billed, no JSON reached)"
+                )
+            else:
+                obs.error = (obs.error or "") + " | unparseable response"
+            return obs
+
+        obs.forecast = _coerce_probability(parsed.get("probability"))
+        direction = parsed.get("direction")
+        obs.direction = str(direction).strip().lower() if direction is not None else None
+        obs.confidence = _coerce_probability(parsed.get("confidence"))
+        obs.rationale = str(parsed.get("rationale", ""))[:500]
+
+        if obs.forecast is None:
+            obs.error = (obs.error or "") + " | missing probability"
+        return obs
+
+    waited = f", {waits} of them after waiting out a rate limit" if waits else ""
+    obs.error = f"failed after {calls} attempts{waited}: {last_error}"
+    obs.latency_ms = int((time.time() - started) * 1000)
+    return obs

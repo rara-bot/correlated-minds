@@ -1,0 +1,265 @@
+"""The daily job must never report a day as saved when it was not.
+
+The data a run collects exists only on the runner until "Commit the day" pushes it.
+Until 2026-09-19 that step retried the push three times and then ended on `sleep`,
+which succeeds -- so a push that never landed finished green, the day's data went
+with the runner, and the alarm, which reads the job's status, had nothing to report.
+
+Pinned here by running the step itself, extracted from the workflow, against a
+throwaway repository whose remote cannot be reached. Also pinned: the alarm runs
+after the commit, so it sees that failure; and both workflows run on a named
+image with actions that run on Node 24, so neither changes under the study
+mid-collection (daily.yml says why).
+"""
+from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+import textwrap
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+WORKFLOWS = ROOT / ".github" / "workflows"
+
+# Read as text, like every other test that reads a workflow. PyYAML is not in
+# requirements.txt, and this suite runs inside the daily job before anything is
+# collected: an import it cannot satisfy there would cost the day.
+STEP = re.compile(r"^      - (?:name|uses): (.+)$", re.M)
+
+
+def _text(name: str = "daily.yml") -> str:
+    return (WORKFLOWS / name).read_text(encoding="utf-8")
+
+
+def _steps(name: str = "daily.yml"):
+    """[(title, block)] for each step, in order."""
+    text = _text(name)
+    heads = list(STEP.finditer(text))
+    return [(m.group(1).strip(), text[m.start(): heads[i + 1].start() if i + 1 < len(heads) else len(text)])
+            for i, m in enumerate(heads)]
+
+
+def _step(title: str) -> str:
+    return next(block for name, block in _steps() if name == title)
+
+
+def _names():
+    return [name for name, _ in _steps()]
+
+
+def _run_script(block: str) -> str:
+    """The body of a step's `run: |` literal block."""
+    lines = block.split("\n")
+    start = next(i for i, line in enumerate(lines) if line.strip() == "run: |") + 1
+    body = []
+    for line in lines[start:]:
+        if line.strip() and not line.startswith(" " * 10):
+            break
+        body.append(line)
+    return textwrap.dedent("\n".join(body))
+
+
+needs_git = pytest.mark.skipif(shutil.which("git") is None or shutil.which("bash") is None,
+                               reason="needs git and bash")
+
+
+def _git(cwd, *args):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+@pytest.fixture
+def runner_checkout(tmp_path):
+    """A checkout of a one-commit repository, with a day of data staged to commit."""
+    remote, work = tmp_path / "remote.git", tmp_path / "work"
+    _git(tmp_path, "init", "-q", "--bare", str(remote))
+    _git(remote, "symbolic-ref", "HEAD", "refs/heads/main")
+    _git(tmp_path, "clone", "-q", str(remote), str(work))
+    _git(work, "config", "user.name", "t")
+    _git(work, "config", "user.email", "t@t")
+    _git(work, "checkout", "-q", "-b", "main")
+    (work / "data").mkdir()
+    (work / "data" / "observations.jsonl").write_text('{"day": 1}\n', encoding="utf-8")
+    _git(work, "add", ".")
+    _git(work, "commit", "-q", "-m", "init")
+    _git(work, "push", "-q", "origin", "main")
+    with (work / "data" / "observations.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write('{"day": 2}\n')
+    return work, remote
+
+
+def _run_commit_step(work: Path):
+    # The waits are real minutes in CI; here they only need to happen. The run is
+    # started from `front`, as every scheduled run is (GitHub schedules from the
+    # default branch), so each test below also proves the day lands on `main`.
+    script = "sleep() { :; }\n" + _run_script(_step("Commit the day"))
+    env = {"RECORD_BRANCH": "main", "GITHUB_REF_NAME": "front",
+           "PATH": subprocess.os.environ["PATH"], "HOME": str(work.parent)}
+    return subprocess.run(["bash", "-e", "-c", script], cwd=work, env=env,
+                          capture_output=True, text=True)
+
+
+@needs_git
+class TestADayIsNeverReportedSavedWhenItWasNot:
+    def test_a_push_that_lands_succeeds(self, runner_checkout):
+        work, remote = runner_checkout
+        done = _run_commit_step(work)
+        assert done.returncode == 0, done.stderr
+        assert "pushed on attempt 1" in done.stdout
+        log = subprocess.run(["git", "log", "--oneline", "main"], cwd=remote,
+                             capture_output=True, text=True).stdout
+        assert "data: collection for" in log
+
+    def test_a_push_that_never_lands_fails_the_step(self, runner_checkout):
+        work, _ = runner_checkout
+        _git(work, "remote", "set-url", "origin", str(work.parent / "gone.git"))
+        done = _run_commit_step(work)
+        assert done.returncode == 1
+        assert "could not be pushed" in done.stdout
+
+    def test_a_conflict_is_not_left_half_rebased(self, runner_checkout, tmp_path):
+        work, remote = runner_checkout
+        other = tmp_path / "other"
+        _git(tmp_path, "clone", "-q", str(remote), str(other))
+        _git(other, "config", "user.name", "o")
+        _git(other, "config", "user.email", "o@o")
+        with (other / "data" / "observations.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write('{"someone": "else"}\n')
+        _git(other, "commit", "-q", "-am", "a second writer")
+        _git(other, "push", "-q", "origin", "main")
+        done = _run_commit_step(work)
+        assert done.returncode == 1
+        assert not (work / ".git" / "rebase-merge").exists()
+        assert not (work / ".git" / "rebase-apply").exists()
+
+    def test_nothing_new_is_not_a_failure(self, runner_checkout):
+        work, _ = runner_checkout
+        _git(work, "checkout", "--", "data/")
+        done = _run_commit_step(work)
+        assert done.returncode == 0 and "no new data" in done.stdout
+
+
+class TestTheRecordStaysOnMain:
+    # The repository's default branch is `front`, a copy of `main` for the front page
+    # (scripts/front_page.py). GitHub starts scheduled runs from the default branch,
+    # so a run that committed to the branch it started from would put the day on
+    # `front` -- off the record. Every run checks out `main` and commits to `main`.
+    def test_the_workflow_names_main_as_the_record(self):
+        assert re.search(r"^env:\n(?:  #.*\n)*  RECORD_BRANCH: main$", _text(), re.M)
+
+    def test_the_checkout_is_the_record_not_the_branch_that_started_the_run(self):
+        checkout = next(block for name, block in _steps() if name.startswith("actions/checkout@"))
+        assert re.search(r"^          ref: \$\{\{ env\.RECORD_BRANCH \}\}$", checkout, re.M)
+
+    def test_the_commit_pushes_to_the_record_branch_only(self):
+        script = _run_script(_step("Commit the day"))
+        assert '"${RECORD_BRANCH}"' in script and '"HEAD:${RECORD_BRANCH}"' in script
+        code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+        assert "GITHUB_REF_NAME" not in code
+
+    @needs_git
+    def test_a_run_started_from_front_commits_the_day_to_main(self, runner_checkout):
+        work, remote = runner_checkout
+        _git(work, "push", "-q", "origin", "HEAD:refs/heads/front")     # the front page exists
+
+        def read(*args):
+            return subprocess.run(["git", *args], cwd=remote, capture_output=True, text=True).stdout.strip()
+
+        front_before = read("rev-parse", "front")
+        done = _run_commit_step(work)
+        assert done.returncode == 0, done.stderr
+        assert read("log", "-1", "--format=%s", "main").startswith("data: collection for")
+        assert read("rev-parse", "front") == front_before
+
+
+class TestTheFrontPageFollowsTheRecord:
+    STEP_NAME = "Show the record on the front page"
+
+    def test_it_runs_after_the_day_is_committed_and_before_the_alarm(self):
+        names = _names()
+        assert names.index("Commit the day") < names.index(self.STEP_NAME) < \
+            names.index("Raise an alarm if a day is at risk")
+
+    def test_it_can_never_fail_the_run_or_be_skipped_by_a_failure(self):
+        block = _step(self.STEP_NAME)
+        assert re.search(r"^        continue-on-error: true$", block, re.M)
+        assert re.search(r"^        if: \$\{\{ !cancelled\(\) \}\}$", block, re.M)
+
+    def test_it_runs_the_front_page_script_as_the_collector(self):
+        block = _step(self.STEP_NAME)
+        assert re.search(r"^        run: python scripts/front_page\.py$", block, re.M)
+        for var in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+            assert re.search(rf"^          {var}: neff-collector$", block, re.M)
+        for var in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+            assert re.search(rf"^          {var}: actions@github\.com$", block, re.M)
+
+    def test_there_is_exactly_one(self):
+        assert _names().count(self.STEP_NAME) == 1
+
+
+class TestTheAlarmSeesTheCommit:
+    def test_the_alarm_runs_after_the_commit_and_always(self):
+        names = _names()
+        assert names.index("Raise an alarm if a day is at risk") > names.index("Commit the day")
+        assert re.search(r"^        if: always\(\)$", _step("Raise an alarm if a day is at risk"), re.M)
+
+    def test_it_reads_the_job_status(self):
+        assert "JOB_STATUS: ${{ job.status }}" in _step("Raise an alarm if a day is at risk")
+
+    def test_there_is_exactly_one_alarm(self):
+        assert _names().count("Raise an alarm if a day is at risk") == 1
+
+
+class TestAReportCannotDiscardTheDay:
+    # Every step between Collect and the commit only reports. Under the default
+    # `success()` a failure in any of them skipped the commit, and the day's rows
+    # went with the runner. The commit keys on Collect having run instead, so a
+    # day the tests stopped still commits nothing.
+    def test_the_commit_runs_whenever_collect_ran(self):
+        assert re.search(r"^        if: \$\{\{ !cancelled\(\) && steps\.collect\.outcome != 'skipped' \}\}$",
+                         _step("Commit the day"), re.M)
+
+    def test_collect_carries_the_id_the_commit_reads(self):
+        assert re.search(r"^        id: collect\b", _step("Collect"), re.M)
+
+    def test_the_tests_still_come_before_collect(self):
+        names = _names()
+        assert names.index("Verify estimator before spending anything") < names.index("Collect")
+        assert "if:" not in _step("Collect")
+
+
+class TestTheMachineDoesNotChangeUnderTheStudy:
+    # The first major of each action that declares `runs.using: node24`.
+    NODE24 = {"actions/checkout": 5, "actions/setup-python": 6, "actions/upload-artifact": 6}
+
+    @pytest.mark.parametrize("workflow", ["daily.yml", "tests.yml"])
+    def test_a_named_image(self, workflow):
+        images = re.findall(r"^\s*runs-on:\s*(\S+)", _text(workflow), re.M)
+        assert images == ["ubuntu-24.04"]
+
+    @pytest.mark.parametrize("workflow", ["daily.yml", "tests.yml"])
+    def test_actions_that_run_on_node_24(self, workflow):
+        uses = re.findall(r"^\s*-?\s*uses:\s*(\S+)", _text(workflow), re.M)
+        assert uses, "no actions found"
+        for ref in uses:
+            action, _, version = ref.partition("@")
+            major = int(re.match(r"v(\d+)", version).group(1))
+            assert major >= self.NODE24[action], f"{ref} declares node20"
+
+
+class TestADayGetsThreeChancesToRun:
+    # 2026-09-28: the 13:10 run never started on its day and the 20:00 run alone
+    # collected it. A run that starts after midnight UTC collects the next day, so a
+    # day whose other runs are delayed or dropped is lost for good. `neff.collect` is
+    # idempotent, so an extra slot costs nothing and adds a chance.
+    def _slots(self):
+        return sorted((int(h), int(m)) for m, h in re.findall(r'cron:\s*"(\d+) (\d+) \* \* \*"', _text()))
+
+    def test_the_original_two_slots_are_kept(self):
+        assert (13, 10) in self._slots() and (20, 0) in self._slots()
+
+    def test_a_third_slot_falls_between_them_off_the_top_of_the_hour(self):
+        middle = [s for s in self._slots() if (13, 10) < s < (20, 0)]
+        assert middle and all(minute != 0 for _, minute in middle)

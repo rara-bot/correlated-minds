@@ -1,0 +1,80 @@
+{
+  "X": 3.5363596014980647,
+  "Y": 0.14757508079073878,
+  "code_commit": "f78bc01ec640ac191c1b6267dfa1844f082ba698",
+  "data_commit": "90a24b96cbb4556672e4fb366097da8985195baa",
+  "eligible": 4,
+  "events": [
+    {
+      "ask_days": 1,
+      "close_time": "2026-09-10T12:29:00+00:00",
+      "eligible": true,
+      "event": "KXUSPPIYOY-26SEP10",
+      "headroom": 0.004061714203999589,
+      "rho_bar": 0.9954490561537624,
+      "surprise": 0.05490416666666667,
+      "task_days": 5
+    },
+    {
+      "ask_days": 1,
+      "close_time": "2026-09-10T12:29:00+00:00",
+      "eligible": false,
+      "event": "KXUSPPI-26SEP10",
+      "headroom": null,
+      "rho_bar": null,
+      "surprise": 0.0488,
+      "task_days": 3,
+      "why_not": "3 task-day(s)"
+    },
+    {
+      "ask_days": 7,
+      "close_time": "2026-09-11T12:29:00+00:00",
+      "eligible": true,
+      "event": "KXCPIYOY-26AUG",
+      "headroom": 93.49191562648724,
+      "rho_bar": -0.11309421956850826,
+      "surprise": 0.051794999999999994,
+      "task_days": 7
+    },
+    {
+      "ask_days": 1,
+      "close_time": "2026-09-17T12:29:00+00:00",
+      "eligible": true,
+      "event": "KXHOUSINGSTART-26SEP17",
+      "headroom": 2.810667094377482,
+      "rho_bar": 0.1702238996841004,
+      "surprise": 0.090521875,
+      "task_days": 5
+    },
+    {
+      "ask_days": 29,
+      "close_time": "2026-10-02T12:29:00+00:00",
+      "eligible": true,
+      "event": "KXPAYROLLS-26SEP",
+      "headroom": 4.262052108618648,
+      "rho_bar": 0.0887949181760053,
+      "surprise": 0.30610833333333326,
+      "task_days": 29
+    }
+  ],
+  "fit": {
+    "events": 4,
+    "headroom_at_p80": 8.64993889126405,
+    "headroom_slope": -141.28512951988597,
+    "rho_bar_at_p80": 0.14757508079073878,
+    "rho_bar_slope": -1.1802291476895126
+  },
+  "made": true,
+  "made_at_utc": "2026-10-03T02:46:57.800163+00:00",
+  "median_headroom": 3.5363596014980647,
+  "median_rho_bar": 0.12950940893005286,
+  "models_excluded_by_5_6": {},
+  "record_checked_against": {
+    "checked_at_utc": "2026-10-03T02:46:57.800163+00:00",
+    "github_main": "f78bc01ec640ac191c1b6267dfa1844f082ba698",
+    "notes": []
+  },
+  "registered_in": "PREREGISTRATION.md 5.3 and 11 (deviations 18 and 22)",
+  "statement": "On the first listed macro release to close after 2026-10-02T23:59:59+00:00 and before 2026-12-11T23:59:59+00:00 whose market surprise is at or above 0.2425625, the primary panel's headroom, estimated on its task-days asked from 2026-10-03, will be below 3.536360 and its rho_bar above 0.147575.",
+  "threshold_p80": 0.2425625
+}

@@ -1,0 +1,671 @@
+"""Panel configuration: the model roster, pricing, and run constants.
+
+Everything here is deliberately explicit and version-pinned. Providers silently
+upgrade model aliases (`-latest` style names), and a silent mid-panel model swap
+would corrupt a longitudinal correlation study in a way that is very hard to
+detect after the fact. So we pin exact IDs, log the ID returned by the API on
+every single call, and treat any drift as an event worth recording.
+"""
+
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from .ledger import Price
+
+ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT / "data"
+OBS_PATH = DATA_DIR / "observations.jsonl"
+LEDGER_PATH = DATA_DIR / "ledger.jsonl"
+TASKS_PATH = DATA_DIR / "tasks.jsonl"
+RESOLUTIONS_PATH = DATA_DIR / "resolutions.jsonl"
+
+# --- where a mock run is allowed to write --------------------------------------
+# `--mock` fabricates forecasts, and it used to append them to the four files
+# above -- the append-only public record the study's evidence consists of. The
+# containment was all downstream: rows carry provider="mock", `panel.load_panel`
+# filters them, `preflight` counts them. Every one of those is a reader
+# remembering to exclude something, and the file itself is what a reviewer
+# clones. Twice already a mock run has been mistaken for a real one (17 Aug, and
+# the $0.0102 of phantom ledger spend on 22 Aug), each time because synthetic
+# output was sitting in the place real output lives.
+#
+# So it no longer lands there. A mock run reads and writes data/mock/ and nothing
+# else, and data/mock/ is gitignored -- the daily workflow ends in
+# `git add -A data/`, so an ignored directory is what makes it impossible for a
+# fabricated forecast to reach the public repository at all.
+#
+# Distinct from data/pilot_mock/, which is the hand-archived pilot-era mock
+# output described in PREREGISTRATION.md 3.5. That is a frozen archive and
+# nothing writes to it.
+MOCK_DIRNAME = "mock"
+
+
+def mock_sandbox(path: Path) -> Path:
+    """The mock-run counterpart of a study data file: <dir>/mock/<name>."""
+    return path.parent / MOCK_DIRNAME / path.name
+
+# --- budget -----------------------------------------------------------------
+# Hard cap. Enforced in code by neff.ledger.Ledger, not by discipline.
+BUDGET_USD = 200.0
+
+# Measured, not assumed. `neff.collect --dry-run --tasks 25` on 21 Aug 2026,
+# pricing the real task battery against the real roster of ten collected models.
+# The planning documents had carried $0.24/day for a NINE-model panel, which was
+# both stale and roughly half the true figure.
+MEASURED_DAILY_USD = 0.4442
+
+
+def collection_days() -> int:
+    """Calendar days of collection, inclusive of both endpoints."""
+    from datetime import date as _date
+
+    return (_date.fromisoformat(DATA_FREEZE) - _date.fromisoformat(COLLECTION_START)).days + 1
+
+
+def projected_ws1_usd() -> float:
+    """What the 15-week prospective panel is actually expected to cost.
+
+    Includes the test-retest replicates of PREREGISTRATION.md 5.4(d) and the H3
+    prompt-variant arm (PREREGISTRATION.md 11, deviation 14). Both are real calls on the same arm,
+    so excluding either would understate the projection the arm cap is set
+    against -- the exact way the previous $25 figure went stale and left a hard
+    stop sitting two thirds of the way up the real spend.
+    """
+    per_day = MEASURED_DAILY_USD * (1.0 + REPLICATES_PER_DAY / TASKS_PER_DAY)
+    return (per_day + H3_MEASURED_DAILY_USD) * collection_days()
+
+
+# Sub-caps per workstream, so one arm cannot quietly consume the whole budget.
+# These sum to less than the cap on purpose -- the remainder is reserve, released
+# only against the Week-5 interim read.
+#
+# ws1_prospective was $70 against a projected spend of ~$47, and the projection
+# it was set from said $25. An arm cap is not a warning: `Ledger.check` raises
+# BudgetExceeded, so reaching it STOPS COLLECTION. A 15-week unattended run whose
+# per-day cost drifts up -- longer prompts as filings accumulate, more re-asked
+# open questions -- would have halted in November, at the far end of the panel,
+# with no way to recover the lost days. The cap now carries roughly 2x the
+# measured projection, and `tests/test_budget_headroom.py` fails if that margin
+# is ever eroded. The GLOBAL $200 cap is unchanged: this reallocates headroom
+# between arms, it does not create any.
+ARM_CAPS_USD = {
+    "pilot": 10.0,
+    "ws1_prospective": 110.0,   # ~2.2x the measured projection incl. replicates
+    "ws2_retrospective": 20.0,
+    "ws5_mitigation": 10.0,
+    "h2_reasoning": 35.0,
+}
+
+# The arm whose data constitutes the registered study. PREREGISTRATION.md 3.5
+# declares the pre-registration pilot as a separate arm excluded from every
+# primary estimate; `panel.load_panel` enforces that by admitting only rows
+# carrying this label, so anything collected under another arm -- or before the
+# label existed -- cannot reach a primary estimate.
+PRIMARY_ARM = "ws1_prospective"
+
+# The arm everything collected before the registration belongs to. Observations
+# written before the `arm` field existed carry no label; they are all pilot, and
+# `panel.load_panel` reads them as such.
+PRE_REGISTRATION_ARM = "pilot"
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    """One member of the panel.
+
+    key:      stable short name used in our data files. NEVER change this once
+              collection starts -- it is the join key across the whole study.
+    provider: which client handles it.
+    model_id: exact pinned API identifier.
+    family:   vendor/lineage grouping. The H3 test (intra-family vs cross-family
+              diversity) is defined entirely by this field, so it must reflect
+              genuine lineage rather than marketing.
+    """
+
+    key: str
+    provider: str
+    model_id: str
+    family: str
+    price: Price
+    tier: str = "mid"
+    supports_logprobs: bool = False
+    enabled: bool = True
+    primary: bool = True
+    # thinking_budget: Google only. None means "send no thinkingConfig at all",
+    # which is REQUIRED for models that reject the field -- `gemini-3.5-flash-lite`
+    # answers HTTP 400 `Request contains an invalid argument` if it is present.
+    # 0 disables extended thinking on models that support the field.
+    #
+    # Per-model rather than per-provider for exactly the reason AUDIT.md findings
+    # 13 and 15 record: within one vendor, one model accepts a parameter and its
+    # sibling rejects it, and a provider-wide setting silently breaks whichever
+    # one disagrees.
+    thinking_budget: Optional[int] = None
+    notes: str = ""
+
+
+# --- the panel --------------------------------------------------------------
+# NINE models across SIX families => 36 pairs, of which THREE are within-family.
+#
+# The three within-family pairs (Anthropic, OpenAI, Google) are the entire
+# evidence base for H3 ("intra-vendor diversity is an illusion") and for the H6
+# capability control. An earlier version of this panel had SEVEN models and
+# exactly ONE within-family pair, which made both hypotheses nearly undecidable:
+#
+#   - Inference by cluster-robust SE was invalid outright. Clustering is by pair,
+#     so with one within-family pair the `same_family` coefficient's variance came
+#     from a single cluster. On synthetic data with NO family structure it
+#     returned t = +7.06 and declared the effect real -- a false positive
+#     manufactured by the estimator.
+#   - The valid alternative, an exact permutation test over family labels, has
+#     only C(7,2) = 21 distinct labelings, so its BEST ACHIEVABLE p-value was
+#     1/21 = 0.048. A headline hypothesis cannot rest on a test whose ceiling is
+#     the significance threshold.
+#
+# With three within-family pairs the permutation floor drops below 0.001. The
+# marginal cost is a few dollars on a $23 study; the marginal rigour is the
+# difference between a decidable hypothesis and an undecidable one.
+#
+# Each added model is the SAME vendor at a DIFFERENT tier, mirroring the
+# Anthropic pair, so the three within-family pairs are structurally comparable.
+#
+# !! Undated ids like `gpt-4.1-mini` are ALIASES: the live call returned
+#    `gpt-4.1-mini-2025-04-14`. The drift check caught it. Dated snapshots are
+#    pinned instead, so OpenAI repointing an alias mid-panel cannot swap a model
+#    underneath a 15-week longitudinal study.
+# !! model_id values MUST be verified against each provider's live model list
+#    before collection starts. `python -m neff.verify` does this and fails loudly.
+#    Prices are USD per million tokens and must be re-checked at purchase time.
+
+PANEL: List[ModelSpec] = [
+    ModelSpec(
+        key="claude_sonnet",
+        provider="anthropic",
+        model_id="claude-sonnet-4-6",
+        family="anthropic",
+        price=Price(input_per_mtok=3.00, output_per_mtok=15.00),
+        tier="frontier",
+        notes=(
+            "Frontier anchor: lets us test whether capability tier affects "
+            "correlation. VERIFIED 19 Aug 2026 by live call at temperature=0. "
+            "NOT claude-sonnet-5: that model REMOVED the sampling parameters and "
+            "returns HTTP 400 `temperature is deprecated for this model`. "
+            "TEMPERATURE=0.0 is a REGISTERED parameter (PREREGISTRATION.md 9), so a "
+            "panel member that cannot honour it would sample differently from the "
+            "other eight and confound model differences with sampling differences. "
+            "Sonnet 4.6 is the newest Anthropic model that still accepts "
+            "temperature, at identical $3/$15 pricing."
+        ),
+    ),
+    ModelSpec(
+        key="claude_haiku",
+        provider="anthropic",
+        model_id="claude-haiku-4-5-20251001",
+        family="anthropic",
+        price=Price(input_per_mtok=1.00, output_per_mtok=5.00),
+        tier="mid",
+        notes="Same family as claude_sonnet -- this pair is a within-family H3 control.",
+    ),
+    ModelSpec(
+        key="gpt_mid",
+        provider="openai",
+        model_id="gpt-4.1-mini-2025-04-14",
+        family="openai",
+        price=Price(input_per_mtok=0.4, output_per_mtok=1.6),
+        tier="mid",
+        supports_logprobs=True,
+        notes=(
+            "Within-family pair with gpt_small. VERIFIED 19 Aug 2026 by live call: temperature=0 honoured (5 identical responses to a high-entropy prompt) and logprobs returned. NOT the gpt-5 line: those are reasoning models that reject temperature=0 outright ('Only the default (1) value is supported') and refuse logprobs. Worse, routing them via OpenRouter SILENTLY DROPS temperature -- HTTP 200, sampling at 1, every log reading 0."
+        ),
+    ),
+    ModelSpec(
+        key="gemini_flash",
+        provider="google",
+        model_id="gemini-3.5-flash-lite",
+        family="google",
+        price=Price(input_per_mtok=0.30, output_per_mtok=2.50),
+        tier="small",
+        notes=(
+            "VERIFIED 19 Aug 2026 by live call. The pinned gemini-2.5-flash-lite "
+            "returned HTTP 404 'no longer available to new users'. Price is from "
+            "Google's official pricing page, not the roster's original estimate, "
+            "which was 3x low on input and 6x low on output."
+        ),
+    ),
+    ModelSpec(
+        key="gpt_small",
+        provider="openai",
+        model_id="gpt-4.1-nano-2025-04-14",
+        family="openai",
+        price=Price(input_per_mtok=0.1, output_per_mtok=0.4),
+        tier="small",
+        supports_logprobs=True,
+        notes=(
+            "Second within-family pair (with gpt_mid). VERIFIED 19 Aug 2026 by live call: temperature=0 honoured (5 identical responses to a high-entropy prompt) and logprobs returned. NOT the gpt-5 line: those are reasoning models that reject temperature=0 outright ('Only the default (1) value is supported') and refuse logprobs. Worse, routing them via OpenRouter SILENTLY DROPS temperature -- HTTP 200, sampling at 1, every log reading 0."
+        ),
+    ),
+    ModelSpec(
+        key="gemini_flash_pro",
+        provider="google",
+        model_id="gemini-3.5-flash",
+        family="google",
+        price=Price(input_per_mtok=1.50, output_per_mtok=9.00),
+        tier="mid",
+        thinking_budget=0,
+        notes=(
+            "Third within-family pair (with gemini_flash). VERIFIED 19 Aug 2026 "
+            "by live call. Deliberately SAME generation (3.5) as its pair partner "
+            "so the pair isolates TIER while holding generation fixed -- Google's "
+            "own 404 message suggested gemini-3.6-flash, which would have "
+            "confounded tier with generation in H6's capability regression. "
+            "THINKING DISABLED (thinking_budget=0): this is a reasoning model and "
+            "`maxOutputTokens` is a budget SHARED between thinking and the visible "
+            "answer. At the collection budget of 400 it spent 383 tokens thinking "
+            "and 13 answering, returning `{\"probability\": 0.92,` -- truncated and "
+            "unparseable. The 21 Aug pilot scored it 0/8 usable, which over 15 "
+            "weeks is below the 80% coverage floor of PREREGISTRATION.md 3.3 and "
+            "would have dropped it from the primary panel, taking one of H3's "
+            "three within-family pairs with it. Thinking off: 71 visible tokens, "
+            "parses cleanly, 7x cheaper. Its pair partner gemini-3.5-flash-lite "
+            "REJECTS thinkingConfig with HTTP 400, which is why this is a "
+            "per-model field and not a provider default."
+        ),
+    ),
+    ModelSpec(
+        key="llama",
+        provider="openrouter",
+        model_id="meta-llama/llama-3.3-70b-instruct",
+        family="meta",
+        price=Price(input_per_mtok=0.10, output_per_mtok=0.32),
+        tier="mid",
+        supports_logprobs=True,
+        notes=(
+            "Open-weight, hosted. VERIFIED 19 Aug 2026 by live call; price read "
+            "from OpenRouter's own /models endpoint, not documentation."
+        ),
+    ),
+    ModelSpec(
+        key="qwen",
+        provider="openrouter",
+        model_id="qwen/qwen-2.5-72b-instruct",
+        family="alibaba",
+        price=Price(input_per_mtok=0.36, output_per_mtok=0.40),
+        tier="mid",
+        supports_logprobs=False,
+        notes=(
+            "Open-weight, hosted. VERIFIED 19 Aug 2026 by live call; price read "
+            "from OpenRouter's own /models endpoint, not documentation."
+        ),
+    ),
+    ModelSpec(
+        key="deepseek",
+        provider="openrouter",
+        model_id="deepseek/deepseek-v3.2",
+        family="deepseek",
+        price=Price(input_per_mtok=0.269, output_per_mtok=0.40),
+        tier="mid",
+        supports_logprobs=True,
+        notes=(
+            "Open-weight, hosted. VERIFIED 19 Aug 2026 by live call. Repinned from "
+            "`deepseek/deepseek-chat`, which is a FLOATING ALIAS with no version -- "
+            "exactly the silent mid-panel model swap this module's header warns "
+            "against. OpenRouter retains old versions (v3-0324 is still served), so "
+            "a dated pin carries little retirement risk over 15 weeks."
+        ),
+    ),
+    # --- SECONDARY frontier panel (primary=False) --------------------------
+    # Collected daily alongside the primary nine, but EXCLUDED from the primary
+    # panel, because H4 matches human forecasters at M = 9 against measured SPF
+    # headroom of 0.112-0.171 AT THAT PANEL SIZE. Folding this in would make the
+    # panel M = 10 and invalidate that baseline.
+    #
+    # Why it exists: the primary panel has exactly ONE frontier model, and it is
+    # Anthropic -- so at the frontier, tier is perfectly confounded with family and
+    # "frontier models behave differently" cannot be told apart from "Anthropic
+    # behaves differently". This is the same structural defect that took the panel
+    # from seven models to nine for H3.
+    #
+    # Why now rather than after the Week-5 read: §9 freezes the roster, but a model
+    # not collected cannot be collected retroactively. A model that turns out to be
+    # unnecessary can simply be ignored in analysis; the reverse is impossible.
+    ModelSpec(
+        key="gpt_frontier",
+        provider="openai",
+        model_id="gpt-4.1-2025-04-14",
+        family="openai",
+        price=Price(input_per_mtok=2.00, output_per_mtok=8.00),
+        tier="frontier",
+        supports_logprobs=True,
+        primary=False,
+        notes=(
+            "Secondary frontier panel. " + "VERIFIED 19 Aug 2026: temperature=0 honoured, logprobs returned. "
+            "Originally pinned to openai/gpt-5.1 via OpenRouter; that combination "
+            "SILENTLY DROPPED temperature (HTTP 200, sampling at 1), which would "
+            "have violated a registered parameter invisibly for 15 weeks. Direct "
+            "OpenAI at least fails loudly. Google frontier rejected: 2.5-pro 404s "
+            "for new accounts, 3.1-pro is a PREVIEW id."
+        ),
+    ),
+]
+
+
+def enabled_panel() -> List[ModelSpec]:
+    """Everything we COLLECT -- primary panel plus secondary arms.
+
+    Collection is deliberately wider than analysis: an uncollected day cannot be
+    recovered, whereas a collected model can always be excluded later.
+    """
+    return [m for m in PANEL if m.enabled]
+
+
+def primary_panel() -> List[ModelSpec]:
+    """The registered M = 9 panel that the PRIMARY analysis runs on.
+
+    H4 matches human forecasters at M = 9 against SPF headroom measured at that
+    exact panel size (PREREGISTRATION.md §4, H4). Anything that silently grew this
+    list would invalidate that baseline, so analysis defaults here rather than to
+    `enabled_panel()`.
+    """
+    return [m for m in PANEL if m.enabled and m.primary]
+
+
+def secondary_panel() -> List[ModelSpec]:
+    """Models collected but held out of the primary panel."""
+    return [m for m in PANEL if m.enabled and not m.primary]
+
+
+def panel_by_key() -> Dict[str, ModelSpec]:
+    return {m.key: m for m in PANEL}
+
+
+def families() -> Dict[str, List[str]]:
+    """Family -> model keys, over the PRIMARY panel only.
+
+    H3 and H6 are defined on the primary panel's within-family pairs, which are
+    deliberately symmetric: exactly one pair per vendor, each the same vendor at
+    two tiers. Counting secondary-arm models here would give one vendor three
+    models and C(3,2) = 3 within-family pairs, silently destroying that symmetry.
+    """
+    out: Dict[str, List[str]] = {}
+    for m in primary_panel():
+        out.setdefault(m.family, []).append(m.key)
+    return out
+
+
+# --- collection constants ---------------------------------------------------
+
+# Sampling is pinned so that cross-model differences reflect the models rather
+# than our sampling noise. temperature=0 is deliberate: we want each model's
+# modal judgement. Prompt-variant diversity (H3) is manipulated explicitly at
+# the prompt level, never accidentally through sampling randomness.
+TEMPERATURE = 0.0
+
+# Raised 400 -> 1000 on 2026-09-03; PREREGISTRATION.md 11, deviation 1.
+#
+# At 400 this silently deleted data. `claude_sonnet` sometimes reasons in prose
+# before emitting the object, and 7 replies across 1-2 Sep were cut off before
+# reaching it -- every one billed at exactly 400 output tokens. Worse than the
+# volume was the shape: the same questions truncated on both days, so the loss
+# landed on the items that invite long reasoning rather than on a random 13%.
+#
+# Raising a stopping rule is not the same kind of change as raising a sampling
+# parameter. `max_tokens` cannot alter the distribution a model draws from; it
+# can only halt generation early. A reply that finished inside 400 tokens is
+# unaffected -- and the panel's median is 60 to 105 -- so what changes is
+# confined to the replies that were being discarded anyway.
+#
+# The ceiling still binds: it is a guard against a runaway response, not a
+# budget. Spend is billed on real tokens, which is why observed cost is ~$0.21
+# a day against a $110 arm cap.
+MAX_OUTPUT_TOKENS = 1000
+
+# !! ROSTER CONSTRAINT, discovered 19 Aug 2026.
+# Newer reasoning models are REMOVING the sampling parameters: temperature,
+# top_p and top_k all return HTTP 400 on Claude Sonnet 5 / Opus 5 / Opus 4.8 /
+# 4.7 / Fable 5. Any model added to PANEL must accept TEMPERATURE above, because
+# a member that samples differently from the rest confounds model differences
+# with sampling differences -- and temperature is registered in
+# PREREGISTRATION.md 9, so this is a frozen commitment, not a preference.
+# `python -m neff.verify` makes one real call per model and fails loudly on this.
+
+# Structured output keeps cost down AND removes measurement noise: free-text
+# rationale length varies wildly across families, and we correlate decisions,
+# not prose.
+RESPONSE_SCHEMA_VERSION = "v1"
+
+# 10% of prospective calls also collect extended reasoning, for the H2
+# shared-prior mechanism analysis.
+REASONING_SUBSAMPLE_RATE = 0.10
+
+TASKS_PER_DAY = 25
+
+# --- test-retest replicates -------------------------------------------------
+# TEMPERATURE = 0.0 is registered in section 9 so that cross-model differences
+# reflect the models rather than our sampling. Measured 22 Aug 2026 (3 prompts x
+# 4 repetitions) it holds for only five of ten models; the other five move their
+# probability by 0.033-0.093 on average against an IDENTICAL prompt. Which models
+# vary shifts between runs, so it is infrastructure -- batched inference, and
+# backend routing on OpenRouter -- not a model property.
+#
+# The noise is idiosyncratic, so it inflates apparent independence: rho_bar down,
+# N_eff up. Conservative for our hypothesis, but unmeasured. These replicates
+# measure it: REPLICATES_PER_DAY tasks are asked to every model twice, and the
+# spread gives each model's noise floor (PREREGISTRATION.md 5.4d).
+#
+# Stored at a RESERVED prompt_variant so they cannot contaminate anything:
+# panel.load_panel filters to variant 0, and H3's registered variants are 0-4.
+REPLICATE_VARIANT = 99
+REPLICATES_PER_DAY = 2
+
+# --- H3: one model under five prompt variants ------------------------------
+# PREREGISTRATION.md 4, H3 (a): "N_eff for one model under 5 prompt variants".
+# The five framings have been in `tasks.PROMPT_VARIANTS` since before the
+# freeze, and nothing collected them. The daily run asked variant 0 only, and
+# the generic `--variants` path would have re-sent the variant-0 prompt under a
+# new label -- a replicate wearing a variant's id. The intra-model arm of a
+# registered hypothesis had no data for the first 13 collection days
+# (PREREGISTRATION.md 11, deviation 14), and those days cannot be recovered.
+#
+# ONE model, chosen before any data from this arm existed and for reasons that
+# say nothing about results: `gpt_mid` returned identical answers on every
+# repetition of an identical prompt on 22 Aug (the 5.4(d) table), so a spread
+# across its variants is the framing rather than sampling noise; its vendor
+# serves it directly, so no router moves underneath it; it has held 100%
+# coverage; and it is the cheapest of the models that were deterministic.
+# Variants 1-4 only -- variant 0 is already the primary panel's observation.
+H3_VARIANT_MODEL = "gpt_mid"
+H3_VARIANTS = 5
+# The first day the arm is asked, as deviation 14 registers it. A date, not
+# "whenever the code lands": the evening re-run of the day before, or a manual
+# run, would otherwise add variants to a day the registered text says has none.
+H3_VARIANT_START = "2026-09-14"
+
+# Measured, not assumed: gpt_mid cost $0.0854 across its 356 primary-arm calls,
+# 2026-09-01 to 2026-09-13, or $0.00024 a call. Four variants of 25 tasks is
+# 100 calls a day.
+H3_MEASURED_DAILY_USD = 0.024
+
+# --- a model its vendor retires mid-collection (deviation 23; its route withdrawn by 24, below)
+#
+# OpenAI shuts `gpt-4.1-nano-2025-04-14` down on 2026-10-23 -- announced on
+# 2026-04-22, four months before this roster was verified, and noticed on
+# 2026-09-19. That is `gpt_small`: one of the nine, and half of the OpenAI
+# within-family pair H3 and H6 rest on. Left alone it answers nothing from that
+# day, the 5.6 floor removes it from the whole primary panel, and the Week-5
+# prediction is judged on a smaller panel than it is made on.
+#
+# Azure's schedule then said it served the same snapshot until 2027-04-14, and OpenRouter routes to Azure;
+# PREREGISTRATION.md 3.1 already names Azure OpenAI as a channel that serves "the
+# same weights under a different invoice". So from the day OpenAI stops, the key
+# is served there. Model, key, temperature, max_tokens and prompt are unchanged;
+# the string sent becomes OpenRouter's id for the model, the host is pinned and
+# recorded, and logprobs are not served on that route. Probed 2026-09-19: host
+# Azure, the same probability as OpenAI's own endpoint on the same prompt.
+
+
+@dataclass(frozen=True)
+class ServingRoute:
+    """Where one panel member is asked from a registered date onward."""
+
+    starts: str               # first UTC day the route serves the key
+    provider: str             # a key of providers.PROVIDERS
+    model_id: str             # the exact string sent on the route
+    supports_logprobs: bool
+
+
+# --- deviation 24: the route above is withdrawn -----------------------------------------
+#
+# Microsoft's retirement schedule, as updated on 2026-09-23, retires this snapshot on
+# Azure on 2026-10-14 -- nine days BEFORE the day deviation 23 moved `gpt_small` there.
+# On 2026-09-14 the same page had said 2027-04-14, which is what deviation 23 relied
+# on; `scripts/health_check.py` found the change on its first run. OpenAI shuts the
+# snapshot down on 2026-10-23. So from 2026-10-23 no host serves the registered model,
+# and none can be substituted without changing the model. The student chose, on
+# 2026-09-30, before the Week-5 look and from vendor schedules alone:
+#
+#   * `gpt_small` is asked through OpenAI, as registered, up to 2026-10-22 -- its last
+#     available day -- and not at all from 2026-10-23 (RETIREMENTS);
+#   * no member changes host (SERVING_ROUTES is empty; the mechanism stays);
+#   * the bridge keeps measuring the route it was measuring, through 2026-10-13, the
+#     last day Azure serves the snapshot (BRIDGE_ROUTES, BRIDGE_END);
+#   * 5.6 applies unchanged, and a registered sensitivity re-runs the primary estimate,
+#     H3 and H6 on the task-days asked before the retirement, with all nine models
+#     (`asked_before` in neff/analysis.py, neff/h3.py, neff/h6.py).
+
+SERVING_ROUTES: Dict[str, ServingRoute] = {}
+
+# The first UTC day a panel member is no longer asked, because no host serves it.
+RETIREMENTS: Dict[str, str] = {
+    "gpt_small": "2026-10-23",
+}
+
+
+def retired(spec, day: str) -> bool:
+    """Is `spec` (or a model key) past its retirement on `day` (ISO date)?"""
+    key = spec if isinstance(spec, str) else spec.key
+    first_day_gone = RETIREMENTS.get(key)
+    return first_day_gone is not None and day >= first_day_gone
+
+
+# THE BRIDGE. Every question of the day is also put to a model through another route,
+# stored at this reserved variant, so answers on the two routes can be compared on
+# identical prompts. `panel.load_panel` reads variant 0 only, H3 reads 1-4 and the
+# test-retest replicates are 99, so these rows reach no estimate. `panel.bridge_report`
+# is their one reader. Deviation 23 opened it to measure the route before a move;
+# deviation 24 withdrew the move and keeps the measurement until the route's own host
+# retires the model.
+BRIDGE_VARIANT = 98
+BRIDGE_ROUTES: Dict[str, ServingRoute] = {
+    "gpt_small": ServingRoute(
+        starts="2026-09-20",
+        provider="openrouter_azure",
+        model_id="openai/gpt-4.1-nano",
+        supports_logprobs=False,
+    ),
+}
+# The first day the bridge is asked: the first collection after deviation 23.
+BRIDGE_START = "2026-09-20"
+# The last day: Azure retires the snapshot on 2026-10-14 (deviation 24).
+BRIDGE_END = "2026-10-13"
+
+
+def _on_route(spec: "ModelSpec", route: ServingRoute) -> "ModelSpec":
+    return replace(spec, provider=route.provider, model_id=route.model_id,
+                   supports_logprobs=route.supports_logprobs)
+
+
+def routed(spec: "ModelSpec", day: str) -> "ModelSpec":
+    """The spec that asks `spec.key` its questions on `day` (ISO date)."""
+    route = SERVING_ROUTES.get(spec.key)
+    if route is None or day < route.starts:
+        return spec
+    return _on_route(spec, route)
+
+
+def bridge_spec(spec: "ModelSpec", day: str) -> Optional["ModelSpec"]:
+    """The bridged route for `spec.key`, on the days the bridge runs; else None."""
+    route = BRIDGE_ROUTES.get(spec.key)
+    if route is None or not (BRIDGE_START <= day <= BRIDGE_END) or retired(spec, day):
+        return None
+    return _on_route(spec, route)
+
+
+COLLECTION_START = "2026-08-29"
+CALIBRATION_END = "2026-10-02"   # end of Week 5: prediction is frozen after this
+DATA_FREEZE = "2026-12-11"
+
+# Market-state variables for the H1 conditional test. This list must match
+# PREREGISTRATION.md 4 EXACTLY -- "fixed, no additions permitted" -- because its
+# length also sets the Benjamini-Hochberg denominator and therefore the
+# falsification threshold. It previously did not match in three ways at once:
+# `news_volume` appeared here but was never registered, the registered
+# days-to-resolution was absent, and both documents said "six" while the list
+# held seven.
+#
+# COLLECTED AT ASK TIME (irrecoverable if missed -- they describe the world as it
+# stood when the question was put):
+#   ladder_distance   experimentally varied ambiguity; available EVERY day, and
+#                     the only H1 leg that does not depend on markets supplying a
+#                     stress event. Needs the live strike ladder, so it cannot be
+#                     reconstructed later.
+#   vix_level         from the FRED snapshot
+#   realized_vol_20d  from the FRED snapshot
+#   days_out          days to resolution; also the registered handling for the
+#                     horizon-drift threat in 5.4(b)
+#
+# DERIVED AT ANALYSIS TIME (safe to compute later; no collection dependency):
+#   expectation_dispersion  cross-model dispersion of the panel's own forecasts
+#   abs_surprise            |macro surprise| from FRED vintages vs consensus
+#   novelty_score           question novelty against the accumulated task corpus
+STATE_VARIABLES = [
+    "ladder_distance",
+    "vix_level",
+    "realized_vol_20d",
+    "expectation_dispersion",
+    "abs_surprise",
+    "days_out",
+    "novelty_score",
+]
+
+# The subset that must be present on the task record at collection time. Checked
+# by tests and by neff.verify, because a missing one is unrecoverable after the
+# fact whereas a derived one is merely unfinished.
+STATE_COLLECTED_AT_ASK = [
+    "ladder_distance",
+    "vix_level",
+    "realized_vol_20d",
+    "days_out",
+]
+
+USER_AGENT = "neff-research (educational research; contact: rajankhiani@gmail.com)"
+
+
+@dataclass
+class RunConfig:
+    """Per-run knobs. Kept separate from the pinned panel so that operational
+    changes (concurrency, dry-run) can never be confused with scientific ones."""
+
+    arm: str = "ws1_prospective"
+    dry_run: bool = False
+    concurrency: int = 4
+    tasks_per_day: int = TASKS_PER_DAY
+    seed: int = 0
+    prompt_variants: int = 1
+    replicates_per_day: int = REPLICATES_PER_DAY
+    model_keys: Optional[List[str]] = field(default=None)
+    # H3's intra-model arm (H3_VARIANT_MODEL). None switches it off, which is the
+    # default for programmatic callers and for every test; `neff.collect` turns
+    # it on for the primary arm, which is how the daily workflow runs.
+    h3_variant_model: Optional[str] = None
+    h3_variants: int = H3_VARIANTS
+    # The serving-route bridge (deviation 23). Off by default for programmatic
+    # callers and tests, on for the primary arm, as H3's arm is.
+    bridge: bool = False
+
+    def models(self) -> List[ModelSpec]:
+        panel = enabled_panel()
+        if self.model_keys is None:
+            return panel
+        keys = set(self.model_keys)
+        return [m for m in panel if m.key in keys]

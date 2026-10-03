@@ -1,0 +1,32 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.*
+!.env.example
+data/spf_raw/*.xlsx
+data/spf_raw/*.part
+
+# Output of `neff.collect --mock`: fabricated forecasts, written here so they
+# cannot land in the study record. The daily workflow ends in `git add -A data/`,
+# so this line is the last thing standing between a smoke test and a synthetic
+# row in the public repository. data/pilot_mock/ is the pilot-era archive and
+# stays tracked.
+data/mock/
+run-summary.json
+
+# Unrelated competitive-programming practice. Kept locally, never published:
+# it is not part of the study and 32MB of build artifacts would bury the research.
+usaco/
+.DS_Store
+
+# scratch output of scripts/check_days.py --json
+continuity.json
+
+# scratch output of scripts/milestones.py --json
+milestones.json
+
+# scripts/health_check.py: reports, private state (balances), quarantine and
+# backups. The folder also ignores itself, so this line is belt and braces.
+.health/

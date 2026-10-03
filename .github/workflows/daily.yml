@@ -1,0 +1,471 @@
+name: daily-collection
+
+# The spine of the study. Runs unattended for 15 weeks.
+#
+# The commit this job makes each day is not just bookkeeping -- it is the
+# EVIDENCE. Every forecast is committed to a public, timestamped, append-only
+# history before its event resolves. That is what makes "we registered this in
+# advance" externally checkable rather than something we merely assert, and it
+# is the single strongest answer to the standard objection against any
+# LLM-forecasting result: "how do we know you didn't run this afterwards?"
+
+on:
+  schedule:
+    # 13:10 UTC daily = 09:10 ET, after US macro releases (08:30 ET) and before
+    # the equity open, so the market-state snapshot is same-day and meaningful.
+    #
+    # GitHub treats this as a hint, not a promise: across the first twelve
+    # scheduled runs the job actually started between 30 minutes and 10 hours
+    # late. That is ordinary queueing for scheduled workflows, and it is not
+    # something the repository can fix.
+    - cron: "10 13 * * *"
+    # Second attempt, same UTC day. `neff.collect` is idempotent -- observation
+    # ids are content-addressed from (task_id, model_key, prompt_variant) -- so
+    # if the first run succeeded this one finds nothing to do, spends nothing,
+    # and commits nothing. If the first run died on something transient, this
+    # one still saves the day. It cannot recover an *earlier* day and must not
+    # try: `neff.collect` exposes no `--as-of`, because a forecast collected
+    # today and stamped yesterday would be a fabricated observation.
+    - cron: "0 20 * * *"
+    # Third chance, between the two. On 2026-09-28 the 13:10 run never started on
+    # its day, and the 20:00 run alone collected it. The evening run usually starts
+    # around 22:45, about an hour before midnight UTC, and a run that starts after
+    # midnight collects the NEXT day, so a day left with one run is one queue delay
+    # from being lost for good. A rerun is free -- the collector skips everything
+    # already asked -- so another slot only adds a chance. 16:41, not 16:00: GitHub's
+    # scheduler is busiest at the top of the hour, when it delays and drops the most.
+    - cron: "41 16 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Price the day without spending"
+        type: boolean
+        default: false
+      tasks:
+        description: "Tasks to collect"
+        type: string
+        default: "25"
+
+concurrency:
+  # Never let two collection runs overlap -- they would race on the ledger and
+  # on the append-only files.
+  group: daily-collection
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write     # the alarm below files a durable issue when a day is at risk
+
+env:
+  # The study's record. Every run checks this branch out and commits the day to
+  # it, whichever branch GitHub started the run from. Scheduled runs start from
+  # the default branch, `front`, which only shows `main` on the repository's
+  # front page (scripts/front_page.py says why); nothing is ever committed there
+  # except copies of `main`'s files.
+  RECORD_BRANCH: main
+
+jobs:
+  collect:
+    # A named image, not `ubuntu-latest`. GitHub moves `ubuntu-latest` to Ubuntu
+    # 26.04 between 2026-10-19 and 2026-11-19 -- in the middle of collection -- and
+    # the instrument should run on the machine it ran on from the first day to the
+    # freeze. 24.04 is what `ubuntu-latest` was for every run from 2026-09-01.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      # Versions that run on Node 24 natively. GitHub removes Node 20 from its
+      # runners on 2026-09-23; checkout@v4, setup-python@v5 and upload-artifact@v4
+      # all declare node20 and had been forced onto Node 24 with a warning on every
+      # run. Each newer major changes nothing else this workflow uses.
+      - uses: actions/checkout@v5
+        with:
+          # The record, not whichever branch started the run (see RECORD_BRANCH).
+          ref: ${{ env.RECORD_BRANCH }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        # Exact versions, direct and transitive -- constraints.txt says why.
+        run: |
+          python -m pip install --upgrade pip -c constraints.txt
+          pip install -r requirements.txt -c constraints.txt
+
+      - name: Verify estimator before spending anything
+        # If the statistics are broken, do not collect data against them.
+        run: python -m pytest tests/ -q
+
+      - name: Confirm the pre-registration is visible to CI
+        # The gate in neff.collect reads `.osf_url` from the CHECKOUT. A URL that
+        # exists only on the operator's laptop fails every scheduled run with a
+        # message about a missing registration that is, locally, plainly there.
+        # Checked here so the cause is named before any key is loaded.
+        env:
+          OSF_URL: ${{ vars.OSF_URL }}
+        run: |
+          python - <<'PY'
+          import sys
+          from neff.collect import OSF_URL_PATH, registered_osf_url
+          url = registered_osf_url()
+          if url:
+              print(f"registration on record: {url}")
+              sys.exit(0)
+          print("::error::No OSF registration URL visible to CI.")
+          print(f"::error::Commit {OSF_URL_PATH.name} to the repo, or set an OSF_URL")
+          print("::error::repository variable (Settings -> Secrets and variables ->")
+          print("::error::Actions -> Variables). Writing the file locally is not enough.")
+          sys.exit(1)
+          PY
+
+      - name: Collect
+        id: collect       # read by "Commit the day"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OSF_URL: ${{ vars.OSF_URL }}
+        run: |
+          python -m neff.collect \
+            --tasks "${{ github.event.inputs.tasks || 25 }}" \
+            --arm ws1_prospective \
+            --concurrency 4 \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }} \
+            | tee run-summary.json
+
+      - name: Record the market surprise of any release that has settled
+        # PREREGISTRATION.md 11, deviation 18. Once every market in a listed macro
+        # release has settled, its surprise -- the Kalshi market's Brier score a day
+        # before the print -- is computed and appended, then never rewritten, so
+        # each value is public within about a day and before any analysis reads
+        # it. Reads market prices and settlements, never a forecast. It cannot fail
+        # the run: a release missed today is simply picked up tomorrow.
+        if: always() && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python scripts/release_surprise.py --study
+
+      - name: Pin the base rate of any Kalshi series asked for the first time
+        # PREREGISTRATION.md 11, deviation 20. H2's category base rate is the share
+        # of a series' markets that settled YES in the twelve months before
+        # collection began, appended once per series and never rewritten. Reads
+        # pre-study settlements only, never a forecast. It cannot fail the run: a
+        # series missed today is picked up tomorrow.
+        if: always() && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: python scripts/category_base_rates.py
+
+      - name: Budget guard
+        # Fail loudly well before the cap so there is time to react. A silent
+        # drift to $200 discovered in December would end the study.
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          from neff.config import ARM_CAPS_USD, BUDGET_USD, LEDGER_PATH
+          from neff.ledger import Ledger
+          led = Ledger(LEDGER_PATH, cap_usd=BUDGET_USD, arm_caps=dict(ARM_CAPS_USD))
+          s = led.summary()
+          print(json.dumps(s, indent=2))
+          if s["pct_used"] > 85:
+              print(f"::error::budget {s['pct_used']}% consumed")
+              sys.exit(1)
+          if s["pct_used"] > 60:
+              print(f"::warning::budget {s['pct_used']}% consumed")
+          PY
+
+      - name: Is the daily record still unbroken?
+        # The study's evidence is the *continuity* of the record, not any single
+        # day. Surfaced on every run so a hole is noticed while a manual re-run
+        # can still fill it -- by tonight it is permanent. `always()` because the
+        # run that failed to collect is exactly the run whose continuity report
+        # matters most.
+        if: always()
+        run: python scripts/check_days.py --json
+
+      - name: Say so if the market moved
+        # NOT an alarm, and deliberately not folded into the one above: nothing
+        # here means collection is at risk, so titling it that way would teach
+        # us to skim the alarm that does.
+        #
+        # The stress leg of H1 is a tercile contrast on vix_level, and
+        # PREREGISTRATION.md 10 limitation 5 concedes that a calm 15 weeks leaves
+        # it untestable. A genuine shock cannot be manufactured -- but if one
+        # arrives it will be a handful of days, those days ARE the stress leg,
+        # and losing one costs incomparably more than losing an ordinary Tuesday.
+        # The failure mode this removes is the quiet one: a spike nobody noticed
+        # is a spike nobody checked collected in full.
+        #
+        # Threshold is absolute (VIX >= 25) or a >= 20% jump over every earlier
+        # day. Both are rare by construction: early in collection almost any day
+        # sets a new high, and firing on that would be wallpaper within a week.
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY' > stress.txt || true
+          import json, pathlib
+          try:
+              c = json.loads(pathlib.Path("continuity.json").read_text())
+          except Exception:
+              c = {}
+          vix, day = c.get("vix_latest"), c.get("vix_latest_day")
+          if isinstance(vix, (int, float)):
+              why = []
+              if vix >= 25.0:
+                  why.append(f"VIX closed at {vix:.2f} ({c.get('vix_band')}) on {day}")
+              prev = c.get("vix_max_prior")
+              if c.get("vix_new_high") and isinstance(prev, (int, float)) and prev > 0 \
+                 and vix >= prev * 1.20:
+                  why.append(f"VIX {vix:.2f} is {vix / prev - 1:+.0%} over the prior "
+                             f"maximum of {prev:.2f} -- a fast move, not a drift")
+              if why:
+                  print("\n".join(f"- {w}" for w in why))
+                  print()
+                  print(f"Collected today: {c.get('today_collected')}")
+                  print(f"Distinct market states so far: {c.get('vix_distinct')}")
+          PY
+          if [ ! -s stress.txt ]; then
+            echo "market unremarkable"
+            exit 0
+          fi
+          DAY="$(date -u +%Y-%m-%d)"
+          TITLE="stress regime: ${DAY}"
+          BODY="$(cat stress.txt)
+
+          This is a notice, not a fault. It matters because the stress leg of H1
+          depends on days like this one existing, and there may be very few.
+
+          Check, in this order:
+            1. Did today collect in full? Every model, every task.
+            2. If not, re-run NOW: Actions -> daily-collection -> Run workflow.
+               Collection cannot be back-dated, and this is not a day to lose.
+
+          Run: ${RUN_URL}"
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number' || true)"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" || true
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label "" || \
+            gh issue create --title "$TITLE" --body "$BODY" || true
+          fi
+
+      - name: Does anything need a person?
+        # Everything else in this job is automatic. These two are not: the Week-5
+        # prediction (PREREGISTRATION.md 5.3, deviation 18) and the 11 Dec freeze
+        # each happen once, on a fixed date, because someone runs a command.
+        #
+        # They are unrecoverable in the same way a missed collection day is. The
+        # publisher refuses before 2026-10-02 20:00 UTC and refuses to run twice,
+        # which is what makes the published file evidence -- but nothing made it
+        # happen, and a prediction published late is not the registered
+        # prediction. Until this step existed the repository alarmed loudly about
+        # a missing day and said nothing about the one calendar entry that cannot
+        # be re-run.
+        #
+        # Quiet until a week before the window opens, so it is not wallpaper by
+        # the time it matters. Exits 0 always: a milestone falling due is the
+        # study working, not a fault.
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python scripts/milestones.py --json
+          python - <<'PY' > milestone.txt || true
+          import json, pathlib
+          try:
+              m = json.loads(pathlib.Path("milestones.json").read_text())
+          except Exception:
+              m = {}
+          flagged = m.get("flagged") or []
+          if flagged:
+              for f in flagged:
+                  print(f"- **{f['title']}** -- {f['state'].replace('_', ' ')}, "
+                        f"window opens {f['opens']}")
+                  if f.get("detail"):
+                      print(f"  {f['detail']}")
+                  for line in f.get("how", []):
+                      print(f"      {line}")
+          PY
+          if [ ! -s milestone.txt ]; then
+            echo "nothing needs a person today"
+            exit 0
+          fi
+          # One issue per milestone window, reused as long as it stays open, so a
+          # thing that is due for three days does not file three alarms.
+          TITLE="needs a person: dated commitment due"
+          BODY="$(cat milestone.txt)
+
+          This is a notice, not a fault -- it means the study reached a date it
+          registered in advance.
+
+          Run: ${RUN_URL}"
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number' || true)"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" || true
+          else
+            gh issue create --title "$TITLE" --body "$BODY" || true
+          fi
+
+      - name: Panel health
+        run: |
+          python - <<'PY'
+          import json
+          from neff.panel import load_panel, describe
+          p = load_panel(require_resolved=False)
+          print(json.dumps(describe(p), indent=2, default=str))
+          PY
+
+      - name: Commit the day
+        # Runs whenever Collect ran, whatever happened after it. Under the default
+        # `success()`, a failure in any step between Collect and here -- the budget
+        # guard, the continuity report, panel health, all of which only report --
+        # skipped this step, and the observations already written went with the
+        # runner. The 20:00 backup would then re-ask from a fresh checkout, pay
+        # again, and meet the same failure. A Collect that failed part-way has
+        # written real rows too, and real spend to the ledger; committing them lets
+        # the backup finish the same tasks instead of starting over. Skipped only
+        # when Collect never ran -- the tests or the registration check stopped it,
+        # so nothing is committed on a day the estimator failed -- or when the run
+        # was cancelled.
+        if: ${{ !cancelled() && steps.collect.outcome != 'skipped' }}
+        run: |
+          git config user.name  "neff-collector"
+          git config user.email "actions@github.com"
+          git add -A data/
+          if git diff --staged --quiet; then
+            echo "no new data"
+            exit 0
+          fi
+          git commit -m "data: collection for $(date -u +%Y-%m-%d)"
+          # The panel may have run while a push landed; rebase rather than fail,
+          # because a lost day cannot be recovered later. The waits grow, so a
+          # GitHub hiccup of a few minutes is ridden out rather than lost.
+          #
+          # And a push that never lands must FAIL this step. The loop used to end
+          # on `sleep`, which succeeds, so three failed pushes finished green: the
+          # day's data gone with the runner, the run reporting success, and no
+          # alarm -- the alarm below reads this job's status.
+          #
+          # Always to the record branch, never to GITHUB_REF_NAME: a scheduled run
+          # starts from `front`, and a day pushed there would be a day off the record.
+          for i in 1 2 3 4 5 6; do
+            if git pull --rebase --autostash origin "${RECORD_BRANCH}" && \
+               git push origin "HEAD:${RECORD_BRANCH}"; then
+              echo "pushed on attempt ${i}"
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((i * 15))
+          done
+          echo "::error::The day was collected but could not be pushed after 6 attempts. The data exists only on this runner and is gone when the job ends. Re-run now: Actions -> daily-collection -> Run workflow."
+          exit 1
+
+      - name: Show the record on the front page
+        # The repository's front page is the `front` branch, whose only commits are
+        # copies of `main`'s files (scripts/front_page.py says why). This copies
+        # `main` there as it stands after today's commit, so the page, its README
+        # and the workflow GitHub schedules from it all match the record. It writes
+        # only to `front`, and it cannot fail the run: the day is already on `main`,
+        # and a front page a day behind is still the record, a day late.
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          GIT_AUTHOR_NAME: neff-collector
+          GIT_AUTHOR_EMAIL: actions@github.com
+          GIT_COMMITTER_NAME: neff-collector
+          GIT_COMMITTER_EMAIL: actions@github.com
+        run: python scripts/front_page.py
+
+      - name: Raise an alarm if a day is at risk
+        # A failed run sends one email, and ten of those went past unread in
+        # August. An issue is durable, lands in the same place as the study, and
+        # is still there tomorrow. Deduplicated per day so a bad stretch does not
+        # bury the repo in near-identical alarms.
+        #
+        # Runs AFTER the commit, so that a day collected but never pushed -- the
+        # one failure every earlier step reports as fine -- is in the job status
+        # this step reads.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY' > alarm.txt || true
+          import json, os, pathlib
+          status = os.environ.get("JOB_STATUS", "")
+          try:
+              c = json.loads(pathlib.Path("continuity.json").read_text())
+          except Exception:
+              c = {}
+          reasons = []
+          if status not in ("success", ""):
+              reasons.append(f"the collection job finished `{status}`")
+          if c.get("today_state") == "late" and not c.get("today_collected"):
+              reasons.append(f"{c.get('today')} is past the cron plus its usual delay and still has no observations")
+          for m in c.get("below_floor", []):
+              cov = c.get("coverage_window", {}).get(m)
+              reasons.append(f"`{m}` is at {cov:.0%} over the last {c.get('window_days')} collected days, under the 80% floor of PREREGISTRATION.md 3.3")
+          # The bridge (deviations 23 and 24) asks a model's questions through a
+          # second host too, until 13 Oct. It carries the model nowhere, so no day
+          # is at risk when it fails -- but a sudden failure most likely means that
+          # host retired the model early, a fact the plan must record.
+          for m, b in (c.get("bridge_latest") or {}).items():
+              if b.get("asked") and b.get("answered", 0) < 0.8 * b["asked"]:
+                  reasons.append(f"the bridge that asks `{m}` through a second host (PREREGISTRATION.md 11, deviations 23 and 24) answered {b.get('answered')}/{b['asked']} on {c.get('bridge_day')}; no day is at risk, but if that host retired the model early, record it in 11")
+          # A day older than yesterday is permanently lost and was alarmed on at
+          # the time. Repeating it every morning for the rest of the study would
+          # turn the alarm into wallpaper; it belongs in PREREGISTRATION.md 11
+          # as a dated deviation, not in a fresh issue each day.
+          import datetime as _dt
+          try:
+              _cut = (_dt.date.fromisoformat(c["today"]) - _dt.timedelta(days=1)).isoformat()
+          except Exception:
+              _cut = ""
+          for m in c.get("missing_days", []):
+              if m == c.get("today") or m < _cut:
+                  continue          # already reported as late, or long since lost
+              reasons.append(f"{m} has no observations and cannot be recovered")
+          # Print nothing at all when there is nothing wrong. A bare newline is a
+          # non-empty file to `test -s`, which would file an alarm every day and
+          # make the alarm worthless within a week.
+          if reasons:
+              print("\n".join(f"- {r}" for r in reasons))
+          PY
+          if [ ! -s alarm.txt ]; then
+            echo "nothing to raise"
+            exit 0
+          fi
+          DAY="$(date -u +%Y-%m-%d)"
+          TITLE="collection at risk: ${DAY}"
+          BODY="$(cat alarm.txt)
+
+          Run: ${RUN_URL}
+
+          A day that is still missing tonight is missing permanently -- collection
+          cannot be back-dated. If today has not landed, re-run it now:
+          Actions -> daily-collection -> Run workflow."
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: run-summary-${{ github.run_number }}
+          path: run-summary.json
+          retention-days: 90
