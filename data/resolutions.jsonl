@@ -109,3 +109,16 @@
 {"task_id": "410d8df548b48a5eb5a6", "outcome": 0.0, "resolved_at": "2026-10-02T23:38:19.235018+00:00", "source": "kalshi:KXUST5A-26OCT02-T5.14", "note": "settled", "schema": "v1"}
 {"task_id": "05966ec11766355e4b02", "outcome": 0.0, "resolved_at": "2026-10-02T23:38:19.325436+00:00", "source": "kalshi:KXUST5A-26OCT02-T5.12", "note": "settled", "schema": "v1"}
 {"task_id": "2af2d4ea46630e2baf96", "outcome": 0.0, "resolved_at": "2026-10-02T23:38:19.415277+00:00", "source": "kalshi:KXUST5A-26OCT02-T5.10", "note": "settled", "schema": "v1"}
+{"task_id": "72967a4680f3991c0151", "outcome": 1.0, "resolved_at": "2026-10-05T21:18:25.955060+00:00", "source": "kalshi:KXAMZNCC-26OCT07-T96", "note": "settled", "schema": "v1"}
+{"task_id": "528166bc491c621fd631", "outcome": 1.0, "resolved_at": "2026-10-05T21:18:26.026280+00:00", "source": "kalshi:KXAMZNCC-26OCT07-T116", "note": "settled", "schema": "v1"}
+{"task_id": "b4c8ecd6322124fa0a09", "outcome": 1.0, "resolved_at": "2026-10-05T21:18:26.090043+00:00", "source": "kalshi:KXAMZNCC-26OCT07-T112", "note": "settled", "schema": "v1"}
+{"task_id": "daaf31ff69ba23fa6f44", "outcome": 1.0, "resolved_at": "2026-10-05T21:18:26.162744+00:00", "source": "kalshi:KXAMZNCC-26OCT07-T110", "note": "settled", "schema": "v1"}
+{"task_id": "4f2beebd281ccadd4b91", "outcome": 1.0, "resolved_at": "2026-10-05T21:18:26.225751+00:00", "source": "kalshi:KXAMZNCC-26OCT07-T108", "note": "settled", "schema": "v1"}
+{"task_id": "a0faaaf66d05a3c23e43", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.518162+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.6", "note": "settled", "schema": "v1"}
+{"task_id": "5cad6b3c5325ca12541c", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.518169+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.6", "note": "settled", "schema": "v1"}
+{"task_id": "e5d10bcf51d6ac5f7609", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.586675+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.4", "note": "settled", "schema": "v1"}
+{"task_id": "8a8ab6427bc12da05395", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.586681+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.4", "note": "settled", "schema": "v1"}
+{"task_id": "14bb503534996eb30b51", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.661380+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.2", "note": "settled", "schema": "v1"}
+{"task_id": "9bb9139eed30da7931b2", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.661387+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.2", "note": "settled", "schema": "v1"}
+{"task_id": "e97174492a96c32535a1", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.744794+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.0", "note": "settled", "schema": "v1"}
+{"task_id": "22ddd921d85600a0ccc2", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.744800+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.0", "note": "settled", "schema": "v1"}
