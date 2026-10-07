@@ -122,3 +122,8 @@
 {"task_id": "9bb9139eed30da7931b2", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.661387+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.2", "note": "settled", "schema": "v1"}
 {"task_id": "e97174492a96c32535a1", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.744794+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.0", "note": "settled", "schema": "v1"}
 {"task_id": "22ddd921d85600a0ccc2", "outcome": 0.0, "resolved_at": "2026-10-05T21:18:27.744800+00:00", "source": "kalshi:KXUSISMSERV-26OCT05-T56.0", "note": "settled", "schema": "v1"}
+{"task_id": "ca5c83802594708a6a45", "outcome": 1.0, "resolved_at": "2026-10-07T19:23:18.204145+00:00", "source": "kalshi:KXCBDPOLAND-26OCT07-HOLD", "note": "settled", "schema": "v1"}
+{"task_id": "1df3343b01432f5a7391", "outcome": 0.0, "resolved_at": "2026-10-07T19:23:18.285109+00:00", "source": "kalshi:KXCBDPOLAND-26OCT07-H25P", "note": "settled", "schema": "v1"}
+{"task_id": "3ad64147ae54ecba584c", "outcome": 0.0, "resolved_at": "2026-10-07T19:23:18.365876+00:00", "source": "kalshi:KXCBDPOLAND-26OCT07-H25", "note": "settled", "schema": "v1"}
+{"task_id": "07e689eee494cb345c1f", "outcome": 0.0, "resolved_at": "2026-10-07T19:23:18.445514+00:00", "source": "kalshi:KXCBDPOLAND-26OCT07-C25P", "note": "settled", "schema": "v1"}
+{"task_id": "1435b877645e5a64862b", "outcome": 0.0, "resolved_at": "2026-10-07T19:23:18.522694+00:00", "source": "kalshi:KXCBDPOLAND-26OCT07-C25", "note": "settled", "schema": "v1"}
