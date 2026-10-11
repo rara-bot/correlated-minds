@@ -36,6 +36,7 @@ from .config import (
     RESOLUTIONS_PATH,
     TASKS_PATH,
     primary_panel,
+    retired,
 )
 from .sources.edgar import MAX_REPORTING_GAP_DAYS, filing_deadline_gap
 from .store import JsonlStore
@@ -265,6 +266,12 @@ def load_panel(
         if forecast is None or record.get("error"):
             continue
         task_id = str(record.get("task_id"))
+        # A retired model's answers from its first day gone are not the registered
+        # model (deviation 25: Google served gemini-3.6-flash for the pinned 3.5 on
+        # 2026-10-10). The day is when the question was asked, else when answered.
+        day = (task_meta.get(task_id) or {}).get("asked_on") or str(record.get("created_at") or "")[:10]
+        if day and retired(str(model_key), day):
+            continue
         grid.setdefault(task_id, {})[str(model_key)] = float(forecast)
 
     # An empty panel with rows on disk is the failure mode this filter could

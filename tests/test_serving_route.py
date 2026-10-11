@@ -51,13 +51,19 @@ class TestTheRetirement:
     def test_gpt_small_is_asked_through_its_last_day_and_not_after(self):
         # OpenAI deprecations, "2026-04-22: Legacy GPT model snapshots": gpt-4.1-nano-2025-04-14,
         # shutdown October 23, 2026. Azure's schedule, updated 2026-09-23: retirement 2026-10-14.
-        assert RETIREMENTS == {"gpt_small": "2026-10-23"}
+        assert RETIREMENTS["gpt_small"] == "2026-10-23"
         assert not retired(SMALL, "2026-10-22") and retired(SMALL, "2026-10-23")
         assert retired("gpt_small", "2026-12-07")
 
+    def test_gemini_flash_pro_is_not_asked_from_the_day_google_swapped_it(self):
+        # Google deprecations, 2026-10-08: requests to gemini-3.5-flash are routed to
+        # gemini-3.6-flash; first served so on 2026-10-10 (deviation 25).
+        assert RETIREMENTS == {"gpt_small": "2026-10-23", "gemini_flash_pro": "2026-10-10"}
+        assert not retired("gemini_flash_pro", "2026-10-09") and retired("gemini_flash_pro", "2026-10-10")
+
     def test_no_other_model_retires(self):
         for spec in config.PANEL:
-            if spec.key == "gpt_small":
+            if spec.key in RETIREMENTS:
                 continue
             for day in ("2026-09-20", MOVE_DAY, "2026-12-11"):
                 assert not retired(spec, day)

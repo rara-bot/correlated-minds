@@ -538,6 +538,14 @@ SERVING_ROUTES: Dict[str, ServingRoute] = {}
 # The first UTC day a panel member is no longer asked, because no host serves it.
 RETIREMENTS: Dict[str, str] = {
     "gpt_small": "2026-10-23",
+    # Deviation 25. Google deprecated `gemini-3.5-flash` on 2026-10-08 and routes every
+    # request for it to `gemini-3.6-flash`; the first day served so was 2026-10-10 (all
+    # 27 answers, found by record.served_ids). The pin exists to hold generation fixed
+    # against `gemini_flash`, so no substitute is the registered model. The student
+    # chose, on 2026-10-11, the deviation-24 treatment: not asked from 2026-10-10, the
+    # answers of that day are not the registered model (`panel.load_panel` drops them),
+    # and the `asked_before` sensitivity runs for this retirement too.
+    "gemini_flash_pro": "2026-10-10",
 }
 
 
