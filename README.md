@@ -267,7 +267,8 @@ tests/             about 950 tests, run on every push and before every collectio
 |---|---|
 | [EXPLAINER.md](EXPLAINER.md) | Plain-language version — not for use as an abstract |
 | [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment, with its deviation log |
-| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The public addendum reporting deviations 1-24, ready to post |
+| [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The first public addendum, posted 3 Oct, covering every deviation up to 24 |
+| [OSF-ADDENDUM-2.md](OSF-ADDENDUM-2.md) | The second addendum (deviation 25 onward), drafted, not yet posted |
 | [VALIDITY.md](VALIDITY.md) | Do the tasks match how AI is used in finance? Limitations |
 | [AUDIT.md](AUDIT.md) | 28 defects found before collection, and how |
 | [PRIOR-ART.md](PRIOR-ART.md) | What is already claimed, with verification flags |
