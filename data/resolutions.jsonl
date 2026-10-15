@@ -188,3 +188,4 @@
 {"task_id": "e30ebef8fa4d17fa5fd8", "outcome": 1.0, "resolved_at": "2026-10-14T18:02:18.992439+00:00", "source": "kalshi:KXSHELTERCPI-26OCT14-T431.4", "note": "settled", "schema": "v1"}
 {"task_id": "2654212afdc201ef1882", "outcome": 1.0, "resolved_at": "2026-10-14T18:02:19.080572+00:00", "source": "kalshi:KXSHELTERCPI-26OCT14-T431.3", "note": "settled", "schema": "v1"}
 {"task_id": "3d85598a54d5aee60f43", "outcome": 1.0, "resolved_at": "2026-10-14T18:02:19.159415+00:00", "source": "kalshi:KXSHELTERCPI-26OCT14-T431.2", "note": "settled", "schema": "v1"}
+{"task_id": "46a8521b4f3227e14244", "outcome": 1.0, "resolved_at": "2026-10-15T17:51:30.915923+00:00", "source": "kalshi:KXHHSYOUTHCARE-26OCT20", "note": "settled", "schema": "v1"}
