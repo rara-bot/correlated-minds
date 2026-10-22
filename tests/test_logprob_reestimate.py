@@ -14,6 +14,8 @@ import pytest
 
 from neff import logprobs, report
 from neff.analysis import apply_registered_exclusions
+from neff.config import PRIMARY_ARM
+from neff.store import JsonlStore
 from neff.panel import Panel, load_panel
 
 FAST = 30
@@ -67,8 +69,12 @@ class TestTheCells:
         panel, _ = apply_registered_exclusions(load_panel())
         has = np.isfinite(logprobs.derived_forecasts(panel.task_ids, panel.model_keys))
         assert np.isfinite(panel.forecasts[has]).all()
-        if "deepseek" in panel.model_keys:
-            assert not has[:, panel.model_keys.index("deepseek")].any()
+        # Deviation 19 found no usable deepseek source on the rows to 13 Sep: Google and
+        # DigitalOcean send inconsistent logprobs. A host that answered later is judged by
+        # the same rule, so a consistent one (Mara, SambaNova) may fill a deepseek cell.
+        usable = logprobs.usable_sources(r for r in JsonlStore(logprobs.OBS_PATH).read()
+                                         if r.get("arm") == PRIMARY_ARM)
+        assert usable[("deepseek", "Google")] is False and usable[("deepseek", "DigitalOcean")] is False
         assert all(panel.asked_on[i] >= "2026-09-09" for i in np.nonzero(has.any(axis=1))[0])
 
 
