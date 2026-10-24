@@ -291,18 +291,22 @@ All four are covered by tests (`tests/test_edgar.py`).
    13:10 UTC, so each task carries the latest close published when it was asked;
    Saturday and Sunday repeat Friday's task state (§11, deviations 6 and 13). This
    thins the stress leg of H1 without biasing it, and leaves the ambiguity leg
-   untouched.
+   untouched. On 21 Oct FRED's website was down for maintenance when the day's 25
+   questions were asked, so they carry no market state at all; nothing is filled
+   in, and they are left out of H1's state tests only (§11, deviation 26).
 
 8. **One model may leave the primary panel.** qwen lost two days to a routing
    fault and most of a third to rate limits (§11, deviations 4 and 11). If its
    coverage on the resolved panel stays under 80%, §5.6 removes it and M becomes 8;
    the human benchmark is then recomputed at M = 8 (deviation 17).
 
-9. **Logprobs are usable for three models.** Most hosts serving deepseek send none,
-   and the two that send them list values that cannot describe the answers beside
-   them, so the §5.4(a) logprob sensitivity rests on gpt_mid, gpt_small and llama,
-   on no rows before 9 Sep, and on gpt_small's rows only to 22 Oct (deviations 10,
-   12, 19, 23 and 24).
+9. **Logprobs are usable for three models, and for a few deepseek rows.** Most hosts
+   serving deepseek send none, and the two that sent them by 13 Sep (Google,
+   DigitalOcean) list values that cannot describe the answers beside them, so the
+   §5.4(a) logprob sensitivity rests on gpt_mid, gpt_small and llama, plus the
+   deepseek rows of two later hosts whose logprobs are consistent (Mara from 29 Sep,
+   SambaNova from 3 Oct; deviation 19 judges each host), on no rows before 9 Sep,
+   and on gpt_small's rows only to 22 Oct (deviations 10, 12, 19, 23 and 24).
 
 10. **The H3 prompt-variant arm starts on 14 Sep.** It was never collected before
     (deviation 14), so the intra-model contrast rests on the later task-days only.
