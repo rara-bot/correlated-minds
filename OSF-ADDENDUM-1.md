@@ -1,5 +1,8 @@
 # OSF addendum 1 — ready to post
 
+_Two sentences about deviation 21 were shortened on 24 Oct 2026. The text posted on
+3 Oct is unchanged on Zenodo, version 1.1-addendum-1 (10.5281/zenodo.23113579)._
+
 **Three steps, about 25 minutes.** Do them in this order, on the same day.
 
 | Step | Where | What |
@@ -213,9 +216,8 @@ D. DISCLOSURES
   section 3.3; the 60/40 mix is kept at collection.
 - Dev 21 (16 Sep): an unblinded run of the collected data was made on
   16 September, outside the two looks the plan allows (2 October, and after the
-  11 December freeze). It was made by the AI assistant that writes this study's
-  code, to check that the December analysis works while there is still time to
-  fix it if it does not. It works. The date gate that forbids this exists and was
+  11 December freeze). It was made to check that the December analysis works
+  while there is still time to fix it if it does not. It works. The date gate that forbids this exists and was
   deliberately stepped around by faking the computer's clock. What appeared on
   screen was the run's summary only -- 21 resolved task-days, a panel of 8, and
   the words "untested", "untested", "not established" and "falsified" for H2, H3,
@@ -362,9 +364,8 @@ ANALYSIS, FIXED BLIND
 
 AN UNREGISTERED LOOK, DISCLOSED (deviation 21)
 - On 16 Sep the analysis was run unblinded on the collected data, outside the two
-  looks the plan allows. It was done to check the December analysis works, by the
-  AI assistant that writes the code, and the date gate that forbids it was stepped
-  around by faking the clock.
+  looks the plan allows. It was done to check the December analysis works, and
+  the date gate that forbids it was stepped around by faking the clock.
 - No number was displayed. The summary showed 21 resolved task-days, a panel of 8,
   and the same four verdicts the blind run had given minutes earlier -- nothing is
   yet testable at this sample size. The file it wrote was deleted unopened.
@@ -382,6 +383,10 @@ THE 2 OCT PREDICTION (deviation 18)
 - Deviation 22: published only from a copy of the record that is current -- not
   behind the public repository, holding 2 Oct's questions, and missing no
   settlement Kalshi has published.
+
+WORDING
+- One sentence about deviation 21 was shortened on 24 Oct 2026; the text posted
+  on 3 Oct is unchanged on Zenodo, version 1.1-addendum-1.
 
 VERIFICATION
   Repository:  https://github.com/rara-bot/correlated-minds
