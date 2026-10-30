@@ -567,3 +567,13 @@
 {"task_id": "8acc9dcd2fdabad66bc4", "outcome": 0.0, "resolved_at": "2026-10-29T19:00:41.495857+00:00", "source": "kalshi:KXCAFAIRPLAN-26NOV16-T740000", "note": "settled", "schema": "v1"}
 {"task_id": "03ca0e3348c5857d0250", "outcome": 1.0, "resolved_at": "2026-10-29T19:00:41.601594+00:00", "source": "kalshi:KXCAFAIRPLAN-26NOV16-T680000", "note": "settled", "schema": "v1"}
 {"task_id": "8f3009e486b3b1801be0", "outcome": 1.0, "resolved_at": "2026-10-29T19:00:41.716385+00:00", "source": "kalshi:KXCAFAIRPLAN-26NOV16-T690000", "note": "settled", "schema": "v1"}
+{"task_id": "a39bf52007a3db6ff7ab", "outcome": 1.0, "resolved_at": "2026-10-30T18:47:56.398978+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-HOLD", "note": "settled", "schema": "v1"}
+{"task_id": "3224aa19ffa779c4d082", "outcome": 1.0, "resolved_at": "2026-10-30T18:47:56.398994+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-HOLD", "note": "settled", "schema": "v1"}
+{"task_id": "fe2c2449fbca3f4a0404", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.510239+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-H25P", "note": "settled", "schema": "v1"}
+{"task_id": "28cdbda8ec5a7c77bb3f", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.510256+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-H25P", "note": "settled", "schema": "v1"}
+{"task_id": "16d8a9db305b7ee8290d", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.601331+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-H25", "note": "settled", "schema": "v1"}
+{"task_id": "40b2248e0403916eaff5", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.601349+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-H25", "note": "settled", "schema": "v1"}
+{"task_id": "ff036a9bb60190f93cba", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.707515+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-C25P", "note": "settled", "schema": "v1"}
+{"task_id": "661bc2a37c8d3d200695", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.707534+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-C25P", "note": "settled", "schema": "v1"}
+{"task_id": "3ddb9a142f5df27f38cd", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.801560+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-C25", "note": "settled", "schema": "v1"}
+{"task_id": "0769a6d53296e98e1c2d", "outcome": 0.0, "resolved_at": "2026-10-30T18:47:56.801579+00:00", "source": "kalshi:KXCBDECISIONJAPAN-26OCT29-C25", "note": "settled", "schema": "v1"}
