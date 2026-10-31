@@ -327,12 +327,16 @@ All four are covered by tests (`tests/test_edgar.py`).
     Azure's copy of the same snapshot, which Microsoft's schedule then kept until
     April 2027; on 23 Sep Microsoft moved that retirement to 14 Oct, before the move.
     So the move is withdrawn and the model is not asked from 23 Oct (deviation 24).
-    Its answers end on 22 Oct, so on the analysed panel it will most likely fall
-    under the 80% floor and §5.6 will report it separately; the primary panel is
-    then eight models, and the human benchmark for eight is already registered
-    (deviation 17). A registered sensitivity re-runs the primary estimate, H3 and
-    H6 on the questions asked before 23 Oct with all nine models, so the OpenAI
-    within-family pair is still reported where it exists. The comparison of its
+    Its answers end on 22 Oct, so on the analysed panel it will fall under the 80%
+    floor and §5.6 will report it separately. `gemini_flash_pro`, which stopped on
+    10 Oct (deviation 25), goes the same way. The primary panel is then seven models
+    with one within-family pair, where H3 cannot run and H6's p cannot go below
+    1/21, so H3 and H6 are judged on the questions asked before 10 Oct, where all
+    nine models and all three pairs exist, and the seven-model runs are reported
+    beside them (deviation 27). The human benchmark for seven is fixed there too.
+    A registered sensitivity re-runs the primary estimate, H3 and H6 on the
+    questions asked before 23 Oct, so the OpenAI within-family pair is still
+    reported where it exists. The comparison of its
     answers on the two hosts, asked 20 Sep to 13 Oct, stays in the record. The
     lesson for anyone repeating this: a vendor's retirement schedule is itself a
     moving part, and has to be re-read during collection, not only before it.

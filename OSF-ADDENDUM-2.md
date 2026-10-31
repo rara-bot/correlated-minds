@@ -15,7 +15,7 @@ could affect are unknown. Fold in any later deviation first.
 | Registration | osf.io/x6kqg, registered 2026-08-29 14:44 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
 | Addendum 1 | posted 2026-10-03 (Zenodo 10.5281/zenodo.23113579), deviations 1-24 |
-| Recorded at | PREREGISTRATION.md §11, deviations 25-26 |
+| Recorded at | PREREGISTRATION.md §11, deviations 25-27 |
 
 ---
 
@@ -24,10 +24,11 @@ could affect are unknown. Fold in any later deviation first.
 ```
 ADDENDUM 2
 
-Two new dated deviations, logged in PREREGISTRATION.md section 11 before the
+Three new dated deviations, logged in PREREGISTRATION.md section 11 before the
 registered final look (after 11 Dec), and notes on deviations 24 and 19. No
 hypothesis, falsification clause, temperature, task mix, primary outcome or
-multiple-testing correction has changed.
+multiple-testing correction has changed. Deviation 27 changes which task-days H3
+and H6 are judged on, and is set out in full below.
 
 DEVIATION 25 (11 Oct): gemini-3.5-flash is retired from 10 Oct
 - Google deprecated gemini-3.5-flash on 8 Oct and now answers every request for
@@ -59,6 +60,32 @@ DEVIATION 26 (24 Oct): the questions of 21 Oct carry no market state
   state actually recorded on only 33 of 53 checks, missing by up to 3.5 VIX
   points, so it cannot say what FRED would have shown on 21 Oct.
 - We chose this without reading any outcome.
+
+DEVIATION 27 (31 Oct): H3 and H6 are judged on the questions asked before 10 Oct
+- Deviations 24 and 25 each considered one retirement. Together they leave
+  gemini-3.5-flash and gpt-4.1-nano under the 80% floor of section 5.6, so the
+  primary panel ends at seven models with one within-family pair (Anthropic's).
+- A run on permuted outcomes, printing only which tests could run, shows the
+  effect. H3's cross-family arm is empty, so H3 reads untested. H6's exact
+  permutation has 21 labelings, so its p cannot go below 1/21 = 0.048. Section
+  3.1 widened the panel to nine to avoid exactly this.
+- The verdicts of H3 and H6 are now read from the sub-panel deviation 25 already
+  reports: the questions asked before 10 Oct, with all nine models and all three
+  pairs (1260 labelings). On 31 Oct it holds 436 settled task-days (277 for H3),
+  and up to 959 (650) once everything asked in it has settled. Estimators,
+  intervals, thresholds and falsification clauses are unchanged.
+- The primary estimate, H1, H2, H4 and H5 run on the primary panel as registered.
+  H3 and H6 on the primary panel are still reported, labelled as not deciding.
+- H4 matches the surviving panel size, so the human benchmark moves to seven. It
+  is fixed now, from the pinned data. SPF RECESS at M = 7, headroom [interval]:
+  h=1 0.1698 [0.060, 0.400], h=2 0.1168 [0.034, 0.298], h=3 0.1075 [0.027, 0.348],
+  h=4 0.1181 [0.021, 0.376], h=5 0.1307 [0.023, 0.423].
+- The Week-5 prediction is read on the primary panel as published. A smaller panel
+  cannot hand it a hit: at every size up to nine, rho_bar above 0.147575 already
+  puts headroom below 3.536360, so the rho_bar condition decides it.
+- The cost: H3 and H6 rest on fewer and earlier task-days than the rest of the
+  study. We chose this from which answers exist and from permuted runs, without
+  reading any outcome, estimate or verdict of the real record.
 
 A NOTE ON DEVIATION 24
 - After deviation 24 was written, Microsoft's schedule moved Azure's retirement of

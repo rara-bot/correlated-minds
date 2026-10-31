@@ -79,6 +79,19 @@ class TestTheRegisteredBenchmark:
         assert (round(baseline.n_eff_matched_ci[0] - 1, 3),
                 round(baseline.n_eff_matched_ci[1] - 1, 3)) == (lo, hi)
 
+    @pytest.mark.parametrize("horizon, headroom, lo, hi", [
+        (1, 0.1698, 0.060, 0.400),
+        (2, 0.1168, 0.034, 0.298),
+        (3, 0.1075, 0.027, 0.348),
+        (4, 0.1181, 0.021, 0.376),
+        (5, 0.1307, 0.023, 0.423),
+    ])
+    def test_deviation_27_fixes_it_at_seven(self, horizon, headroom, lo, hi):
+        baseline = spf.measure_binary(horizon=horizon, matched_panel_size=7)
+        assert round(baseline.n_eff_matched - 1, 4) == headroom
+        assert (round(baseline.n_eff_matched_ci[0] - 1, 3),
+                round(baseline.n_eff_matched_ci[1] - 1, 3)) == (lo, hi)
+
     def test_the_default_panel_is_the_registered_one(self):
         """The default was 7, the size of the original seven-model panel, so a call
         with defaults silently unmatched the comparison H4 says is matched."""
