@@ -130,6 +130,7 @@ PREREGISTRATION.md §11.
 | H3 prompt-variant arm; Kalshi prices on every question | ✅ from the first run after 13 Sep (deviations 14, 15) |
 | `gpt_small` after 22 Oct | ⏹ not asked from 23 Oct: OpenAI shuts it down that day and Azure retires it on 14 Oct, so no host serves it; the registered 80% rule applies, and a sensitivity keeps all nine models on the questions asked before 23 Oct (deviation 24, withdrawing 23's move) |
 | Market state on 21 Oct | ⚠ missing: FRED's website was down for maintenance when the day's 25 questions were asked; stated, not filled in, and left out of H1's market-state tests only (deviation 26) |
+| H3 and H6 | judged on the questions asked before 10 Oct, where all nine models and all three within-family pairs exist; the two retirements leave the primary panel one pair, and its runs are reported beside them (deviation 27) |
 | Estimators: N_eff, block and cluster bootstrap, Benjamini-Hochberg | ✅ tested |
 | Registered exclusions (§3.3, §5.6, deviations 3 and 16) | ✅ applied by the analysis |
 | Primary estimate and every quantity "reported always" | ✅ built; run blind with `scripts/analyze.py` |
@@ -270,7 +271,7 @@ tests/             about 950 tests, run on every push and before every collectio
 | [EXPLAINER.md](EXPLAINER.md) | Plain-language version — not for use as an abstract |
 | [PREREGISTRATION.md](PREREGISTRATION.md) | The frozen scientific commitment, with its deviation log |
 | [OSF-ADDENDUM-1.md](OSF-ADDENDUM-1.md) | The first public addendum, posted 3 Oct, covering every deviation up to 24 |
-| [OSF-ADDENDUM-2.md](OSF-ADDENDUM-2.md) | The second addendum (deviations 25 and 26), ready to post |
+| [OSF-ADDENDUM-2.md](OSF-ADDENDUM-2.md) | The second addendum (deviations 25 to 27), ready to post |
 | [VALIDITY.md](VALIDITY.md) | Do the tasks match how AI is used in finance? Limitations |
 | [AUDIT.md](AUDIT.md) | 28 defects found before collection, and how |
 | [PRIOR-ART.md](PRIOR-ART.md) | What is already claimed, with verification flags |

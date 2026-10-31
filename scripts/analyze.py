@@ -15,8 +15,10 @@ have one instead. The only registered unblinded looks are the Week-5 fit
 What it runs: the primary estimate with both registered intervals
 (`analysis.run`); every quantity the plan reports always (`report`, the 5.4(a)
 logprob re-estimate among them); H1 (`h1`); and H2 to H6 (`h2` to `h6`,
-deviation 20). What it does not run is listed in its output, so nobody mistakes a
-missing analysis for a null one.
+deviation 20). H3 and H6 are judged on the task-days asked before the first
+retirement, and their primary-panel runs are reported beside them (deviation 27).
+What it does not run is listed in its output, so nobody mistakes a missing analysis
+for a null one.
 """
 from __future__ import annotations
 
@@ -105,6 +107,13 @@ def main(argv=None) -> int:
         },
         "not_run": NOT_RUN,
     }
+    # Deviation 27: H3 and H6 are judged on the task-days asked before the first
+    # retirement, where all three within-family pairs exist. Their primary-panel runs
+    # above stay in the report and do not decide.
+    first = min(RETIREMENTS, key=RETIREMENTS.get)
+    before_first = result["before_retirement"][first]
+    result["h3_h6_confirmatory"] = {"asked_before": RETIREMENTS[first],
+                                    "h3": before_first["h3"], "h6": before_first["h6"]}
     result = _clean(result)
     print(("BLIND -- outcomes permuted; every number below is meaningless by design"
            if blind else "UNBLINDED"))
@@ -112,9 +121,14 @@ def main(argv=None) -> int:
           f"excluded {primary.get('models_excluded')}")
     for warning in primary.get("warnings", []):
         print(f"  ! {warning}")
-    for key in ("h2", "h3", "h4", "h6"):
-        print(f"{key}: {result[key].get('verdict')}"
-              + ("  (provisional)" if result[key].get("provisional") else ""))
+    confirmatory = result["h3_h6_confirmatory"]
+    for key, part in (("h2", result["h2"]), ("h3", confirmatory["h3"]),
+                      ("h4", result["h4"]), ("h6", confirmatory["h6"])):
+        print(f"{key}: {part.get('verdict')}"
+              + ("  (provisional)" if part.get("provisional") else ""))
+    for key in ("h3", "h6"):
+        print(f"{key} on the primary panel (reported, does not decide; deviation 27): "
+              f"{result[key].get('verdict')}")
     print("not run:", "; ".join(NOT_RUN))
     if args.out:
         args.out.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
