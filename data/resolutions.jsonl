@@ -602,3 +602,13 @@
 {"task_id": "f634ccd732be30080f2e", "outcome": 0.0, "resolved_at": "2026-11-01T20:49:44.637738+00:00", "source": "kalshi:KXDDCOLDBREW-26NOV02-T4.47", "note": "settled", "schema": "v1"}
 {"task_id": "29dd3264a56cbf14662b", "outcome": 1.0, "resolved_at": "2026-11-01T20:49:44.696884+00:00", "source": "kalshi:KXDDCOLDBREW-26NOV02-T4.46", "note": "settled", "schema": "v1"}
 {"task_id": "926f9b59f48251c67043", "outcome": 1.0, "resolved_at": "2026-11-01T20:49:44.747527+00:00", "source": "kalshi:KXDDCOLDBREW-26NOV02-T4.45", "note": "settled", "schema": "v1"}
+{"task_id": "41c860bde4cf0e8777db", "outcome": 0.0, "resolved_at": "2026-11-03T02:09:29.125435+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4500000", "note": "settled", "schema": "v1"}
+{"task_id": "b5a0f9e11941cd3e8046", "outcome": 0.0, "resolved_at": "2026-11-03T02:09:29.125456+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4500000", "note": "settled", "schema": "v1"}
+{"task_id": "6acae70be31e7578b58a", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.179937+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4400000", "note": "settled", "schema": "v1"}
+{"task_id": "eb9e2bd24ec469600841", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.179954+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4400000", "note": "settled", "schema": "v1"}
+{"task_id": "d154f2b3d1f208b8847f", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.241963+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4300000", "note": "settled", "schema": "v1"}
+{"task_id": "efb8dee1074ff8b68e9d", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.241981+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4300000", "note": "settled", "schema": "v1"}
+{"task_id": "b06b04027f4f7255c569", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.295923+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4200000", "note": "settled", "schema": "v1"}
+{"task_id": "56f5224c6520977e5200", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.295941+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4200000", "note": "settled", "schema": "v1"}
+{"task_id": "3c3f775bd6fdb2a1a5b1", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.357407+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4100000", "note": "settled", "schema": "v1"}
+{"task_id": "00766ce20017ab50c6ad", "outcome": 1.0, "resolved_at": "2026-11-03T02:09:29.357424+00:00", "source": "kalshi:KXNYCSUBWAY-26OCT31-A4100000", "note": "settled", "schema": "v1"}
