@@ -25,7 +25,8 @@ could affect are unknown. Fold in any later deviation first.
 ADDENDUM 2
 
 Three new dated deviations, logged in PREREGISTRATION.md section 11 before the
-registered final look (after 11 Dec), and notes on deviations 24 and 19. No
+registered final look (after 11 Dec), notes on deviations 24 and 19, and a
+note naming the release that decides the Week-5 prediction. No
 hypothesis, falsification clause, temperature, task mix, primary outcome or
 multiple-testing correction has changed. Deviation 27 changes which task-days H3
 and H6 are judged on, and is set out in full below.
@@ -102,6 +103,21 @@ A NOTE ON DEVIATION 19
   the leg now includes deepseek on the few task-days those hosts answered
   (4 of 312 settled task-days on 24 Oct). The rule is applied as written;
   nothing was changed.
+
+A NOTE ON THE WEEK-5 PREDICTION
+- The first holdout release at or above the registered surprise threshold
+  has closed: the October jobs report, 6 Nov 13:29 UTC. The surprise is computed
+  from market prices only and is public in data/release_surprise.jsonl:
+  KXPAYROLLS-26OCT 0.2468 and KXU3-26OCT 0.2612, both above 0.2425625.
+- The two markets closed at the same minute, which deviation 18 (7)'s "first
+  eligible release" does not order. It does not need to: no question on
+  KXU3-26OCT was asked from 3 Oct, so it has no holdout task-days and is not
+  eligible. KXPAYROLLS-26OCT (32 questions asked from 3 Oct) is the only
+  release that can decide it now. If its panel turns out not estimable, the
+  next qualifying release decides, as registered.
+- We state this from the question list and the public surprises alone. No
+  forecast, outcome, estimate or verdict was read; the verdict is computed only
+  after the freeze, as deviation 17 (9) sets out.
 
 VERIFICATION
   Repository:  https://github.com/rara-bot/correlated-minds
