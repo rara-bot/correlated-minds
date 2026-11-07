@@ -135,7 +135,7 @@ PREREGISTRATION.md §11.
 | Registered exclusions (§3.3, §5.6, deviations 3 and 16) | ✅ applied by the analysis |
 | Primary estimate and every quantity "reported always" | ✅ built; run blind with `scripts/analyze.py` |
 | H1 regression and tercile contrasts | ✅ built; run blind (`neff/h1.py`, deviation 17) |
-| Week-5 prediction | ✅ built and registered (deviations 18, 22); published on 2 Oct, after 20:00 UTC |
+| Week-5 prediction | ✅ built and registered (deviations 18, 22); published on 2 Oct, after 20:00 UTC; its deciding release, October payrolls, closed on 6 Nov (Addendum 2); verdict after the freeze |
 | H2 to H6, and the §5.4(a) logprob re-estimate | ✅ built; run blind (`neff/h2.py` to `neff/h6.py`, deviation 20) |
 | SPF human baseline | ✅ read from pinned inputs; reproduces the registered table exactly (deviation 19) |
 
