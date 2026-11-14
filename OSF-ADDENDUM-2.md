@@ -15,7 +15,7 @@ could affect are unknown. Fold in any later deviation first.
 | Registration | osf.io/x6kqg, registered 2026-08-29 14:44 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
 | Addendum 1 | posted 2026-10-03 (Zenodo 10.5281/zenodo.23113579), deviations 1-24 |
-| Recorded at | PREREGISTRATION.md §11, deviations 25-27 |
+| Recorded at | PREREGISTRATION.md §11, deviations 25-28 |
 
 ---
 
@@ -24,12 +24,13 @@ could affect are unknown. Fold in any later deviation first.
 ```
 ADDENDUM 2
 
-Three new dated deviations, logged in PREREGISTRATION.md section 11 before the
+Four new dated deviations, logged in PREREGISTRATION.md section 11 before the
 registered final look (after 11 Dec), notes on deviations 24 and 19, and a
 note naming the release that decides the Week-5 prediction. No
 hypothesis, falsification clause, temperature, task mix, primary outcome or
 multiple-testing correction has changed. Deviation 27 changes which task-days H3
-and H6 are judged on, and is set out in full below.
+and H6 are judged on, and is set out in full below. Deviation 28 changes only
+how a request that failed is retried.
 
 DEVIATION 25 (11 Oct): gemini-3.5-flash is retired from 10 Oct
 - Google deprecated gemini-3.5-flash on 8 Oct and now answers every request for
@@ -87,6 +88,33 @@ DEVIATION 27 (31 Oct): H3 and H6 are judged on the questions asked before 10 Oct
 - The cost: H3 and H6 rest on fewer and earlier task-days than the rest of the
   study. We chose this from which answers exist and from permuted runs, without
   reading any outcome, estimate or verdict of the real record.
+
+DEVIATION 28 (14 Nov): a second host is ignored, and an empty reply is retried
+- Between 3 and 13 Nov deepseek lost 23 of its 297 answers, 10 of them on 9 Nov,
+  to two faults in how its answers are fetched, not in the model.
+- 13 were lost when its usual host (DigitalOcean) was busy and OpenRouter passed
+  the request to a second host, AtlasCloud, which rejects it (HTTP 400). Test
+  requests on 14 Nov, outside the record, showed that AtlasCloud refuses the
+  logprobs the study asks for and that no third host accepts the request. The
+  registered wait for a busy host (deviation 11) never started, because the
+  error that came back was AtlasCloud's.
+- 10 arrived as HTTP 200 with no answer inside: no text, no tokens billed, no
+  host named. OpenRouter documents this for a host that accepts a request and
+  then fails. The collector read only the status and recorded "unparseable
+  response" without retrying. 9 qwen answers have the same shape.
+- The change: AtlasCloud joins Novita on the ignore list (deviation 4), so a
+  busy host is waited out as deviation 11 intends; and a reply with an error
+  and no answer, or with no text and no tokens billed, is retried like any
+  other failed call (twice, 2 s and 4 s apart). A reply in which the model
+  wrote something that is not the JSON asked for is recorded as before and
+  never retried. Both apply from the collection of 16 Nov.
+- The question, the models, temperature, token limit and the logprobs request
+  are unchanged. The 32 rows already lost stay in the record as failures.
+- 9 Nov is one of the four days so far asked with the VIX at or above 25
+  (7 to 10 Nov), which H1's stress leg depends on. deepseek's place in the
+  panel was not at risk (99.8% of 951 settled task-days). We chose this from
+  the failed rows' error text and the test requests, without reading any
+  forecast, outcome, estimate or verdict.
 
 A NOTE ON DEVIATION 24
 - After deviation 24 was written, Microsoft's schedule moved Azure's retirement of

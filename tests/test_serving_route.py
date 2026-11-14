@@ -122,9 +122,11 @@ class TestTheAzureProvider:
         assert "logprobs" not in body
 
     def test_the_general_openrouter_routing_is_unchanged(self):
-        # Deviation 4: free routing for the open-weight models, one host ignored.
+        # Deviations 4 and 28: free routing for the open-weight models, with the two
+        # hosts seen to reject the request ignored.
         assert providers.PROVIDERS["openrouter"].EXTRA_BODY == {
-            "provider": {"require_parameters": True, "allow_fallbacks": True, "ignore": ["Novita"]}}
+            "provider": {"require_parameters": True, "allow_fallbacks": True,
+                         "ignore": ["Novita", "AtlasCloud"]}}
 
     def test_the_host_that_answered_is_recorded(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")

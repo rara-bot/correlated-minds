@@ -426,13 +426,52 @@ class OpenAICompatProvider(Provider):
 
         payload = response.json()
         choices = payload.get("choices") or []
-        text = choices[0].get("message", {}).get("content", "") if choices else ""
-        usage = payload.get("usage", {})
+        text = ((choices[0].get("message") or {}).get("content") or "") if choices else ""
+        usage = payload.get("usage") or {}
+        input_tokens = int(usage.get("prompt_tokens") or 0)
+        output_tokens = int(usage.get("completion_tokens") or 0)
+
+        # HTTP 200 IS NOT ALWAYS AN ANSWER (PREREGISTRATION.md 11, deviation 28).
+        #
+        # OpenRouter sends the status line as soon as a host accepts the request.
+        # If the host then fails, the reply is "a 200 OK whose JSON body holds
+        # only an error object and no choices", and a host that is warming up can
+        # return a reply with no content at all (openrouter.ai/docs, "Errors and
+        # debugging", read 2026-11-14). Read by status alone, both arrive here as
+        # an empty string, were filed as "unparseable response" -- the label for
+        # a model that will not follow the output format -- and were never
+        # retried, because nothing had raised. 10 deepseek rows went that way,
+        # 9 of them on 2026-11-09, and 9 qwen rows: no text, no tokens billed, no
+        # host named.
+        #
+        # So a reply that carries nothing is raised as the failed call it is, and
+        # `ask()` gives it the retries every other failed call gets. The message
+        # keeps the `<name> HTTP <status>: <body>` form with the status the body
+        # itself reports, so a 429 delivered inside a 200 is waited out like any
+        # other 429.
+        #
+        # Narrow on purpose, like `_rejects_logprobs`: only a body with an error
+        # and no choices, or a reply with no text AND no output tokens billed. A
+        # reply that spent tokens and still produced no JSON is the model's own
+        # doing and stays an observation, labelled downstream as before.
+        error = payload.get("error")
+        if error and not choices:
+            code = error.get("code") if isinstance(error, dict) else None
+            status = code if isinstance(code, int) and 400 <= code <= 599 else 200
+            raise ProviderError(
+                f"{self.name} HTTP {status}: error inside an HTTP 200 reply: "
+                f"{response.text[:300]}"
+            )
+        if not text and not output_tokens:
+            raise ProviderError(
+                f"{self.name} HTTP 200: empty reply (no content, no output tokens billed)"
+            )
+
         return Completion(
             text=text,
             model_id=payload.get("model", spec.model_id),
-            input_tokens=int(usage.get("prompt_tokens", 0)),
-            output_tokens=int(usage.get("completion_tokens", 0)),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             upstream_provider=_upstream_host(payload, self.UPSTREAM_FIELD),
             logprobs=_digit_logprobs(payload) if want else None,
         )
@@ -465,11 +504,31 @@ class OpenRouterProvider(OpenAICompatProvider):
     # failure. Routing is deliberately left free otherwise: days 1-8 were
     # collected with it floating, and pinning one host now would put a
     # discontinuity mid-panel to fix a problem the filter already solves.
+    #
+    # A SECOND HOST JOINED THE LIST ON 2026-11-14 (PREREGISTRATION.md 11,
+    # deviation 28). From 2026-11-04, whenever DigitalOcean -- the host serving
+    # deepseek that fortnight -- answered 429, OpenRouter fell back to AtlasCloud,
+    # which rejected the request:
+    #
+    #     HTTP 400 -- {"code":400,"msg":"invalid request params"}
+    #     (provider_name: AtlasCloud, previous_errors: DigitalOcean 429)
+    #
+    # Probed 2026-11-14: AtlasCloud answers that 400 to the request as sent and
+    # HTTP 200 to the same request without `logprobs`, and with AtlasCloud and
+    # DigitalOcean both excluded OpenRouter finds no host at all for the request
+    # ("No endpoints found that can handle the requested parameters"). So the
+    # fallback had exactly one place to go, and it could not answer. The 400
+    # names no parameter, so the reissue-without-logprobs path does not see it;
+    # it is not a 429, so the rate-limit wait does not see it either; and all
+    # three attempts took the same road inside eight seconds. 13 deepseek rows
+    # were lost that way between 2026-11-04 and 2026-11-13. With AtlasCloud
+    # ignored, a throttled DigitalOcean comes back as the 429 it is, and
+    # RATE_LIMIT_WAITS_S waits it out.
     EXTRA_BODY = {
         "provider": {
             "require_parameters": True,
             "allow_fallbacks": True,
-            "ignore": ["Novita"],
+            "ignore": ["Novita", "AtlasCloud"],
         }
     }
 

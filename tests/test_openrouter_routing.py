@@ -78,6 +78,14 @@ class TestTheRoutingGuardIsSent:
         providers.OpenRouterProvider().complete(BY_KEY["qwen"], "q", 400, 10.0)
         assert "Novita" in sent["json"]["provider"]["ignore"]
 
+    def test_the_fallback_that_rejects_the_request_is_excluded(self, sent):
+        """Deviation 28. From 2026-11-04 a throttled DigitalOcean handed deepseek
+        to AtlasCloud, which answered HTTP 400 "invalid request params" to the
+        request as sent (it rejects `logprobs`; probed 2026-11-14). Thirteen rows
+        were lost to a fallback that could not answer."""
+        providers.OpenRouterProvider().complete(BY_KEY["deepseek"], "q", 400, 10.0)
+        assert sent["json"]["provider"]["ignore"] == ["Novita", "AtlasCloud"]
+
     def test_hosts_that_cannot_serve_the_request_are_filtered(self, sent):
         """The general form. Naming Novita fixes the failure we saw; this is
         what catches the next host that cannot serve the call as sent."""
