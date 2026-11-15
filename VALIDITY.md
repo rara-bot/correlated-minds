@@ -299,6 +299,11 @@ All four are covered by tests (`tests/test_edgar.py`).
    fault and most of a third to rate limits (§11, deviations 4 and 11). If its
    coverage on the resolved panel stays under 80%, §5.6 removes it and M becomes 8;
    the human benchmark is then recomputed at M = 8 (deviation 17).
+   deepseek lost 23 answers between 3 and 13 Nov, 10 of them on one of the four
+   days asked with the VIX at or above 25, to a fallback host that rejected the
+   request and to replies that arrived empty. Both are handled from the
+   collection of 16 Nov (deviation 28); the lost answers stay lost, and its
+   coverage stays far above the floor.
 
 9. **Logprobs are usable for three models, and for a few deepseek rows.** Most hosts
    serving deepseek send none, and the two that sent them by 13 Sep (Google,
