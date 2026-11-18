@@ -1000,3 +1000,10 @@
 {"task_id": "f9bdb5ec8b1a96b27c7f", "outcome": 0.0, "resolved_at": "2026-11-17T00:34:16.600308+00:00", "source": "kalshi:KXSOCKEYERUN-27-B37P00-42P99", "note": "settled", "schema": "v1"}
 {"task_id": "da4450dc313777990818", "outcome": 0.0, "resolved_at": "2026-11-17T00:34:16.600324+00:00", "source": "kalshi:KXSOCKEYERUN-27-B37P00-42P99", "note": "settled", "schema": "v1"}
 {"task_id": "886f9b4694787f6ddba3", "outcome": 0.0, "resolved_at": "2026-11-17T00:34:16.809844+00:00", "source": "kalshi:KXSOCKEYERUN-27-B29P00-36P99", "note": "settled", "schema": "v1"}
+{"task_id": "edcc13831874a04fdfc5", "outcome": 0.0, "resolved_at": "2026-11-18T21:23:23.318612+00:00", "source": "kalshi:KXHOUSINGSTART-26NOV18-T1.400", "note": "settled", "schema": "v1"}
+{"task_id": "7eb8a8bf0b449f10b012", "outcome": 0.0, "resolved_at": "2026-11-18T21:23:23.427263+00:00", "source": "kalshi:KXHOUSINGSTART-26NOV18-T1.350", "note": "settled", "schema": "v1"}
+{"task_id": "7f1270583d71d1b369e1", "outcome": 1.0, "resolved_at": "2026-11-18T21:23:23.534570+00:00", "source": "kalshi:KXHOUSINGSTART-26NOV18-T1.300", "note": "settled", "schema": "v1"}
+{"task_id": "b4f9b49e460bac324519", "outcome": 1.0, "resolved_at": "2026-11-18T21:23:23.636610+00:00", "source": "kalshi:KXHOUSINGSTART-26NOV18-T1.250", "note": "settled", "schema": "v1"}
+{"task_id": "04c73c49345d035738b9", "outcome": 1.0, "resolved_at": "2026-11-18T21:23:23.731711+00:00", "source": "kalshi:KXHOUSINGSTART-26NOV18-T1.200", "note": "settled", "schema": "v1"}
+{"task_id": "dbf7e37c66d32426c66f", "outcome": 1.0, "resolved_at": "2026-11-18T21:23:23.847835+00:00", "source": "kalshi:KXHOUSINGSTART-26NOV18-T1.150", "note": "settled", "schema": "v1"}
+{"task_id": "2e3fb5ecbb477435f32b", "outcome": 1.0, "resolved_at": "2026-11-18T21:23:23.947616+00:00", "source": "kalshi:KXHOUSINGSTART-26NOV18-T1.100", "note": "settled", "schema": "v1"}
