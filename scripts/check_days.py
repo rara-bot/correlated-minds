@@ -363,13 +363,29 @@ def main() -> int:
         print("  Under 80% across the window and again on the most recent day.")
         print("  A model under the floor leaves the primary panel (3.3).")
 
+    # A model that lost more than a fifth of its answers on the latest day, though its
+    # window is still above the floor. The window rule alone let deepseek lose every
+    # answer on 2026-11-24 without a word (162/189 = 85.7% over the window), and by the
+    # time the window crossed 80% the next day was lost too (deviation 29). Every
+    # model-day under 80% from 2026-09-01 to 2026-11-25 -- eleven of them -- was a
+    # real fault, so this is not noise: it is the first day, when the next one can
+    # still be saved. Retired models are not asked, so they have no latest-day rows.
+    failing_latest = [m for m in sorted(lseen)
+                      if lseen[m] and m not in below and lgood[m] / lseen[m] < COVERAGE_FLOOR]
+    if failing_latest:
+        print(f"LOST ON THE LATEST DAY ({latest}): {', '.join(failing_latest)}")
+        for m in failing_latest:
+            print(f"  {m}: {lgood[m]}/{lseen[m]} answered")
+        print("  Under 80% on the most recent day, though not yet across the window.")
+        print("  Those answers are lost; find the cause before the next day is asked.")
+
     if watching:
         print(f"WATCHING (under floor, recovered): {', '.join(watching)}")
         print(f"  Below 80% across the last {len(window)} collected days, but at or")
         print("  above it on the most recent one -- an old bad day still inside the")
         print("  window. Not alarmed on. It clears as the bad day ages out.")
 
-    if not problems and not below:
+    if not problems and not below and not failing_latest:
         collected = len(expected) - len(missing)
         low = watching or [m for m in sorted(wseen)
                            if wseen[m] and wgood[m] / wseen[m] < COVERAGE_FLOOR]
@@ -394,6 +410,10 @@ def main() -> int:
             "today_collected": today.isoformat() not in missing,
             "missing_days": hard_missing,
             "below_floor": below,
+            # Models under 80% on the latest collected day alone (not in below_floor).
+            "latest_day": latest,
+            "latest_day_below": {m: {"answered": lgood[m], "asked": lseen[m]}
+                                 for m in failing_latest},
             "window_days": len(window),
             "coverage_window": {m: round(wgood[m] / wseen[m], 4)
                                 for m in sorted(wseen) if wseen[m]},
