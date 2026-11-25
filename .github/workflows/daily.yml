@@ -417,6 +417,11 @@ jobs:
           for m in c.get("below_floor", []):
               cov = c.get("coverage_window", {}).get(m)
               reasons.append(f"`{m}` is at {cov:.0%} over the last {c.get('window_days')} collected days, under the 80% floor of PREREGISTRATION.md 3.3")
+          # The first bad day, while the window is still above the floor. On
+          # 2026-11-24 deepseek answered 0/27 and nothing was raised, because the
+          # window still read 86%; the next day was lost before the window crossed.
+          for m, v in (c.get("latest_day_below") or {}).items():
+              reasons.append(f"`{m}` answered only {v.get('answered')}/{v.get('asked')} on {c.get('latest_day')}; the rest are lost, and the next day will be too unless the cause is found (see the error rows of that day)")
           # The bridge (deviations 23 and 24) asks a model's questions through a
           # second host too, until 13 Oct. It carries the model nowhere, so no day
           # is at risk when it fails -- but a sudden failure most likely means that
@@ -452,6 +457,9 @@ jobs:
           BODY="$(cat alarm.txt)
 
           Run: ${RUN_URL}
+
+          A re-run only asks what was never asked: an answer that failed stays failed,
+          because the collector skips everything already in the record.
 
           A day that is still missing tonight is missing permanently -- collection
           cannot be back-dated. If today has not landed, re-run it now:
