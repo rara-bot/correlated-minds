@@ -145,6 +145,11 @@ def _digit_logprobs(payload: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     return out or None
 
 
+# OpenRouter's answer when `require_parameters` (deviation 4) leaves no host that
+# serves the request as sent. Lower-cased, as `_rejects_logprobs` compares it.
+NO_HOST_FOR_PARAMETERS = "no endpoints found that can handle the requested parameters"
+
+
 def _rejects_logprobs(response) -> bool:
     """Is this failure specifically about the `logprobs` parameter?
 
@@ -152,6 +157,20 @@ def _rejects_logprobs(response) -> bool:
     silently drop the registered leg the first time a host rate-limited, and
     nothing would say the data had stopped arriving. Only a 4xx that names the
     parameter counts; a 429 or a 500 is left to the ordinary retry path.
+
+    ONE 4xx THAT DOES NOT NAME IT ALSO COUNTS (PREREGISTRATION.md 11, deviation
+    29): OpenRouter's 404 "No endpoints found that can handle the requested
+    parameters". On 2026-11-24 DigitalOcean, the last host that took deepseek's
+    request with `logprobs`, left deepseek/deepseek-v3.2; the three hosts that
+    remain (SiliconFlow, DeepInfra, Baidu) advertise temperature and max_tokens
+    but not logprobs. So every deepseek call ended in that 404 and the model lost
+    all 27 answers on 2026-11-24 and again on 2026-11-25. Probed 2026-11-25 with a
+    test question outside the record: the same request without `logprobs` is
+    answered (HTTP 200, DeepInfra). The caller only reaches this test for a call
+    that carried `logprobs`, and the reissue drops `logprobs` and nothing else --
+    `require_parameters` still holds the host to temperature 0 and the token
+    budget -- so if some other parameter is what no host can serve, the reissue
+    fails the same way and the row is recorded as the failure it is.
     """
     if not (400 <= int(getattr(response, "status_code", 0)) < 500):
         return False
@@ -159,7 +178,7 @@ def _rejects_logprobs(response) -> bool:
         body = str(response.text)[:2000].lower()
     except Exception:                                          # noqa: BLE001
         return False
-    return "logprob" in body
+    return "logprob" in body or NO_HOST_FOR_PARAMETERS in body
 
 
 def _upstream_host(payload: Dict[str, Any], field: Optional[str]) -> Optional[str]:

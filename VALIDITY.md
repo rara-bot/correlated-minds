@@ -304,6 +304,11 @@ All four are covered by tests (`tests/test_edgar.py`).
    request and to replies that arrived empty. Both are handled from the
    collection of 16 Nov (deviation 28); the lost answers stay lost, and its
    coverage stays far above the floor.
+   On 24 and 25 Nov it lost every answer, 54 in all, when its last host that
+   accepts the `logprobs` request left OpenRouter and no host would take the call;
+   24 Nov carries the study's highest VIX, 35.89. From the next collection such a
+   call is reissued without `logprobs` (deviation 29). Even had it answered nothing
+   more, its coverage would have ended near 89%, above the floor.
 
 9. **Logprobs are usable for three models, and for a few deepseek rows.** Most hosts
    serving deepseek send none, and the two that sent them by 13 Sep (Google,

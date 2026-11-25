@@ -15,7 +15,7 @@ could affect are unknown. Fold in any later deviation first.
 | Registration | osf.io/x6kqg, registered 2026-08-29 14:44 UTC |
 | Registered SHA-256 | `90a7e7de5980a80bef786e87b938495d7a08e10234032a11c5d67e8ce1c70009` |
 | Addendum 1 | posted 2026-10-03 (Zenodo 10.5281/zenodo.23113579), deviations 1-24 |
-| Recorded at | PREREGISTRATION.md §11, deviations 25-28 |
+| Recorded at | PREREGISTRATION.md §11, deviations 25-29 |
 
 ---
 
@@ -24,13 +24,13 @@ could affect are unknown. Fold in any later deviation first.
 ```
 ADDENDUM 2
 
-Four new dated deviations, logged in PREREGISTRATION.md section 11 before the
+Five new dated deviations, logged in PREREGISTRATION.md section 11 before the
 registered final look (after 11 Dec), notes on deviations 24 and 19, and a
 note naming the release that decides the Week-5 prediction. No
 hypothesis, falsification clause, temperature, task mix, primary outcome or
 multiple-testing correction has changed. Deviation 27 changes which task-days H3
-and H6 are judged on, and is set out in full below. Deviation 28 changes only
-how a request that failed is retried.
+and H6 are judged on, and is set out in full below. Deviations 28 and 29
+change only how a request that failed is retried.
 
 DEVIATION 25 (11 Oct): gemini-3.5-flash is retired from 10 Oct
 - Google deprecated gemini-3.5-flash on 8 Oct and now answers every request for
@@ -115,6 +115,33 @@ DEVIATION 28 (14 Nov): a second host is ignored, and an empty reply is retried
   panel was not at risk (99.8% of 951 settled task-days). We chose this from
   the failed rows' error text and the test requests, without reading any
   forecast, outcome, estimate or verdict.
+
+DEVIATION 29 (25 Nov): a call no host will take with logprobs is asked without them
+- On 24 and 25 Nov deepseek lost all 54 of its answers. Every call came back
+  from OpenRouter as HTTP 404, "No endpoints found that can handle the
+  requested parameters". Every other model answered every question.
+- DigitalOcean, deepseek's only host from 16 Nov and the last one that accepted
+  its request with logprobs, no longer serves the model. The three hosts left
+  (SiliconFlow, DeepInfra, Baidu) do not accept logprobs, and the study requires
+  every host to serve the request as sent (deviation 4). A test request on
+  25 Nov, outside the record, was answered by DeepInfra once logprobs were left
+  out.
+- Deviation 10 promised that asking for logprobs could never cost an answer: a
+  host that rejects them is asked again without them. That reissue looked for an
+  error naming logprobs, and this one does not name them.
+- The change: that one OpenRouter reply now counts as a refusal of logprobs, so
+  the call is reissued once without them and nothing else. Temperature 0 and the
+  token limit are still required of the host. Every run asks with logprobs
+  first, so if a host that accepts them comes back, they return by themselves.
+- What it costs: nothing the logprob sensitivity uses. DigitalOcean's logprobs
+  were already judged unusable under deviation 19. deepseek is now served by
+  other hosts, and the host of every answer is recorded.
+- 24 Nov carries the highest VIX of the study (35.89) and 25 Nov 26.62. The 54
+  rows stay in the record as failures. deepseek stands at 99.4% of the 1,071
+  settled task-days and would end near 89% at the freeze even with no further
+  answer, so its place in the panel was not at risk. We chose this from the
+  failed rows' error text, OpenRouter's public host list and two test requests,
+  without reading any forecast, outcome, estimate or verdict.
 
 A NOTE ON DEVIATION 24
 - After deviation 24 was written, Microsoft's schedule moved Azure's retirement of
